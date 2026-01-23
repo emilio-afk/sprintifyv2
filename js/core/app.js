@@ -64,7 +64,7 @@ const state = {
   // --- NUEVOS ESTADOS PARA VISTA POR PERSONA ---
   expandedPersonViews: new Set(), // Controla qué carriles están abiertos
   personViewPersonFilter: "all", // Filtro de persona ('all' o email)
-  personViewSprintFilter: "current",
+  personViewSprintFilter: "all",
   hasInitializedPersonViews: false, // Para evitar resetear la vista en cada update
 
   expandedEpicIds: new Set(),
@@ -911,12 +911,13 @@ function loadData() {
   const unsubProfiles = onSnapshot(query(profilesCollection), (snapshot) => {
     state.allUsers = snapshot.docs.map((d) => d.data());
 
-    // --- AGREGAR ESTO: Expandir todos por defecto al cargar ---
+    // --- LÓGICA DE INICIALIZACIÓN (MODIFICADA) ---
     if (!state.hasInitializedPersonViews) {
-      state.allUsers.forEach((u) => state.expandedPersonViews.add(u.email));
-      state.expandedPersonViews.add("unassigned");
-      state.hasInitializedPersonViews = true; // Flag para no resetear si los datos cambian en vivo
+      // ALERTA: Borramos las líneas que hacían .add().
+      // Al dejar el Set vacío, la interfaz interpretará que todo está cerrado.
+      state.hasInitializedPersonViews = true;
     }
+    // ---------------------------------------------
 
     checkAllLoaded();
   });

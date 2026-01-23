@@ -28,17 +28,42 @@ function createTaskElement(task, context, state) {
   const { allUsers, taskLists, epics } = state;
   const isCompleted = task.status === "completed";
 
-  // 1. HELPERS
+  // 1. HELPERS DE FECHA
   const now = new Date();
   const getDate = (ts) =>
     ts && ts.toDate ? ts.toDate() : ts ? new Date(ts) : null;
-  const formatDate = (d) =>
-    d ? d.toLocaleDateString("es-MX", { day: "numeric", month: "short" }) : "-";
   const createdAt = getDate(task.createdAt) || now;
+
+  // --- LÓGICA DE HERENCIA (NUEVO) ---
+  // Calculamos el inicio de ESTA semana (Lunes 00:00)
+  const todayForCalc = new Date();
+  const currentDay = todayForCalc.getDay();
+  const diff =
+    todayForCalc.getDate() - currentDay + (currentDay === 0 ? -6 : 1);
+  const startOfWeek = new Date(todayForCalc.setDate(diff));
+  startOfWeek.setHours(0, 0, 0, 0);
+
+  // Es heredada si se creó ANTES de este lunes
+  const isInherited = createdAt < startOfWeek;
+
+  // Marca Sutil (Ícono Ámbar)
+  const inheritedBadge = isInherited
+    ? `<div class="flex items-center justify-center w-4 h-4 rounded-full bg-amber-50 text-amber-600 border border-amber-100" title="Tarea heredada de semanas anteriores">
+         <i class="fa-solid fa-clock-rotate-left" style="font-size: 9px;"></i>
+       </div>`
+    : ``;
+  // -----------------------------------
 
   // 2. CONTADOR DÍAS
   const days = Math.round((now - createdAt) / (1000 * 60 * 60 * 24));
-  const daysHTML = `<div class="flex items-center gap-1 text-gray-400" style="font-size: 10px;" title="Antigüedad: ${days} días"><i class="fa-regular fa-calendar"></i><span>${days}d</span></div>`;
+  // Agregamos el badge de herencia junto al contador de días
+  const daysHTML = `
+    <div class="flex items-center gap-1.5">
+        <div class="flex items-center gap-1 text-gray-400" style="font-size: 10px;" title="Antigüedad: ${days} días">
+            <i class="fa-regular fa-calendar"></i><span>${days}d</span>
+        </div>
+        ${inheritedBadge}
+    </div>`;
 
   // 3. ICONO EPIC
   let epicTopIconHTML = "";
@@ -64,13 +89,12 @@ function createTaskElement(task, context, state) {
     }
   }
 
-  // 5. ESTÁNDARES (AQUÍ ESTÁ EL ARREGLO)
+  // 5. ESTÁNDARES
   const user = allUsers.find((u) => u.email === task.assignee);
   const userPhotoURL = user?.photoURL
     ? user.photoURL
     : `https://ui-avatars.com/api/?name=${task.assignee || ""}`;
 
-  // CORRECCIÓN: Si no hay assignee, mostramos un botón gris de "Asignar"
   const assigneeHTML = task.assignee
     ? `<img src="${userPhotoURL}" class="w-6 h-6 rounded-full border border-white shadow-sm object-cover" title="${task.assignee}">`
     : `<div class="w-6 h-6 rounded-full bg-gray-50 border border-gray-300 border-dashed flex items-center justify-center text-gray-400 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-colors" title="Asignar Responsable"><i class="fa-solid fa-user-plus" style="font-size: 10px;"></i></div>`;
@@ -113,7 +137,7 @@ function createTaskElement(task, context, state) {
             
             <div class="flex items-center gap-3">
                  ${(task.comments?.length || 0) > 0 ? `<div class="flex items-center gap-1 text-gray-400" style="font-size: 10px;"><i class="fa-regular fa-comment"></i><span>${task.comments.length}</span></div>` : ""}
-                 ${daysHTML}
+                 ${daysHTML} 
             </div>
 
             <div class="flex items-center gap-2">
@@ -497,13 +521,6 @@ function renderMyTasks(state) {
     container.innerHTML = `<p class="text-gray-500 text-center p-4">No tienes tareas asignadas.</p>`;
   }
 }
-
-// --- EN ui.js ---
-
-// --- EN ui.js ---
-
-// --- EN ui.js ---
-
 // --- EN ui.js ---
 
 function renderPersonView(state) {
@@ -511,16 +528,23 @@ function renderPersonView(state) {
   if (!container) return;
   container.innerHTML = "";
 
-  // ------------------------------------------------------
-  // 1. CONTROLES DE FILTROS (SPRINT + PERSONA)
-  // ------------------------------------------------------
+  // 1. HELPERS DE FECHA
+  const getStartOfWeek = (d) => {
+    const date = new Date(d);
+    const day = date.getDay();
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(date.setDate(diff));
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  };
+  const currentWeekStart = getStartOfWeek(new Date());
+
+  // 2. CONTROLES DE FILTROS
   const controlsDiv = document.createElement("div");
   controlsDiv.className =
     "mb-6 flex flex-wrap gap-4 items-end bg-white p-4 rounded-xl shadow-sm border border-gray-100";
 
-  // A) Selector de Sprints
-  let sprintOptions = `<option value="current">Sprint Activo Actual</option>
-                       <option value="all">Todos los Sprints Activos</option>`;
+  let sprintOptions = `<option value="all">Todos los Sprints Activos</option>`;
 
   state.taskLists
     .filter((l) => !l.isBacklog && !l.isArchived)
@@ -531,8 +555,6 @@ function renderPersonView(state) {
       }
     });
 
-  // B) Selector de Personas
-  // Usamos un Set para evitar duplicados visuales en el dropdown también
   const uniqueEmails = new Set();
   let peopleOptions = `<option value="all">Todo el Equipo</option>
                        <option value="unassigned">Sin Asignar</option>`;
@@ -557,19 +579,31 @@ function renderPersonView(state) {
               ${peopleOptions}
           </select>
       </div>
+      
+      <div class="w-full md:w-auto md:ml-auto flex items-center gap-4 text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg border border-gray-100 mt-2 md:mt-0">
+          <div class="flex items-center gap-1.5" title="Puntos terminados desde el lunes">
+              <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:#22c55e; border:1px solid #16a34a;"></span>
+              <span class="font-medium">Hecho (Semana)</span>
+          </div>
+          <div class="flex items-center gap-1.5" title="Puntos actualmente en la columna 'En Progreso'">
+              <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:#2563eb; border:1px solid #1d4ed8;"></span>
+              <span class="font-medium">Carga Viva</span>
+          </div>
+          <div class="border-l border-gray-300 pl-3 ml-1 italic text-gray-400">
+              * Capacidad: 20 pts/sem
+          </div>
+      </div>
   `;
   container.appendChild(controlsDiv);
 
-  // Restaurar valores de los selectores
+  // Restore selections
   const sprintSelect = controlsDiv.querySelector("#person-view-filter");
   if (state.personViewSprintFilter)
     sprintSelect.value = state.personViewSprintFilter;
-
   const personSelect = controlsDiv.querySelector("#person-view-people-filter");
   if (state.personViewPersonFilter)
     personSelect.value = state.personViewPersonFilter;
 
-  // Event Listeners
   if (typeof appActions !== "undefined") {
     sprintSelect.addEventListener("change", (e) =>
       appActions.setPersonViewSprintFilter(e.target.value),
@@ -579,85 +613,55 @@ function renderPersonView(state) {
     );
   }
 
-  // ------------------------------------------------------
-  // 2. LÓGICA DE FILTRADO DE TAREAS
-  // ------------------------------------------------------
+  // 3. FILTRADO
   let tasksToShow = [];
-
-  if (state.personViewSprintFilter === "all") {
-    // Traer tareas de sprints activos (no backlog, no archivados)
+  if (state.personViewSprintFilter === "all" || !state.personViewSprintFilter) {
     const activeSprintIds = state.taskLists
       .filter((l) => !l.isBacklog && !l.isArchived)
       .map((l) => l.id);
     tasksToShow = state.tasks.filter((t) => activeSprintIds.includes(t.listId));
-  } else if (
-    state.personViewSprintFilter === "current" ||
-    !state.personViewSprintFilter
-  ) {
-    if (!state.currentSprintId) {
-      container.innerHTML += `<div class="text-center py-10 text-gray-500">Selecciona un Sprint activo.</div>`;
-      return;
-    }
-    tasksToShow = state.tasks.filter((t) => t.listId === state.currentSprintId);
   } else {
-    // Sprint Específico
     tasksToShow = state.tasks.filter(
       (t) => t.listId === state.personViewSprintFilter,
     );
   }
 
-  // ------------------------------------------------------
-  // 3. AGRUPACIÓN Y RENDERIZADO (BLINDADO CONTRA DUPLICADOS)
-  // ------------------------------------------------------
-
-  // Helper para normalizar emails (minúsculas y trim)
   const normalize = (email) =>
     email ? email.trim().toLowerCase() : "unassigned";
-
   const grouped = { unassigned: [] };
-  const profileMap = {}; // Mapa para recordar datos del usuario (foto, nombre real)
+  const profileMap = {};
 
-  // A) Inicializar TODOS los usuarios del sistema (incluso sin tareas)
   state.allUsers.forEach((u) => {
     if (u.email) {
       const key = normalize(u.email);
       if (!grouped[key]) grouped[key] = [];
-
-      // Guardamos la info del perfil. Si hay duplicados, preferimos el que tenga foto.
       if (!profileMap[key] || (!profileMap[key].photoURL && u.photoURL)) {
         profileMap[key] = u;
       }
     }
   });
 
-  // B) Agrupar tareas usando la clave normalizada
   tasksToShow.forEach((task) => {
     const rawAssignee = task.assignee;
     const key = rawAssignee ? normalize(rawAssignee) : "unassigned";
-
-    // Si la tarea tiene un assignee que no estaba en allUsers, lo inicializamos
     if (!grouped[key]) {
       grouped[key] = [];
-      if (key !== "unassigned") {
-        // Crear perfil temporal
+      if (key !== "unassigned")
         profileMap[key] = {
           email: rawAssignee,
           displayName: rawAssignee.split("@")[0],
           photoURL: null,
         };
-      }
     }
     grouped[key].push(task);
   });
 
-  // C) Determinar qué claves mostrar según el filtro de persona
   let visibleKeys = Object.keys(grouped);
   if (state.personViewPersonFilter && state.personViewPersonFilter !== "all") {
     const filterKey = normalize(state.personViewPersonFilter);
     visibleKeys = visibleKeys.filter((k) => k === filterKey);
   }
 
-  // D) Ordenar (Sin asignar primero, luego alfabético)
   visibleKeys.sort((a, b) => {
     if (a === "unassigned") return -1;
     if (b === "unassigned") return 1;
@@ -669,80 +673,120 @@ function renderPersonView(state) {
     return;
   }
 
+  // 4. RENDERIZADO DE CARRILES
+  const WEEKLY_CAPACITY = 20;
+
   visibleKeys.forEach((emailKey) => {
     const tasks = grouped[emailKey];
     const userProfile = profileMap[emailKey];
+    const isExpanded = state.expandedPersonViews.has(emailKey);
 
-    // Stats
-    const totalPoints = tasks.reduce((sum, t) => sum + (t.points || 0), 0);
-    const completedTasks = tasks.filter(
-      (t) => t.kanbanStatus === "done" || t.status === "completed",
-    );
-    const completedPoints = completedTasks.reduce(
+    // --- CÁLCULO DE MÉTRICAS ---
+    const doneThisWeekTasks = tasks.filter((t) => {
+      if (t.kanbanStatus !== "done" && t.status !== "completed") return false;
+      if (!t.completedAt) return false;
+      const d = t.completedAt.toDate
+        ? t.completedAt.toDate()
+        : new Date(t.completedAt);
+      return d >= currentWeekStart;
+    });
+    const ptsDoneThisWeek = doneThisWeekTasks.reduce(
       (sum, t) => sum + (t.points || 0),
       0,
     );
-    const progress =
-      totalPoints > 0 ? Math.round((completedPoints / totalPoints) * 100) : 0;
 
-    // Estado colapsado/expandido
-    const isExpanded = state.expandedPersonViews.has(emailKey);
+    const inProgressTasks = tasks.filter(
+      (t) => t.kanbanStatus === "inprogress",
+    );
+    const ptsInProgress = inProgressTasks.reduce(
+      (sum, t) => sum + (t.points || 0),
+      0,
+    );
 
-    // --- Header ---
+    const todoTasks = tasks.filter((t) => t.kanbanStatus === "todo");
+    const ptsTodo = todoTasks.reduce((sum, t) => sum + (t.points || 0), 0);
+
+    const currentLoad = ptsDoneThisWeek + ptsInProgress + ptsTodo;
+
+    // Porcentajes
+    const pctDone = Math.min(100, (ptsDoneThisWeek / WEEKLY_CAPACITY) * 100);
+    const pctProg = Math.min(
+      100 - pctDone,
+      (ptsInProgress / WEEKLY_CAPACITY) * 100,
+    );
+    const spaceLeft = 100 - pctDone - pctProg;
+    const pctTodo = Math.min(spaceLeft, (ptsTodo / WEEKLY_CAPACITY) * 100);
+
+    const isOverloaded = currentLoad > WEEKLY_CAPACITY;
+    const loadColor = isOverloaded
+      ? "text-red-600"
+      : currentLoad >= 15
+        ? "text-blue-600"
+        : "text-gray-500";
+
+    // --- HEADER ---
     const swimlane = document.createElement("div");
     swimlane.className =
       "mb-4 border border-gray-200 rounded-xl shadow-sm bg-white overflow-hidden transition-all duration-200";
 
-    let headerContent = "";
+    let headerHTML = "";
+
     if (emailKey === "unassigned") {
-      headerContent = `
-        <div class="flex items-center gap-3">
-           <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
-             <i class="fas fa-question"></i>
+      headerHTML = `
+        <div class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors" data-person-toggle="${emailKey}">
+           <div class="flex items-center gap-3">
+               <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-400"><i class="fas fa-question"></i></div>
+               <div>
+                   <h3 class="text-base font-bold text-gray-700 italic">Sin Asignar</h3>
+                   <p class="text-xs text-gray-500">${tasks.length} tareas</p>
+               </div>
            </div>
-           <div>
-             <h3 class="text-lg font-bold text-gray-700 italic">Sin Asignar</h3>
-             <p class="text-xs text-gray-500">${tasks.length} tareas disponibles</p>
-           </div>
+           <i class="fas fa-chevron-down transition-transform duration-300 ${isExpanded ? "rotate-180" : ""} text-gray-400"></i>
         </div>`;
     } else {
       const avatar =
         userProfile?.photoURL ||
         `https://ui-avatars.com/api/?name=${emailKey.split("@")[0]}`;
       const name = userProfile?.displayName || emailKey;
-      const loadBarColor = progress === 100 ? "bg-emerald-500" : "bg-blue-600";
 
-      headerContent = `
-        <div class="flex items-center gap-3 flex-grow">
-           <img src="${avatar}" class="w-10 h-10 rounded-full border border-gray-100 shadow-sm object-cover">
-           <div class="flex-grow">
-             <div class="flex justify-between items-center mb-1 pr-4">
-                <h3 class="text-base font-bold text-gray-800">${name}</h3>
-                <span class="text-xs font-bold text-gray-500">${completedPoints}/${totalPoints} pts</span>
-             </div>
-             <div class="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden max-w-[200px]">
-                <div class="${loadBarColor} h-1.5 rounded-full transition-all duration-500" style="width: ${progress}%"></div>
-             </div>
+      headerHTML = `
+        <div class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors group/header" data-person-toggle="${userProfile ? userProfile.email : emailKey}">
+           
+           <div class="flex items-center gap-3">
+               <img src="${avatar}" class="w-10 h-10 rounded-full border border-gray-100 shadow-sm object-cover">
+               <div>
+                   <div class="flex items-center gap-2">
+                       <h3 class="text-base font-bold text-gray-800">${name}</h3>
+                       <button data-action="delete-user-profile" data-email="${emailKey}" class="opacity-0 group-hover/header:opacity-100 text-gray-300 hover:text-red-500 transition-opacity p-1" title="Borrar perfil">
+                           <i class="fas fa-trash-can text-xs"></i>
+                       </button>
+                   </div>
+               </div>
+           </div>
+
+           <div class="flex items-center gap-6">
+               
+               <div style="width: 140px; height: 12px; background-color: #f3f4f6; border-radius: 9999px; overflow: hidden; display: flex; border: 1px solid #e5e7eb; position: relative;">
+                   <div style="width: ${pctDone}%; background-color: #22c55e; height: 100%;" title="Hecho esta semana: ${ptsDoneThisWeek}"></div>
+                   <div style="width: ${pctProg}%; background-color: #2563eb; height: 100%;" title="En curso: ${ptsInProgress}"></div>
+                   <div style="width: ${pctTodo}%; background-color: #9ca3af; height: 100%; opacity: 0.5;" title="Por Hacer: ${ptsTodo}"></div>
+                   
+                   ${isOverloaded ? `<div style="position: absolute; right: 0; top: 0; bottom: 0; width: 4px; background-color: #dc2626;"></div>` : ""}
+               </div>
+
+               <div class="text-right min-w-[80px]">
+                   <span class="block text-sm font-bold ${loadColor}">${currentLoad} / ${WEEKLY_CAPACITY} pts</span>
+               </div>
+               <div class="pl-2">
+                   <i class="fas fa-chevron-down transition-transform duration-300 ${isExpanded ? "rotate-180" : ""} text-gray-400"></i>
+               </div>
            </div>
         </div>`;
     }
 
-    const chevronRotation = isExpanded ? "rotate-180" : "rotate-0";
+    swimlane.innerHTML = headerHTML;
 
-    // Usamos el email original del perfil si existe para el data-attribute, o la clave
-    const toggleKey = userProfile ? userProfile.email : emailKey;
-
-    swimlane.innerHTML = `
-        <div class="flex items-center justify-between p-3 bg-white border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors"
-             data-person-toggle="${toggleKey}">
-             ${headerContent}
-             <div class="p-2 text-gray-400">
-                <i class="fas fa-chevron-down transition-transform duration-200 ${chevronRotation}"></i>
-             </div>
-        </div>
-    `;
-
-    // --- Body ---
+    // --- BODY ---
     const columnsGrid = document.createElement("div");
     columnsGrid.className = `grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x border-gray-100 bg-gray-50/50 ${isExpanded ? "" : "hidden"}`;
 
@@ -761,7 +805,7 @@ function renderPersonView(state) {
       colDiv.innerHTML = `<h4 class="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-wider sticky top-0 bg-opacity-90 z-10 px-1 py-1">${cols[statusKey].title}</h4><div class="space-y-2 swimlane-drop-zone"></div>`;
       const dropZone = colDiv.querySelector(".swimlane-drop-zone");
 
-      // Filtrar tareas de esta columna
+      // 1. Filtrado General
       let colTasks = tasks.filter((t) => {
         if (statusKey === "todo")
           return (
@@ -771,7 +815,7 @@ function renderPersonView(state) {
         return t.kanbanStatus === statusKey;
       });
 
-      // Ordenar Cronológicamente (Más reciente primero)
+      // 2. Ordenamiento (Más reciente arriba)
       colTasks.sort((a, b) => {
         const getTime = (t, field) => {
           const val = t[field];
@@ -792,37 +836,103 @@ function renderPersonView(state) {
         return dateB - dateA;
       });
 
-      // Límite "Hecho" (Mostrar 10 + Ver más)
-      if (statusKey === "done" && colTasks.length > 10) {
-        const visibleTasks = colTasks.slice(0, 10);
-        const hiddenTasks = colTasks.slice(10);
+      // 3. LÓGICA ESPECIAL PARA "HECHO" (SEPARAR SEMANA ACTUAL VS ANTERIORES)
+      if (statusKey === "done") {
+        // A) Separamos las tareas
+        const recentTasks = [];
+        const oldTasks = [];
 
-        visibleTasks.forEach((task) => {
-          dropZone.appendChild(createTaskElement(task, "sprint", state));
+        colTasks.forEach((t) => {
+          // Si no tiene fecha, asumimos reciente para no perderla
+          if (!t.completedAt) {
+            recentTasks.push(t);
+            return;
+          }
+          const d = t.completedAt.toDate
+            ? t.completedAt.toDate()
+            : new Date(t.completedAt);
+          if (d >= currentWeekStart) {
+            recentTasks.push(t);
+          } else {
+            oldTasks.push(t);
+          }
         });
 
-        const hiddenContainer = document.createElement("div");
-        hiddenContainer.className =
-          "hidden space-y-2 pt-2 border-t border-green-100 mt-2";
-        hiddenTasks.forEach((task) => {
-          hiddenContainer.appendChild(createTaskElement(task, "sprint", state));
-        });
-        dropZone.appendChild(hiddenContainer);
+        // B) Renderizamos las RECIENTES (Esta semana)
+        // Aplicamos límite de 10 solo si hay muchísimas recientes
+        const recentVisible = recentTasks.slice(0, 10);
+        const recentHidden = recentTasks.slice(10); // Exceso de la semana actual
 
-        const showMoreBtn = document.createElement("button");
-        showMoreBtn.className =
-          "w-full text-center text-xs text-green-700 font-semibold py-2 hover:bg-green-100 rounded mt-1 transition-colors";
-        showMoreBtn.innerHTML = `<i class="fas fa-chevron-down mr-1"></i> Ver ${hiddenTasks.length} anteriores`;
+        recentVisible.forEach((task) =>
+          dropZone.appendChild(createTaskElement(task, "sprint", state)),
+        );
 
-        showMoreBtn.onclick = () => {
-          hiddenContainer.classList.remove("hidden");
-          showMoreBtn.remove();
-        };
-        dropZone.appendChild(showMoreBtn);
+        // Si hay más de 10 de ESTA semana, botón "Ver más recientes"
+        if (recentHidden.length > 0) {
+          const moreRecentContainer = document.createElement("div");
+          moreRecentContainer.className = "hidden space-y-2";
+          recentHidden.forEach((task) =>
+            moreRecentContainer.appendChild(
+              createTaskElement(task, "sprint", state),
+            ),
+          );
+          dropZone.appendChild(moreRecentContainer);
+
+          const btn = document.createElement("button");
+          btn.className =
+            "w-full text-xs text-green-700 font-semibold py-1 hover:bg-green-100 rounded mt-1";
+          btn.innerHTML = `Ver ${recentHidden.length} más de esta semana`;
+          btn.onclick = () => {
+            moreRecentContainer.classList.remove("hidden");
+            btn.remove();
+          };
+          dropZone.appendChild(btn);
+        }
+
+        // C) Renderizamos las ANTIGUAS (Semanas pasadas) -> SIEMPRE OCULTAS POR DEFECTO
+        if (oldTasks.length > 0) {
+          // Separador visual
+          const separator = document.createElement("div");
+          separator.className = "pt-3 mt-2 border-t border-green-200/50";
+          dropZone.appendChild(separator);
+
+          // Contenedor Oculto
+          const historyContainer = document.createElement("div");
+          historyContainer.className = "hidden space-y-2 opacity-80"; // Un poco más transparentes para denotar antigüedad
+
+          oldTasks.forEach((task) =>
+            historyContainer.appendChild(
+              createTaskElement(task, "sprint", state),
+            ),
+          );
+
+          // Botón Activador (Estilo carpeta)
+          const historyBtn = document.createElement("button");
+          historyBtn.className =
+            "w-full flex items-center justify-center gap-2 text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-100 py-2 rounded border border-dashed border-gray-300 transition-all";
+          historyBtn.innerHTML = `<i class="fa-solid fa-history"></i> <span>Ver ${oldTasks.length} de semanas anteriores</span>`;
+
+          historyBtn.onclick = () => {
+            const isHidden = historyContainer.classList.contains("hidden");
+            if (isHidden) {
+              historyContainer.classList.remove("hidden");
+              historyBtn.innerHTML = `<i class="fa-solid fa-chevron-up"></i> Ocultar anteriores`;
+              historyBtn.classList.add("bg-gray-50", "text-gray-600");
+            } else {
+              historyContainer.classList.add("hidden");
+              historyBtn.innerHTML = `<i class="fa-solid fa-history"></i> <span>Ver ${oldTasks.length} de semanas anteriores</span>`;
+              historyBtn.classList.remove("bg-gray-50", "text-gray-600");
+            }
+          };
+
+          dropZone.appendChild(historyBtn);
+          dropZone.appendChild(historyContainer);
+        }
       } else {
-        colTasks.forEach((task) => {
-          dropZone.appendChild(createTaskElement(task, "sprint", state));
-        });
+        // RENDER NORMAL (ToDo / InProgress)
+        colTasks.forEach((task) =>
+          dropZone.appendChild(createTaskElement(task, "sprint", state)),
+        );
       }
 
       columnsGrid.appendChild(colDiv);
@@ -2180,16 +2290,94 @@ function handleTaskCardAction(action, taskId) {
         callback: (title) => title && appActions.updateTask(taskId, { title }),
       });
       break;
+    // --- EN ui.js (dentro de handleTaskCardAction) ---
+
+    // --- EN ui.js (dentro de handleTaskCardAction) ---
+
+    // --- EN ui.js (dentro de handleTaskCardAction) ---
+
     case "points":
+      // ESCALA CORREGIDA: 1 DÍA = 4 PUNTOS (Base: 20 pts/semana)
+      const pointOptions = [
+        { val: 0.5, label: "1 hr / Quick Fix" },
+        { val: 1, label: "2 hrs / Bloque corto" },
+        { val: 2, label: "Medio día (4 hrs)" },
+        { val: 4, label: "1 día (8 hrs)" },
+        { val: 8, label: "2 días" },
+        { val: 12, label: "3 días" },
+        { val: 20, label: "1 semana (Full)" },
+        { val: 40, label: "Sprint Completo (2 sem)" },
+      ];
+
+      // Generamos el HTML con diseño de 2 columnas
+      let buttonsHTML = pointOptions
+        .map((opt) => {
+          const isActive =
+            task.points === opt.val
+              ? "bg-blue-600 text-white ring-2 ring-blue-300 shadow-md"
+              : "bg-white border border-gray-200 text-gray-700 hover:bg-blue-50 hover:border-blue-200";
+
+          return `
+            <button type="button" class="point-selector-btn ${isActive} flex flex-col items-center justify-center py-2 px-1 rounded-lg transition-all" data-value="${opt.val}">
+                <span class="text-lg font-bold">${opt.val}</span>
+                <span class="text-[10px] opacity-80 font-medium leading-tight">${opt.label}</span>
+            </button>`;
+        })
+        .join("");
+
+      const contentHTML = `
+        <div class="flex flex-col gap-3">
+            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Guía de Esfuerzo (Base: 4 pts = 1 día)</p>
+            <div class="grid grid-cols-2 gap-2" id="points-grid">
+                ${buttonsHTML}
+            </div>
+            <div class="mt-3 pt-3 border-t border-gray-100">
+                 <label class="text-xs text-gray-400 block mb-1">O ingresa valor manual:</label>
+                 <input type="number" id="manual-points-input" class="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" value="${task.points || 0}" step="0.5">
+            </div>
+        </div>
+      `;
+
       showModal({
         title: "Asignar Puntos",
-        input: true,
-        inputType: "number",
-        inputValue: task.points || "",
-        okText: "Asignar",
-        callback: (points) =>
-          appActions.updateTask(taskId, { points: Number(points) || 0 }),
+        htmlContent: contentHTML,
+        okText: "Guardar Puntos",
+        callback: () => {
+          const selectedBtn = document.querySelector(
+            ".point-selector-btn.selected-in-modal",
+          );
+          let val = selectedBtn ? Number(selectedBtn.dataset.value) : null;
+
+          if (val === null) {
+            const manualVal = document.getElementById(
+              "manual-points-input",
+            ).value;
+            val = manualVal === "" ? 0 : Number(manualVal);
+          }
+
+          appActions.updateTask(taskId, { points: val });
+        },
       });
+
+      // Script para selección visual
+      setTimeout(() => {
+        const grid = document.getElementById("points-grid");
+        if (grid) {
+          grid.addEventListener("click", (e) => {
+            const btn = e.target.closest("button");
+            if (btn) {
+              grid.querySelectorAll("button").forEach((b) => {
+                b.className =
+                  "point-selector-btn bg-white border border-gray-200 text-gray-700 hover:bg-blue-50 hover:border-blue-200 flex flex-col items-center justify-center py-2 px-1 rounded-lg transition-all";
+              });
+              btn.className =
+                "point-selector-btn bg-blue-600 text-white ring-2 ring-blue-300 shadow-md flex flex-col items-center justify-center py-2 px-1 rounded-lg transition-all selected-in-modal";
+              document.getElementById("manual-points-input").value =
+                btn.dataset.value;
+            }
+          });
+        }
+      }, 50);
       break;
     // --- EN ui.js (dentro de handleTaskCardAction) ---
 
