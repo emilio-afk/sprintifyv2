@@ -28,112 +28,120 @@ function createTaskElement(task, context, state) {
   const { allUsers, taskLists, epics } = state;
   const isCompleted = task.status === "completed";
 
-  // 1. Puntos de la tarea
-  const pointsHTML =
-    (task.points || 0) > 0
-      ? `<div class="text-xs font-bold bg-gray-200 text-gray-600 rounded-full px-2 py-0.5">${task.points}</div>`
-      : "";
+  // 1. HELPERS
+  const now = new Date();
+  const getDate = (ts) =>
+    ts && ts.toDate ? ts.toDate() : ts ? new Date(ts) : null;
+  const formatDate = (d) =>
+    d ? d.toLocaleDateString("es-MX", { day: "numeric", month: "short" }) : "-";
+  const createdAt = getDate(task.createdAt) || now;
 
-  // 2. Avatar del asignado
-  const user = allUsers.find((u) => u.email === task.assignee);
-  const userPhotoURL = user?.photoURL
-    ? user.photoURL
-    : `https://ui-avatars.com/api/?name=${task.assignee ? task.assignee.split("@")[0] : ""}`;
-  const assigneeHTML = task.assignee
-    ? `<img src="${userPhotoURL}" class="w-7 h-7 rounded-full avatar-image border-2 border-white" title="${task.assignee}">`
-    : "";
+  // 2. CONTADOR DÍAS
+  const days = Math.round((now - createdAt) / (1000 * 60 * 60 * 24));
+  const daysHTML = `<div class="flex items-center gap-1 text-gray-400" style="font-size: 10px;" title="Antigüedad: ${days} días"><i class="fa-regular fa-calendar"></i><span>${days}d</span></div>`;
 
-  // 3. Checkbox de selección o completado
-  const checkboxHTML =
-    context === "backlog" || context === "backlog-matrix"
-      ? `<input type="checkbox" class="form-checkbox h-5 w-5 text-blue-600 rounded focus:ring-0 flex-shrink-0 mr-2" data-select-task="true">`
-      : `<input type="checkbox" class="form-checkbox h-5 w-5 text-blue-600 rounded focus:ring-0 flex-shrink-0 mr-2" ${isCompleted ? "checked" : ""}>`;
-
-  // 4. Icono de Epic (Libro)
-  let epicIconHTML = "";
+  // 3. ICONO EPIC
+  let epicTopIconHTML = "";
   if (task.epicId) {
     const epic = epics.find((e) => e.id === task.epicId);
     if (epic) {
-      const epicColor = epic.color || "#64748b";
-      const epicTitle = epic.title || "Epic";
-      epicIconHTML = `<div class="epic-indicator" title="Epic: ${epicTitle}" style="color: ${epicColor};">
-          <i class="fa-solid fa-book-atlas"></i>
-        </div>`;
+      const epicColor = epic.color || "#94a3b8";
+      epicTopIconHTML = `<div style="position: absolute; top: 8px; right: 8px; font-size: 12px; color: ${epicColor}; opacity: 0.7; z-index: 10;" title="Epic: ${epic.title}"><i class="fa-solid fa-book-atlas"></i></div>`;
     }
   }
 
-  // --- ETIQUETA KR: LETRA MINI (8px) + HOVER SEGURO ---
-  let krTagHTML = "";
+  // 4. PÍLDORA KR
+  let alignmentBadgeHTML = "";
   if (task.epicId && task.krId !== null && task.krId !== undefined) {
     const epic = epics.find((e) => e.id === task.epicId);
     const krText = epic && epic.keyResults ? epic.keyResults[task.krId] : null;
-
     if (krText) {
-      const safeTitle = krText.replace(/"/g, "&quot;");
-
-      krTagHTML = `
-        <div class="mt-2 flex w-fit max-w-full items-center gap-1.5 px-2 py-0.5 rounded-full border border-blue-100 bg-blue-50 text-blue-700 cursor-help transition-colors hover:bg-blue-100" title="${safeTitle}">
-            <i class="fa-solid fa-bullseye flex-shrink-0" style="font-size: 9px;"></i>
-            
-            <span class="font-bold truncate block leading-none" style="font-size: 10px;">${krText}</span>
+      alignmentBadgeHTML = `
+        <div class="mt-1 flex items-center gap-1 px-2 py-0.5 rounded-full border border-blue-100 bg-blue-50 text-blue-700 max-w-full w-fit">
+            <i class="fa-solid fa-bullseye shrink-0" style="font-size: 9px;"></i>
+            <span class="font-medium truncate" style="font-size: 9px; line-height: 1.1;">${krText}</span>
         </div>`;
     }
   }
-  // 5. Otras etiquetas (Sprint, Estado, Scores)
-  let triageScoresHTML = "";
-  if (context === "backlog-matrix") {
-    triageScoresHTML = `<div class="flex items-center gap-1.5 text-xs text-gray-500"><i class="fa-solid fa-star text-amber-500"></i><span>${task.impact || 0}</span><span class="text-gray-300">/</span><i class="fa-solid fa-clock text-blue-500"></i><span>${task.effort || 0}</span></div>`;
-  }
 
+  // 5. ESTÁNDARES (AQUÍ ESTÁ EL ARREGLO)
+  const user = allUsers.find((u) => u.email === task.assignee);
+  const userPhotoURL = user?.photoURL
+    ? user.photoURL
+    : `https://ui-avatars.com/api/?name=${task.assignee || ""}`;
+
+  // CORRECCIÓN: Si no hay assignee, mostramos un botón gris de "Asignar"
+  const assigneeHTML = task.assignee
+    ? `<img src="${userPhotoURL}" class="w-6 h-6 rounded-full border border-white shadow-sm object-cover" title="${task.assignee}">`
+    : `<div class="w-6 h-6 rounded-full bg-gray-50 border border-gray-300 border-dashed flex items-center justify-center text-gray-400 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-colors" title="Asignar Responsable"><i class="fa-solid fa-user-plus" style="font-size: 10px;"></i></div>`;
+
+  const pointsHTML =
+    (task.points || 0) > 0
+      ? `<span class="font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded" style="font-size: 10px;">${task.points}</span>`
+      : ``;
+
+  const checkboxHTML = `<input type="checkbox" class="form-checkbox h-3.5 w-3.5 text-blue-600 rounded border-gray-300 focus:ring-0 cursor-pointer mt-0.5 shrink-0" ${isCompleted ? "checked" : ""} ${context.includes("backlog") ? 'data-select-task="true"' : ""}>`;
+
+  const sprint = taskLists.find((l) => l.id === task.listId);
+  const sprintColor = sprint?.color || "#3b82f6";
+
+  // 6. ESTRUCTURA FINAL
   const taskCard = document.createElement("div");
   taskCard.id = task.id;
-  taskCard.className = `task-card bg-white p-3 rounded-md border ${isCompleted ? "opacity-60" : ""}`;
+  taskCard.className = `task-card group relative bg-white p-3 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all ${isCompleted ? "opacity-60" : ""}`;
   taskCard.draggable = true;
   taskCard.dataset.context = context;
 
-  const sprint = taskLists.find((l) => l.id === task.listId);
-  const sprintColor = sprint?.color || "#cbd5e1";
-
   taskCard.innerHTML = `
-        <div class="sprint-color-indicator" style="background-color: ${sprintColor};"></div>
-        ${epicIconHTML}
-        <div class="flex flex-col h-full pl-2">
-            <div class="flex items-start w-full">
-                ${checkboxHTML}
-                <div class="flex-grow min-w-0 mr-2">
-                    <span class="font-medium text-gray-800 break-words block pl-1 text-sm">${task.title}</span>
-                    ${krTagHTML}
-                </div>
-                ${pointsHTML}
+    <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background-color: ${sprintColor}; border-top-left-radius: 6px; border-bottom-left-radius: 6px;"></div>
+    
+    ${epicTopIconHTML}
+
+    <div class="pl-2 pr-5 flex flex-col h-full relative">
+        
+        <div class="flex items-start gap-2"> 
+            ${checkboxHTML}
+            <div class="flex-1 min-w-0">
+                <span class="text-sm font-medium text-slate-800 leading-snug block break-words ${isCompleted ? "line-through text-slate-400" : ""}">${task.title}</span>
+                ${alignmentBadgeHTML}
             </div>
-            <div class="flex-grow"></div>
-            <div class="w-full flex justify-between items-center mt-2">
-                <div class="text-xs text-gray-400 flex items-center gap-3">
-                    <div class="flex items-center gap-1.5"><i class="fas fa-comments"></i><span>${task.comments?.length || 0}</span></div>
-                    ${triageScoresHTML}
+        </div>
+
+        <div class="flex-grow min-h-[8px]"></div>
+
+        <div class="flex items-center justify-between mt-1 pt-2 border-t border-gray-50 relative">
+            
+            <div class="flex items-center gap-3">
+                 ${(task.comments?.length || 0) > 0 ? `<div class="flex items-center gap-1 text-gray-400" style="font-size: 10px;"><i class="fa-regular fa-comment"></i><span>${task.comments.length}</span></div>` : ""}
+                 ${daysHTML}
+            </div>
+
+            <div class="flex items-center gap-2">
+                
+                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <button class="text-gray-300 hover:text-blue-600 p-1 transition-colors" data-action="due-date" title="Fecha">
+                        <i class="fa-regular fa-calendar-check" style="font-size: 12px;"></i>
+                    </button>
+                    <button class="text-gray-300 hover:text-blue-600 p-1 transition-colors" data-action="points" title="Puntos">
+                        <i class="fa-solid fa-coins" style="font-size: 12px;"></i>
+                    </button>
+                    <button class="text-gray-300 hover:text-blue-600 p-1 transition-colors" data-action="edit" title="Editar">
+                        <i class="fa-solid fa-pencil" style="font-size: 12px;"></i>
+                    </button>
+                    <button class="text-gray-300 hover:text-red-600 p-1 transition-colors" data-action="delete" title="Borrar">
+                        <i class="fa-solid fa-trash-can" style="font-size: 12px;"></i>
+                    </button>
                 </div>
-                <div class="flex items-center gap-2">
-                    <div class="task-actions flex items-center gap-2 text-gray-400">
-    <div class="action-icon-wrapper" data-action="assign" title="Asignar Persona">
-        <i class="fa-solid fa-user-plus fa-sm"></i>
-    </div>
-    <div class="action-icon-wrapper" data-action="points" title="Asignar Puntos">
-        <i class="fa-solid fa-coins fa-sm"></i>
-    </div>
-    <div class="action-icon-wrapper" data-action="sync-task-to-calendar" title="Sincronizar Calendario">
-        <i class="fa-solid fa-calendar-plus fa-sm"></i>
-    </div>
-    <div class="action-icon-wrapper" data-action="edit" title="Editar">
-        <i class="fa-solid fa-pencil fa-sm"></i>
-    </div>
-    <div class="action-icon-wrapper" data-action="delete" title="Borrar">
-        <i class="fa-solid fa-trash-can fa-sm"></i>
-    </div>
-</div>
+
+                ${pointsHTML}
+                
+                <div class="cursor-pointer shrink-0" data-action="assign" title="Asignar Responsable">
                     ${assigneeHTML}
                 </div>
             </div>
-        </div>`;
+        </div>
+    </div>
+  `;
   return taskCard;
 }
 
@@ -181,7 +189,7 @@ function renderBacklog(state) {
   if (backlogTasks.length > 0) {
     backlogTasks.forEach((task) => {
       dom.backlogTasksContainer.appendChild(
-        createTaskElement(task, "backlog", state)
+        createTaskElement(task, "backlog", state),
       );
     });
   } else {
@@ -213,7 +221,7 @@ function renderBacklogMatrix(state) {
     quick: dom.backlogMatrixContainer.querySelector('[data-quad-list="quick"]'),
     major: dom.backlogMatrixContainer.querySelector('[data-quad-list="major"]'),
     filler: dom.backlogMatrixContainer.querySelector(
-      '[data-quad-list="filler"]'
+      '[data-quad-list="filler"]',
     ),
     maybe: dom.backlogMatrixContainer.querySelector('[data-quad-list="maybe"]'),
   };
@@ -251,7 +259,7 @@ function renderSprintKanban(state) {
   if (!dom.kanban.todo) return;
   Object.values(dom.kanban).forEach((col) => (col.innerHTML = ""));
   const sprintTasks = state.tasks.filter(
-    (t) => t.listId === state.currentSprintId
+    (t) => t.listId === state.currentSprintId,
   );
   sprintTasks.forEach((task) => {
     const column = dom.kanban[task.kanbanStatus] || dom.kanban.todo;
@@ -268,7 +276,7 @@ function renderThemes(state) {
   }
 
   const sortedThemes = [...state.themes].sort(
-    (a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)
+    (a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0),
   );
 
   sortedThemes.forEach((theme) => {
@@ -287,7 +295,7 @@ function renderThemes(state) {
           <i class="fa-solid fa-book-atlas" style="color: ${epic.color || "#cbd5e1"}"></i>
           <span class="font-medium text-sm text-gray-700">${epic.title}</span>
         </div>
-      `
+      `,
         )
         .join("");
     }
@@ -327,7 +335,7 @@ function renderEpics(state) {
   }
 
   const sortedEpics = [...state.epics].sort(
-    (a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)
+    (a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0),
   );
 
   // GRID PRINCIPAL
@@ -369,7 +377,7 @@ function renderEpics(state) {
     const definedKRs = epic.keyResults || [];
     const completedIndices = epic.completedKrIndices || [];
     const validCompletedCount = completedIndices.filter(
-      (idx) => idx < definedKRs.length
+      (idx) => idx < definedKRs.length,
     ).length;
     const totalDefined = definedKRs.length;
     const krProgress =
@@ -490,115 +498,254 @@ function renderMyTasks(state) {
   }
 }
 
+// --- EN ui.js ---
+
+// --- EN ui.js ---
+
+// --- EN ui.js ---
+
+// --- EN ui.js ---
+
 function renderPersonView(state) {
   const container = document.getElementById("view-by-person");
   if (!container) return;
   container.innerHTML = "";
 
-  // 1. Validar que hay un sprint seleccionado
-  if (!state.currentSprintId) {
-    container.innerHTML = `
-      <div class="text-center py-10 bg-white rounded-xl border border-dashed border-gray-300">
-        <p class="text-gray-500">Selecciona o crea un Sprint para ver la carga de trabajo por persona.</p>
-      </div>`;
-    return;
+  // ------------------------------------------------------
+  // 1. CONTROLES DE FILTROS (SPRINT + PERSONA)
+  // ------------------------------------------------------
+  const controlsDiv = document.createElement("div");
+  controlsDiv.className =
+    "mb-6 flex flex-wrap gap-4 items-end bg-white p-4 rounded-xl shadow-sm border border-gray-100";
+
+  // A) Selector de Sprints
+  let sprintOptions = `<option value="current">Sprint Activo Actual</option>
+                       <option value="all">Todos los Sprints Activos</option>`;
+
+  state.taskLists
+    .filter((l) => !l.isBacklog && !l.isArchived)
+    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+    .forEach((s) => {
+      if (s.id !== state.currentSprintId) {
+        sprintOptions += `<option value="${s.id}">${s.title}</option>`;
+      }
+    });
+
+  // B) Selector de Personas
+  // Usamos un Set para evitar duplicados visuales en el dropdown también
+  const uniqueEmails = new Set();
+  let peopleOptions = `<option value="all">Todo el Equipo</option>
+                       <option value="unassigned">Sin Asignar</option>`;
+
+  state.allUsers.forEach((u) => {
+    if (u.email && !uniqueEmails.has(u.email.toLowerCase())) {
+      uniqueEmails.add(u.email.toLowerCase());
+      peopleOptions += `<option value="${u.email}">${u.displayName || u.email}</option>`;
+    }
+  });
+
+  controlsDiv.innerHTML = `
+      <div class="flex flex-col gap-1">
+          <label class="text-xs font-bold text-gray-500 uppercase">Período</label>
+          <select id="person-view-filter" class="p-2 pr-8 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+              ${sprintOptions}
+          </select>
+      </div>
+      <div class="flex flex-col gap-1">
+          <label class="text-xs font-bold text-gray-500 uppercase">Persona</label>
+          <select id="person-view-people-filter" class="p-2 pr-8 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+              ${peopleOptions}
+          </select>
+      </div>
+  `;
+  container.appendChild(controlsDiv);
+
+  // Restaurar valores de los selectores
+  const sprintSelect = controlsDiv.querySelector("#person-view-filter");
+  if (state.personViewSprintFilter)
+    sprintSelect.value = state.personViewSprintFilter;
+
+  const personSelect = controlsDiv.querySelector("#person-view-people-filter");
+  if (state.personViewPersonFilter)
+    personSelect.value = state.personViewPersonFilter;
+
+  // Event Listeners
+  if (typeof appActions !== "undefined") {
+    sprintSelect.addEventListener("change", (e) =>
+      appActions.setPersonViewSprintFilter(e.target.value),
+    );
+    personSelect.addEventListener("change", (e) =>
+      appActions.setPersonViewPersonFilter(e.target.value),
+    );
   }
 
-  // 2. Filtrar solo tareas del Sprint Actual
-  const sprintTasks = state.tasks.filter(
-    (t) => t.listId === state.currentSprintId
-  );
+  // ------------------------------------------------------
+  // 2. LÓGICA DE FILTRADO DE TAREAS
+  // ------------------------------------------------------
+  let tasksToShow = [];
 
-  if (sprintTasks.length === 0) {
-    container.innerHTML = `
-      <div class="text-center py-10 bg-white rounded-xl border border-dashed border-gray-300">
-        <p class="text-gray-500">Este sprint no tiene tareas asignadas aún.</p>
-      </div>`;
-    return;
+  if (state.personViewSprintFilter === "all") {
+    // Traer tareas de sprints activos (no backlog, no archivados)
+    const activeSprintIds = state.taskLists
+      .filter((l) => !l.isBacklog && !l.isArchived)
+      .map((l) => l.id);
+    tasksToShow = state.tasks.filter((t) => activeSprintIds.includes(t.listId));
+  } else if (
+    state.personViewSprintFilter === "current" ||
+    !state.personViewSprintFilter
+  ) {
+    if (!state.currentSprintId) {
+      container.innerHTML += `<div class="text-center py-10 text-gray-500">Selecciona un Sprint activo.</div>`;
+      return;
+    }
+    tasksToShow = state.tasks.filter((t) => t.listId === state.currentSprintId);
+  } else {
+    // Sprint Específico
+    tasksToShow = state.tasks.filter(
+      (t) => t.listId === state.personViewSprintFilter,
+    );
   }
 
-  // 3. Agrupar tareas por Asignado (o 'unassigned')
+  // ------------------------------------------------------
+  // 3. AGRUPACIÓN Y RENDERIZADO (BLINDADO CONTRA DUPLICADOS)
+  // ------------------------------------------------------
+
+  // Helper para normalizar emails (minúsculas y trim)
+  const normalize = (email) =>
+    email ? email.trim().toLowerCase() : "unassigned";
+
   const grouped = { unassigned: [] };
+  const profileMap = {}; // Mapa para recordar datos del usuario (foto, nombre real)
 
-  // Inicializar grupos para usuarios que ya tienen tareas
-  sprintTasks.forEach((task) => {
-    const key = task.assignee || "unassigned";
-    if (!grouped[key]) grouped[key] = [];
+  // A) Inicializar TODOS los usuarios del sistema (incluso sin tareas)
+  state.allUsers.forEach((u) => {
+    if (u.email) {
+      const key = normalize(u.email);
+      if (!grouped[key]) grouped[key] = [];
+
+      // Guardamos la info del perfil. Si hay duplicados, preferimos el que tenga foto.
+      if (!profileMap[key] || (!profileMap[key].photoURL && u.photoURL)) {
+        profileMap[key] = u;
+      }
+    }
+  });
+
+  // B) Agrupar tareas usando la clave normalizada
+  tasksToShow.forEach((task) => {
+    const rawAssignee = task.assignee;
+    const key = rawAssignee ? normalize(rawAssignee) : "unassigned";
+
+    // Si la tarea tiene un assignee que no estaba en allUsers, lo inicializamos
+    if (!grouped[key]) {
+      grouped[key] = [];
+      if (key !== "unassigned") {
+        // Crear perfil temporal
+        profileMap[key] = {
+          email: rawAssignee,
+          displayName: rawAssignee.split("@")[0],
+          photoURL: null,
+        };
+      }
+    }
     grouped[key].push(task);
   });
 
-  // Ordenar: Primero 'unassigned', luego alfabético o por carga
-  const sortedKeys = Object.keys(grouped).sort((a, b) => {
+  // C) Determinar qué claves mostrar según el filtro de persona
+  let visibleKeys = Object.keys(grouped);
+  if (state.personViewPersonFilter && state.personViewPersonFilter !== "all") {
+    const filterKey = normalize(state.personViewPersonFilter);
+    visibleKeys = visibleKeys.filter((k) => k === filterKey);
+  }
+
+  // D) Ordenar (Sin asignar primero, luego alfabético)
+  visibleKeys.sort((a, b) => {
     if (a === "unassigned") return -1;
     if (b === "unassigned") return 1;
     return a.localeCompare(b);
   });
 
-  // 4. Renderizar cada "Carril" (Swimlane)
-  sortedKeys.forEach((emailKey) => {
+  if (visibleKeys.length === 0) {
+    container.innerHTML += `<div class="text-center py-10 text-gray-400 italic">No hay resultados.</div>`;
+    return;
+  }
+
+  visibleKeys.forEach((emailKey) => {
     const tasks = grouped[emailKey];
+    const userProfile = profileMap[emailKey];
 
-    // --- Cabecera del Carril ---
-    let headerHTML = "";
-    let totalPoints = tasks.reduce((sum, t) => sum + (t.points || 0), 0);
-    let completedPoints = tasks
-      .filter((t) => t.kanbanStatus === "done" || t.status === "completed")
-      .reduce((sum, t) => sum + (t.points || 0), 0);
-
-    let progress =
+    // Stats
+    const totalPoints = tasks.reduce((sum, t) => sum + (t.points || 0), 0);
+    const completedTasks = tasks.filter(
+      (t) => t.kanbanStatus === "done" || t.status === "completed",
+    );
+    const completedPoints = completedTasks.reduce(
+      (sum, t) => sum + (t.points || 0),
+      0,
+    );
+    const progress =
       totalPoints > 0 ? Math.round((completedPoints / totalPoints) * 100) : 0;
 
-    if (emailKey === "unassigned") {
-      headerHTML = `
-        <div class="flex items-center gap-3 p-3 bg-gray-100 border-b border-gray-200">
-           <div class="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-gray-500">
-             <i class="fas fa-question"></i>
-           </div>
-           <div class="flex-grow">
-             <h3 class="text-lg font-bold text-gray-700 italic">Sin Asignar</h3>
-             <p class="text-xs text-gray-500">Tareas disponibles para tomar</p>
-           </div>
-           <span class="bg-gray-200 text-gray-600 text-xs font-bold px-2 py-1 rounded-full">${tasks.length} tareas</span>
-        </div>
-      `;
-    } else {
-      const user = state.allUsers.find((u) => u.email === emailKey);
-      const avatar =
-        user?.photoURL ||
-        `https://ui-avatars.com/api/?name=${emailKey.split("@")[0]}`;
-      const name = user?.displayName || emailKey;
+    // Estado colapsado/expandido
+    const isExpanded = state.expandedPersonViews.has(emailKey);
 
-      // Barra de carga simple
-      const loadBarColor = progress === 100 ? "bg-green-500" : "bg-blue-600";
-
-      headerHTML = `
-        <div class="flex items-center gap-4 p-4 bg-white border-b border-gray-100">
-           <img src="${avatar}" class="w-12 h-12 rounded-full border-2 border-white shadow-sm">
-           <div class="flex-grow">
-             <div class="flex justify-between items-center mb-1">
-                <h3 class="text-lg font-bold text-gray-800">${name}</h3>
-                <span class="text-sm font-bold text-gray-600">${completedPoints} / ${totalPoints} pts</span>
-             </div>
-             <div class="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
-                <div class="${loadBarColor} h-2.5 rounded-full transition-all duration-500" style="width: ${progress}%"></div>
-             </div>
-           </div>
-        </div>
-      `;
-    }
-
-    // --- Contenedor de Columnas (Mini Kanban) ---
+    // --- Header ---
     const swimlane = document.createElement("div");
     swimlane.className =
-      "mb-6 border border-gray-200 rounded-xl shadow-sm bg-white overflow-hidden";
-    swimlane.innerHTML = headerHTML;
+      "mb-4 border border-gray-200 rounded-xl shadow-sm bg-white overflow-hidden transition-all duration-200";
 
-    // Grid de 3 columnas
+    let headerContent = "";
+    if (emailKey === "unassigned") {
+      headerContent = `
+        <div class="flex items-center gap-3">
+           <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
+             <i class="fas fa-question"></i>
+           </div>
+           <div>
+             <h3 class="text-lg font-bold text-gray-700 italic">Sin Asignar</h3>
+             <p class="text-xs text-gray-500">${tasks.length} tareas disponibles</p>
+           </div>
+        </div>`;
+    } else {
+      const avatar =
+        userProfile?.photoURL ||
+        `https://ui-avatars.com/api/?name=${emailKey.split("@")[0]}`;
+      const name = userProfile?.displayName || emailKey;
+      const loadBarColor = progress === 100 ? "bg-emerald-500" : "bg-blue-600";
+
+      headerContent = `
+        <div class="flex items-center gap-3 flex-grow">
+           <img src="${avatar}" class="w-10 h-10 rounded-full border border-gray-100 shadow-sm object-cover">
+           <div class="flex-grow">
+             <div class="flex justify-between items-center mb-1 pr-4">
+                <h3 class="text-base font-bold text-gray-800">${name}</h3>
+                <span class="text-xs font-bold text-gray-500">${completedPoints}/${totalPoints} pts</span>
+             </div>
+             <div class="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden max-w-[200px]">
+                <div class="${loadBarColor} h-1.5 rounded-full transition-all duration-500" style="width: ${progress}%"></div>
+             </div>
+           </div>
+        </div>`;
+    }
+
+    const chevronRotation = isExpanded ? "rotate-180" : "rotate-0";
+
+    // Usamos el email original del perfil si existe para el data-attribute, o la clave
+    const toggleKey = userProfile ? userProfile.email : emailKey;
+
+    swimlane.innerHTML = `
+        <div class="flex items-center justify-between p-3 bg-white border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors"
+             data-person-toggle="${toggleKey}">
+             ${headerContent}
+             <div class="p-2 text-gray-400">
+                <i class="fas fa-chevron-down transition-transform duration-200 ${chevronRotation}"></i>
+             </div>
+        </div>
+    `;
+
+    // --- Body ---
     const columnsGrid = document.createElement("div");
-    columnsGrid.className =
-      "grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x border-gray-100 bg-gray-50/50";
+    columnsGrid.className = `grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x border-gray-100 bg-gray-50/50 ${isExpanded ? "" : "hidden"}`;
 
-    // Definición de columnas
     const cols = {
       todo: { title: "Por Hacer", bg: "bg-transparent" },
       inprogress: { title: "En Progreso", bg: "bg-blue-50/30" },
@@ -607,28 +754,76 @@ function renderPersonView(state) {
 
     Object.keys(cols).forEach((statusKey) => {
       const colDiv = document.createElement("div");
-      colDiv.className = `p-3 min-h-[120px] ${cols[statusKey].bg}`;
-      colDiv.dataset.swimlaneStatus = statusKey; // Marcador para Drop futuro
-      colDiv.dataset.assignee = emailKey; // Para saber a quién pertenece la columna
+      colDiv.className = `p-2 min-h-[100px] ${cols[statusKey].bg}`;
+      colDiv.dataset.swimlaneStatus = statusKey;
+      colDiv.dataset.assignee = emailKey;
 
-      // Título de columna (opcional, para claridad)
-      colDiv.innerHTML = `<h4 class="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-wider">${cols[statusKey].title}</h4><div class="space-y-2 swimlane-drop-zone"></div>`;
-
+      colDiv.innerHTML = `<h4 class="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-wider sticky top-0 bg-opacity-90 z-10 px-1 py-1">${cols[statusKey].title}</h4><div class="space-y-2 swimlane-drop-zone"></div>`;
       const dropZone = colDiv.querySelector(".swimlane-drop-zone");
 
-      // Filtrar tareas de este usuario y este estado
-      const colTasks = tasks.filter(
-        (t) =>
-          t.kanbanStatus === statusKey ||
-          (statusKey === "todo" &&
-            !["inprogress", "done"].includes(t.kanbanStatus))
-      );
-
-      colTasks.forEach((task) => {
-        // Usamos 'sprint' como contexto para tener los checkboxes y estilos correctos
-        const card = createTaskElement(task, "sprint", state);
-        dropZone.appendChild(card);
+      // Filtrar tareas de esta columna
+      let colTasks = tasks.filter((t) => {
+        if (statusKey === "todo")
+          return (
+            t.kanbanStatus === "todo" ||
+            !["inprogress", "done"].includes(t.kanbanStatus)
+          );
+        return t.kanbanStatus === statusKey;
       });
+
+      // Ordenar Cronológicamente (Más reciente primero)
+      colTasks.sort((a, b) => {
+        const getTime = (t, field) => {
+          const val = t[field];
+          if (!val) return 0;
+          return val.toDate ? val.toDate().getTime() : new Date(val).getTime();
+        };
+        let dateA, dateB;
+        if (statusKey === "done") {
+          dateA = getTime(a, "completedAt");
+          dateB = getTime(b, "completedAt");
+        } else if (statusKey === "inprogress") {
+          dateA = getTime(a, "startedAt") || getTime(a, "createdAt");
+          dateB = getTime(b, "startedAt") || getTime(b, "createdAt");
+        } else {
+          dateA = getTime(a, "createdAt");
+          dateB = getTime(b, "createdAt");
+        }
+        return dateB - dateA;
+      });
+
+      // Límite "Hecho" (Mostrar 10 + Ver más)
+      if (statusKey === "done" && colTasks.length > 10) {
+        const visibleTasks = colTasks.slice(0, 10);
+        const hiddenTasks = colTasks.slice(10);
+
+        visibleTasks.forEach((task) => {
+          dropZone.appendChild(createTaskElement(task, "sprint", state));
+        });
+
+        const hiddenContainer = document.createElement("div");
+        hiddenContainer.className =
+          "hidden space-y-2 pt-2 border-t border-green-100 mt-2";
+        hiddenTasks.forEach((task) => {
+          hiddenContainer.appendChild(createTaskElement(task, "sprint", state));
+        });
+        dropZone.appendChild(hiddenContainer);
+
+        const showMoreBtn = document.createElement("button");
+        showMoreBtn.className =
+          "w-full text-center text-xs text-green-700 font-semibold py-2 hover:bg-green-100 rounded mt-1 transition-colors";
+        showMoreBtn.innerHTML = `<i class="fas fa-chevron-down mr-1"></i> Ver ${hiddenTasks.length} anteriores`;
+
+        showMoreBtn.onclick = () => {
+          hiddenContainer.classList.remove("hidden");
+          showMoreBtn.remove();
+        };
+        dropZone.appendChild(showMoreBtn);
+      } else {
+        colTasks.forEach((task) => {
+          dropZone.appendChild(createTaskElement(task, "sprint", state));
+        });
+      }
 
       columnsGrid.appendChild(colDiv);
     });
@@ -648,7 +843,7 @@ function renderActivityView(state) {
     .sort(
       (a, b) =>
         (b.comments[b.comments.length - 1].timestamp?.seconds || 0) -
-        (a.comments[a.comments.length - 1].timestamp?.seconds || 0)
+        (a.comments[a.comments.length - 1].timestamp?.seconds || 0),
     );
   if (tasksWithComments.length === 0) {
     container.innerHTML =
@@ -662,7 +857,7 @@ function renderActivityView(state) {
     commentsContainer.className = "space-y-4";
     task.comments.forEach((comment, index) => {
       commentsContainer.appendChild(
-        createActivityCommentElement(comment, index, state, task.id)
+        createActivityCommentElement(comment, index, state, task.id),
       );
     });
     taskWrapper.innerHTML = `<h3 class="font-bold text-lg mb-3">En la tarea: <span class="text-blue-600">${task.title}</span></h3>`;
@@ -673,7 +868,7 @@ function renderActivityView(state) {
 
 function renderSprintsSummary(state) {
   const filterContainer = document.getElementById(
-    "sprints-summary-filter-container"
+    "sprints-summary-filter-container",
   );
   if (filterContainer) {
     const filters = [
@@ -706,12 +901,12 @@ function renderSprintsSummary(state) {
         (s) =>
           !s.isArchived &&
           s.startDate?.toDate() <= today &&
-          s.endDate?.toDate() >= today
+          s.endDate?.toDate() >= today,
       );
       break;
     case "future":
       sprints = state.taskLists.filter(
-        (s) => !s.isArchived && s.startDate?.toDate() > today
+        (s) => !s.isArchived && s.startDate?.toDate() > today,
       );
       break;
     case "archived":
@@ -723,7 +918,7 @@ function renderSprintsSummary(state) {
       break;
   }
   sprints.sort(
-    (a, b) => (a.startDate?.seconds || 0) - (b.startDate?.seconds || 0)
+    (a, b) => (a.startDate?.seconds || 0) - (b.startDate?.seconds || 0),
   );
   const fragment = document.createDocumentFragment();
   const formatDate = (date) => {
@@ -762,7 +957,7 @@ function renderSprintsSummary(state) {
     const sprintTasks = state.tasks.filter((t) => t.listId === sprint.id);
     const totalPoints = sprintTasks.reduce(
       (sum, t) => sum + (t.points || 0),
-      0
+      0,
     );
     const completedPoints = sprintTasks
       .filter((t) => t.status === "completed" || t.kanbanStatus === "done")
@@ -777,7 +972,7 @@ function renderSprintsSummary(state) {
     const allTasksCompleted =
       sprintTasks.length > 0 &&
       sprintTasks.every(
-        (t) => t.status === "completed" || t.kanbanStatus === "done"
+        (t) => t.status === "completed" || t.kanbanStatus === "done",
       );
     if (allTasksCompleted || (today > endDate && progress > 0)) {
       statusText = "Completado";
@@ -820,7 +1015,7 @@ function renderSprintsSummary(state) {
               };
               return `<tr class="border-b"><td class="px-6 py-3">${task.title}</td><td class="px-6 py-3">${ksm[task.kanbanStatus] || "Por Hacer"}</td><td class="px-6 py-3">${task.points || 0}</td></tr>`;
             })
-            .join("")} </tbody>`
+            .join("")} </tbody>`,
         );
     }
     const detailsRow = document.createElement("tr");
@@ -837,22 +1032,22 @@ function renderSprintsSummary(state) {
     const sprintTasks = state.tasks.filter((t) => t.listId === sprint.id);
     const totalPoints = sprintTasks.reduce(
       (sum, t) => sum + (t.points || 0),
-      0
+      0,
     );
     const startDate = sprint.startDate.toDate();
     const endDate = sprint.endDate.toDate();
     const sprintColor = sprint.color || "#3b82f6";
     const sprintDurationDays = Math.max(
       1,
-      Math.round((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1
+      Math.round((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1,
     );
     const labels = Array.from(
       { length: sprintDurationDays },
-      (_, i) => `Día ${i}`
+      (_, i) => `Día ${i}`,
     );
     const pointsPerDayIdeal = totalPoints / Math.max(1, sprintDurationDays - 1);
     const idealData = labels.map((_, i) =>
-      Math.max(0, totalPoints - pointsPerDayIdeal * i)
+      Math.max(0, totalPoints - pointsPerDayIdeal * i),
     );
     const actualData = Array.from({ length: sprintDurationDays }, (_, i) => {
       const dayThreshold = new Date(startDate);
@@ -922,7 +1117,7 @@ function renderArchivedSprints(state) {
     const sprintTasks = state.tasks.filter((t) => t.listId === sprint.id);
     const completedPoints = sprintTasks.reduce(
       (sum, t) => sum + (t.points || 0),
-      0
+      0,
     );
     const summaryCard = document.createElement("div");
     summaryCard.className =
@@ -955,7 +1150,7 @@ function renderArchivedSprints(state) {
                     <span class="text-gray-700">${task.title}</span>
                     <span class="font-bold bg-gray-200 text-gray-600 rounded-full px-2 py-0.5 text-xs">${task.points || 0} Pts</span>
                 </div>
-            `
+            `,
         )
         .join("");
       detailsContainer.innerHTML = `<h4 class="font-semibold mb-2 text-gray-600">Tareas Completadas:</h4><div class="space-y-1">${taskList}</div>`;
@@ -1004,7 +1199,7 @@ function renderTimeline(state) {
       l.startDate &&
       typeof l.startDate.toDate === "function" &&
       l.endDate &&
-      typeof l.endDate.toDate === "function"
+      typeof l.endDate.toDate === "function",
   );
 
   container.style.height = `${sprints.length * 3.5}rem`;
@@ -1036,7 +1231,7 @@ function renderTimeline(state) {
     const sprintTasks = state.tasks.filter((t) => t.listId === sprint.id);
     const totalPoints = sprintTasks.reduce(
       (sum, t) => sum + (t.points || 0),
-      0
+      0,
     );
     const completedPoints = sprintTasks
       .filter((t) => t.status === "completed" || t.kanbanStatus === "done")
@@ -1108,7 +1303,7 @@ export function renderHandbook(state) {
   if (!container) return;
   container.innerHTML = "";
   const sortedEntries = [...state.handbookEntries].sort(
-    (a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)
+    (a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0),
   );
   if (sortedEntries.length === 0) {
     container.innerHTML = `<div class="text-center bg-white p-8 rounded-xl shadow-md col-span-full"><i class="fas fa-book-open text-4xl text-gray-300 mb-4"></i><h3 class="text-xl font-bold text-gray-700">El manual está vacío</h3><p class="text-gray-500 mt-2">Usa el botón "Nueva Entrada" para empezar a documentar.</p></div>`;
@@ -1194,16 +1389,16 @@ function renderSettingsView(state) {
     return el;
   };
   (config.impact || []).forEach((q) =>
-    impactEditor.appendChild(createQuestionEditor(q, "impact"))
+    impactEditor.appendChild(createQuestionEditor(q, "impact")),
   );
   (config.effort || []).forEach((q) =>
-    effortEditor.appendChild(createQuestionEditor(q, "effort"))
+    effortEditor.appendChild(createQuestionEditor(q, "effort")),
   );
   const impactThresholdInput = document.getElementById(
-    "matrix-impact-threshold"
+    "matrix-impact-threshold",
   );
   const effortThresholdInput = document.getElementById(
-    "matrix-effort-threshold"
+    "matrix-effort-threshold",
   );
   if (impactThresholdInput && config?.matrixThresholds) {
     impactThresholdInput.value = config.matrixThresholds.impact;
@@ -1261,7 +1456,7 @@ export function handleRouteChange(state) {
       const parentGroup = activeLink.closest(".nav-group-content");
       if (parentGroup) {
         const button = document.querySelector(
-          `[data-target="${parentGroup.id}"]`
+          `[data-target="${parentGroup.id}"]`,
         );
         if (button) {
           button.classList.add("is-open");
@@ -1331,19 +1526,19 @@ export function renderActiveSprintTitle(state) {
   if (!domViewTitle || window.location.hash !== "#sprint") return;
 
   const selectedSprint = state.taskLists.find(
-    (l) => l.id === state.currentSprintId
+    (l) => l.id === state.currentSprintId,
   );
   let title = selectedSprint ? selectedSprint.title : "Sprint Activo";
 
   const sprintTasks = state.tasks.filter(
-    (t) => t.listId === state.currentSprintId
+    (t) => t.listId === state.currentSprintId,
   );
   const completedPoints = sprintTasks
     .filter((t) => t.kanbanStatus === "done")
     .reduce((sum, task) => sum + (task.points || 0), 0);
   const totalPoints = sprintTasks.reduce(
     (sum, task) => sum + (task.points || 0),
-    0
+    0,
   );
   const myPoints = sprintTasks
     .filter((t) => t.assignee === state.user.email)
@@ -1601,7 +1796,7 @@ function handleAppClick(e) {
     const questionEditor = target.closest("[data-id]");
     const cloneConfig = () =>
       JSON.parse(
-        JSON.stringify(appState.triageConfig || { impact: [], effort: [] })
+        JSON.stringify(appState.triageConfig || { impact: [], effort: [] }),
       );
 
     if (action === "add-triage-question") {
@@ -1622,7 +1817,7 @@ function handleAppClick(e) {
       const newText = questionEditor.querySelector('[data-role="text"]').value;
       const newWeight = parseInt(
         questionEditor.querySelector('[data-role="weight"]').value,
-        10
+        10,
       );
       const newConfig = cloneConfig();
       const questionToUpdate = newConfig[type].find((q) => q.id === id);
@@ -1714,10 +1909,10 @@ function handleAppClick(e) {
 
       case "save-matrix-thresholds": {
         const impactThreshold = document.getElementById(
-          "matrix-impact-threshold"
+          "matrix-impact-threshold",
         ).value;
         const effortThreshold = document.getElementById(
-          "matrix-effort-threshold"
+          "matrix-effort-threshold",
         ).value;
         appActions.updateTriageConfig({
           matrixThresholds: {
@@ -1739,7 +1934,7 @@ function handleAppClick(e) {
       case "edit-handbook-entry": {
         const entryIdToEdit = actionTarget.dataset.id;
         const entry = appState.handbookEntries.find(
-          (e) => e.id === entryIdToEdit
+          (e) => e.id === entryIdToEdit,
         );
         if (entry) showHandbookModal(entry);
         return;
@@ -1860,8 +2055,8 @@ function handleAppClick(e) {
       case "plan-sprint": {
         const selectedTaskIds = Array.from(
           document.querySelectorAll(
-            "#backlog-tasks-container .task-card input[data-select-task]:checked"
-          )
+            "#backlog-tasks-container .task-card input[data-select-task]:checked",
+          ),
         ).map((cb) => cb.closest(".task-card").id);
         appActions.moveTasksToSprint(selectedTaskIds, appState.currentSprintId);
         return;
@@ -1914,7 +2109,7 @@ function handleAppClick(e) {
     const icon = archivedSprintRow.querySelector(".chevron-icon");
     if (icon) {
       icon.style.transform = archivedSprintRow.classList.contains(
-        "details-shown"
+        "details-shown",
       )
         ? "rotate(90deg)"
         : "rotate(0deg)";
@@ -1943,6 +2138,30 @@ function handleTaskCardAction(action, taskId) {
   const task = appState.tasks.find((t) => t.id === taskId);
   if (!task) return;
   switch (action) {
+    case "due-date":
+      showModal({
+        title: "Asignar Fecha Compromiso",
+        input: true,
+        inputType: "date",
+        inputValue: task.dueDate
+          ? task.dueDate.toDate
+            ? task.dueDate.toDate().toISOString().split("T")[0]
+            : task.dueDate
+          : "",
+        okText: "Guardar Fecha",
+        callback: (dateVal) => {
+          if (dateVal) {
+            // Guardamos como Timestamp de Firestore si es posible, o string si no
+            const dateObj = new Date(dateVal + "T00:00:00");
+            appActions.updateTask(taskId, {
+              dueDate: Timestamp.fromDate(dateObj),
+            });
+          } else {
+            appActions.updateTask(taskId, { dueDate: null }); // Borrar si se deja vacío
+          }
+        },
+      });
+      break;
     case "sync-task-to-calendar":
       appActions.syncTaskToCalendar(taskId);
       break;
@@ -1972,24 +2191,64 @@ function handleTaskCardAction(action, taskId) {
           appActions.updateTask(taskId, { points: Number(points) || 0 }),
       });
       break;
+    // --- EN ui.js (dentro de handleTaskCardAction) ---
+
+    // --- EN ui.js (dentro de handleTaskCardAction) ---
+
     case "assign": {
-      const datalist = document.getElementById("team-members-list");
-      if (datalist) {
-        datalist.innerHTML = appState.allUsers
-          .map(
-            (member) =>
-              `<option value="${member.email}">${member.displayName}</option>`
-          )
-          .join("");
-      }
+      // 1. FILTRAR DUPLICADOS
+      // Usamos un Set para guardar emails ya procesados y evitar repetirlos
+      const seenEmails = new Set();
+      const uniqueUsers = [];
+
+      appState.allUsers.forEach((u) => {
+        const email = u.email ? u.email.toLowerCase().trim() : "";
+        if (email && !seenEmails.has(email)) {
+          seenEmails.add(email);
+          uniqueUsers.push(u);
+        }
+      });
+
+      // 2. ORDENAR ALFABÉTICAMENTE
+      const sortedUsers = uniqueUsers.sort((a, b) =>
+        (a.displayName || a.email).localeCompare(b.displayName || b.email),
+      );
+
+      // 3. GENERAR OPCIONES
+      let optionsHTML = `<option value="">-- Desasignar (Sin responsable) --</option>`;
+
+      sortedUsers.forEach((u) => {
+        const isSelected = task.assignee === u.email ? "selected" : "";
+        const label = u.displayName || u.email;
+        optionsHTML += `<option value="${u.email}" ${isSelected}>${label}</option>`;
+      });
+
+      // 4. MOSTRAR MODAL (Igual que antes)
+      const dropdownHTML = `
+        <div class="flex flex-col gap-2">
+            <label class="text-sm font-bold text-gray-700">Selecciona un miembro del equipo:</label>
+            <select id="modal-assign-select" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                ${optionsHTML}
+            </select>
+            <p class="text-xs text-gray-500 mt-1">
+               Solo puedes asignar a usuarios registrados en Sprintify.
+            </p>
+        </div>
+      `;
+
       showModal({
         title: "Asignar Tarea",
-        input: true,
-        inputType: "email",
-        inputValue: task.assignee || "",
-        okText: "Asignar",
-        callback: (assignee) =>
-          assignee && appActions.updateTask(taskId, { assignee }),
+        htmlContent: dropdownHTML,
+        okText: "Guardar Asignación",
+        callback: () => {
+          const selectEl = document.getElementById("modal-assign-select");
+          if (selectEl) {
+            const newAssignee = selectEl.value || null;
+            if (newAssignee !== task.assignee) {
+              appActions.updateTask(taskId, { assignee: newAssignee });
+            }
+          }
+        },
       });
       break;
     }
@@ -2085,7 +2344,7 @@ function handleEpicCardAction(action, epicId) {
 
 function handleEditSprintClick() {
   const sprint = appState.taskLists.find(
-    (l) => l.id === appState.currentSprintId
+    (l) => l.id === appState.currentSprintId,
   );
   if (!sprint || sprint.isBacklog) return;
 
@@ -2104,7 +2363,7 @@ function handleEditSprintClick() {
   // Verificar que los elementos existen (Diagnóstico para tu problema visual)
   if (!epicSelect || !suffixSpan) {
     console.error(
-      "ERROR CRÍTICO: No se encuentran los campos de Epic o Sufijo en el HTML. Verifica tu index.html"
+      "ERROR CRÍTICO: No se encuentran los campos de Epic o Sufijo en el HTML. Verifica tu index.html",
     );
     return;
   }
@@ -2113,7 +2372,7 @@ function handleEditSprintClick() {
   epicSelect.innerHTML = '<option value="">-- Selecciona un Epic --</option>';
   if (appState.epics && appState.epics.length > 0) {
     appState.epics.forEach((epic) =>
-      epicSelect.add(new Option(epic.title, epic.id))
+      epicSelect.add(new Option(epic.title, epic.id)),
     );
   }
 
@@ -2268,7 +2527,7 @@ export function initializeEventListeners(state, actions) {
   document.addEventListener("change", handleAppChange);
   if (dom.toggleBacklogViewBtn) {
     dom.toggleBacklogViewBtn.addEventListener("click", () =>
-      toggleBacklogView(appState)
+      toggleBacklogView(appState),
     );
   }
 
@@ -2344,6 +2603,15 @@ export function initializeEventListeners(state, actions) {
           // Descomenta la siguiente línea si quieres que al mover a otro carril se reasigne la tarea:
           // assignee: newAssignee
         };
+        // --- NUEVA LÓGICA DE TIEMPOS ---
+        if (newStatus === "inprogress") {
+          // Si entra a progreso y nunca había empezado, marcamos el inicio
+          // Esto permite que el contador de días se base en ejecución real
+          const task = appState.tasks.find((t) => t.id === taskId);
+          if (task && !task.startedAt) {
+            updates.startedAt = Timestamp.now();
+          }
+        }
 
         if (newStatus === "done") {
           updates.status = "completed";
@@ -2501,7 +2769,7 @@ export function initializeEventListeners(state, actions) {
   });
 
   sprintSelector.addEventListener("change", (e) =>
-    appActions.setCurrentSprintId(e.target.value)
+    appActions.setCurrentSprintId(e.target.value),
   );
   sprintCapacityInput.addEventListener("change", (e) => {
     const value = e.target.value;
@@ -2668,7 +2936,7 @@ export function renderTaskDetails(task, state) {
     els.epicSelect.innerHTML =
       '<option value="">-- Seleccionar Epic --</option>';
     state.epics?.forEach((epic) =>
-      els.epicSelect.add(new Option(epic.title, epic.id))
+      els.epicSelect.add(new Option(epic.title, epic.id)),
     );
     els.epicSelect.value = task.epicId || "";
 
@@ -2677,7 +2945,7 @@ export function renderTaskDetails(task, state) {
       const selectedEpic = state.epics?.find((e) => e.id === epicId);
       if (selectedEpic?.keyResults) {
         selectedEpic.keyResults.forEach((kr, index) =>
-          els.krSelect.add(new Option(kr, index))
+          els.krSelect.add(new Option(kr, index)),
         );
         els.krSelect.value =
           currentKrId !== undefined && currentKrId !== null ? currentKrId : "";
@@ -2723,12 +2991,12 @@ export function renderTaskDetails(task, state) {
     renderTriageColumn(
       els.impactContainer,
       triageConfig.impact,
-      task.triageImpactSelections || []
+      task.triageImpactSelections || [],
     );
     renderTriageColumn(
       els.effortContainer,
       triageConfig.effort,
-      task.triageEffortSelections || []
+      task.triageEffortSelections || [],
     );
   }
 
@@ -2739,7 +3007,7 @@ export function renderTaskDetails(task, state) {
         ? [...task.history]
             .sort(
               (a, b) =>
-                (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)
+                (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0),
             )
             .map(
               (entry) => `
@@ -2752,7 +3020,7 @@ export function renderTaskDetails(task, state) {
               <span class="text-[10px] text-gray-400 font-mono">
                 ${entry.timestamp ? entry.timestamp.toDate().toLocaleDateString("es-MX") : ""}
               </span>
-            </div>`
+            </div>`,
             )
             .join("")
         : '<p class="text-center text-gray-400 text-xs py-2 italic">Sin actividad reciente.</p>';
@@ -2776,7 +3044,7 @@ export function renderTaskDetails(task, state) {
       } else {
         task.comments
           .sort(
-            (a, b) => (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0)
+            (a, b) => (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0),
           )
           .forEach((comment, index) => {
             // createCommentElement es interna de ui.js, accesible aquí
@@ -2839,7 +3107,7 @@ export function renderOnlineUsers(onlineUsers) {
   container.innerHTML = onlineUsers
     .map(
       (user) =>
-        `<div class="relative" title="${user.displayName}"><img src="${user.photoURL}" alt="${user.displayName}" class="w-8 h-8 rounded-full"><div class="online-indicator"></div></div>`
+        `<div class="relative" title="${user.displayName}"><img src="${user.photoURL}" alt="${user.displayName}" class="w-8 h-8 rounded-full"><div class="online-indicator"></div></div>`,
     )
     .join("");
 }
@@ -2870,7 +3138,7 @@ function getNextSequenceForEpic(epicId, state) {
   const epicSprints = state.taskLists.filter(
     (l) =>
       !l.isBacklog &&
-      (l.epicId === epicId || (l.epicIds && l.epicIds.includes(epicId)))
+      (l.epicId === epicId || (l.epicIds && l.epicIds.includes(epicId))),
   );
 
   let maxSeq = 0;

@@ -1,4 +1,5 @@
-// app.js
+// app.js - VERSIÓN COMPLETA ACTUALIZADA
+
 import {
   db,
   getRtdb,
@@ -59,11 +60,17 @@ const state = {
   googleAccessToken: null,
   calendarStatus: "disconnected",
   isInitialLoadComplete: false,
-  expandedPersonViews: new Set(),
+
+  // --- NUEVOS ESTADOS PARA VISTA POR PERSONA ---
+  expandedPersonViews: new Set(), // Controla qué carriles están abiertos
+  personViewPersonFilter: "all", // Filtro de persona ('all' o email)
+  personViewSprintFilter: "current",
+  hasInitializedPersonViews: false, // Para evitar resetear la vista en cada update
+
   expandedEpicIds: new Set(),
   handbookEntries: [],
   triageConfig: null,
-  sprintsSummaryFilter: "active", // Valor por defecto: 'active' o 'en progreso'
+  sprintsSummaryFilter: "active",
 };
 
 // ------------------ Render throttle ------------------
@@ -72,10 +79,7 @@ function requestRender() {
   if (renderRequest) cancelAnimationFrame(renderRequest);
   renderRequest = requestAnimationFrame(() => {
     if (state.isInitialLoadComplete) {
-      // En lugar de redibujar todo, solo manejamos la vista actual.
       ui.handleRouteChange(state);
-
-      // Mantenemos las renderizaciones que sí deben ser globales y constantes.
       ui.renderSprintSelector(state);
       ui.renderCalendarButton(state);
       ui.renderOnlineUsers(state.onlineUsers);
@@ -91,6 +95,35 @@ const assertUserOr = (fallback) => (state.user ? true : (fallback?.(), false));
 
 // ------------------ Acciones ------------------
 const actions = {
+  // --- NUEVAS ACCIONES PARA VISTA POR PERSONA ---
+  setPersonViewPersonFilter(email) {
+    state.personViewPersonFilter = email;
+    requestRender();
+  },
+
+  // ¡ESTA ERA LA QUE FALTABA Y CAUSABA EL ERROR ROJO!
+  setPersonViewSprintFilter(filter) {
+    state.personViewSprintFilter = filter;
+    requestRender();
+  },
+
+  togglePersonView(email) {
+    if (state.expandedPersonViews.has(email)) {
+      state.expandedPersonViews.delete(email);
+    } else {
+      state.expandedPersonViews.add(email);
+    }
+    requestRender();
+  },
+
+  expandAllPersonViews() {
+    if (state.allUsers.length > 0) {
+      state.allUsers.forEach((u) => state.expandedPersonViews.add(u.email));
+      state.expandedPersonViews.add("unassigned");
+    }
+  },
+  // ----------------------------------------------
+
   // ---- Tareas / Comentarios / Epics / Sprints ----
   async addNewTask(title, listId) {
     if (
@@ -128,7 +161,6 @@ const actions = {
   async updateTask(taskId, updates) {
     if (!taskId || !updates) return;
     const patch = { ...updates };
-    // Permite escribir histories como arrayUnion declarativo
     if (updates.history?.__op === "arrayUnion") {
       patch.history = arrayUnion(updates.history.value);
     }
@@ -170,8 +202,6 @@ const actions = {
         timestamp: Timestamp.now(),
       }),
     };
-
-    // Llama a la función que ya sabe cómo actualizar tareas
     actions.updateTask(taskId, updates);
   },
 
@@ -220,7 +250,6 @@ const actions = {
     const comment = task.comments[commentIndex];
 
     if (action === "delete-comment") {
-      // USAMOS CONFIRM NATIVO PARA NO CERRAR EL MODAL DE TAREA
       if (confirm("¿Estás seguro de borrar este comentario?")) {
         try {
           await updateDoc(doc(tasksCollection, taskId), {
@@ -230,7 +259,7 @@ const actions = {
           console.error("delete-comment:", e);
         }
       }
-      return; // Salimos sin llamar a ui.showModal
+      return;
     }
 
     if (action === "edit-comment") {
@@ -282,7 +311,7 @@ const actions = {
   addNewSprint(result) {
     const {
       title,
-      sequence, // <--- Recibimos sequence
+      sequence,
       start,
       end,
       capacity = 0,
@@ -295,7 +324,7 @@ const actions = {
 
     addDoc(listsCollection, {
       title,
-      sequence: Number(sequence) || 0, // <--- GUARDAMOS sequence
+      sequence: Number(sequence) || 0,
       startDate: Timestamp.fromDate(new Date(`${start}T00:00:00`)),
       endDate: Timestamp.fromDate(new Date(`${end}T00:00:00`)),
       isBacklog: false,
@@ -316,25 +345,21 @@ const actions = {
       end,
       capacity = 0,
       color,
-      epicId, // <--- 1. AHORA LO RECIBIMOS
+      epicId,
     } = result || {};
 
-    // Objeto de actualización
     const updates = {
       title,
       startDate: Timestamp.fromDate(new Date(`${start}T00:00:00`)),
       endDate: Timestamp.fromDate(new Date(`${end}T00:00:00`)),
       capacity: Number(capacity) || 0,
       color,
-      epicId: epicId || null, // <--- 2. LO GUARDAMOS
+      epicId: epicId || null,
     };
 
-    // Actualizamos también el array para compatibilidad total!
     if (epicId) {
       updates.epicIds = [epicId];
     }
-
-    // Solo actualizamos sequence si viene definido
     if (sequence !== undefined) {
       updates.sequence = Number(sequence);
     }
@@ -421,19 +446,12 @@ const actions = {
 
           await batch.commit();
 
-          // ▼▼ LÓGICA AÑADIDA PARA ACTUALIZAR LA VISTA ▼▼
-          // Si el sprint que archivamos era el que estábamos viendo...
           if (sprintId === state.currentSprintId) {
-            // Buscamos los sprints que todavía están activos.
             const availableSprints = state.taskLists.filter(
               (l) => !l.isBacklog && !l.isArchived && l.id !== sprintId,
             );
-
-            // Cambiamos al primero disponible, o a null si no hay.
             state.currentSprintId =
               availableSprints.length > 0 ? availableSprints[0].id : null;
-
-            // Forzamos un redibujado inmediato de la pantalla.
             requestRender();
           }
         } catch (e) {
@@ -456,7 +474,7 @@ const actions = {
 
     const updates = {
       isArchived: false,
-      archivedAt: null, // Limpiamos la fecha de archivo
+      archivedAt: null,
       endDate: Timestamp.fromDate(new Date(`${newEndDate}T00:00:00`)),
     };
 
@@ -472,21 +490,19 @@ const actions = {
         text: "El nombre del Epic no puede estar vacío.",
       });
 
-    // Estructura mejorada del Epic
     addDoc(epicsCollection, {
       title,
       description: result.description ?? "",
       status: result.status ?? "Por Empezar",
       color: result.color || "#475569",
       themeId: result.themeId || null,
-      // --- NUEVOS CAMPOS ESTRATÉGICOS ---
       startDate: result.startDate
         ? Timestamp.fromDate(new Date(`${result.startDate}T00:00:00`))
         : serverTimestamp(),
       endDate: result.endDate
         ? Timestamp.fromDate(new Date(`${result.endDate}T00:00:00`))
         : null,
-      keyResults: result.keyResults || [], // Guardaremos un array de textos por ahora
+      keyResults: result.keyResults || [],
       createdAt: serverTimestamp(),
       createdBy: state.user?.email ?? null,
     }).catch((e) => console.error("addNewEpic:", e));
@@ -494,7 +510,6 @@ const actions = {
 
   updateEpic(epicId, result) {
     if (!epicId || !result?.title) return;
-    // El 'themeId' vendrá dentro del objeto 'result'
     updateDoc(doc(epicsCollection, epicId), { ...result }).catch(console.error);
   },
 
@@ -561,12 +576,9 @@ const actions = {
         if (!ok) return;
         try {
           const b = writeBatch(db);
-          // Desvincular Epics
           const q = query(epicsCollection, where("themeId", "==", themeId));
           const s = await getDocs(q);
           s.forEach((d) => b.update(d.ref, { themeId: null }));
-
-          // Borrar Tema
           b.delete(doc(themesCollection, themeId));
           await b.commit();
         } catch (e) {
@@ -588,7 +600,6 @@ const actions = {
     }
   },
 
-  // ---- Triage (impact / effort) ----
   updateTriageScore(taskId) {
     if (!state.triageConfig) return console.error("Triage config no cargada.");
     const impactChecks = document.querySelectorAll(
@@ -618,7 +629,6 @@ const actions = {
     });
   },
 
-  // ---- UI / Navegación ----
   setDraggedTaskId: (id) => {
     state.draggedTaskId = id;
   },
@@ -631,12 +641,6 @@ const actions = {
     requestRender();
   },
   handleRouteChange: () => {
-    requestRender();
-  },
-  togglePersonView: (email) => {
-    state.expandedPersonViews.has(email)
-      ? state.expandedPersonViews.delete(email)
-      : state.expandedPersonViews.add(email);
     requestRender();
   },
   toggleEpicDetails: (id) => {
@@ -772,11 +776,8 @@ const actions = {
       batch.commit().catch((e) => console.error("markAllAsRead:", e));
   },
 
-  // --- AGREGAR ESTO DENTRO DE "actions" en app.js ---
   async toggleEpicKr(epicId, krIndex) {
     if (!epicId || krIndex === undefined) return;
-
-    // 1. Buscamos el epic actual para ver qué tiene marcado
     const epic = state.epics.find((e) => e.id === epicId);
     if (!epic) return;
 
@@ -784,7 +785,6 @@ const actions = {
     const idx = Number(krIndex);
     let newIndices;
 
-    // 2. Si ya está, lo quitamos. Si no está, lo ponemos.
     if (currentIndices.includes(idx)) {
       newIndices = arrayRemove(idx);
     } else {
@@ -792,7 +792,6 @@ const actions = {
     }
 
     try {
-      // 3. Guardamos en Firebase
       await updateDoc(doc(epicsCollection, epicId), {
         completedKrIndices: newIndices,
       });
@@ -813,12 +812,11 @@ const actions = {
         text: "Título y contenido son obligatorios.",
       });
 
-    // Convertimos el objeto Delta a un objeto plano que Firestore entiende
     const plainContent = JSON.parse(JSON.stringify(content));
 
     addDoc(handbookCollection, {
       title,
-      content: plainContent, // Usamos el objeto plano
+      content: plainContent,
       createdAt: serverTimestamp(),
       createdBy: state.user?.email ?? null,
     }).catch(console.error);
@@ -833,12 +831,11 @@ const actions = {
         text: "Título y contenido son obligatorios.",
       });
 
-    // Convertimos el objeto Delta a un objeto plano
     const plainContent = JSON.parse(JSON.stringify(content));
 
     updateDoc(doc(handbookCollection, entryId), {
       title,
-      content: plainContent, // Usamos el objeto plano
+      content: plainContent,
       updatedAt: serverTimestamp(),
       lastEditedBy: state.user?.email ?? null,
     }).catch(console.error);
@@ -893,10 +890,8 @@ function loadData() {
   state.isInitialLoadComplete = false;
   let collectionsLoaded = 0;
 
-  // Función interna para verificar si todo está listo
   const checkAllLoaded = () => {
     collectionsLoaded++;
-    // Bajamos el requerimiento a 4 para asegurar que al menos cargue lo básico
     if (collectionsLoaded >= 4) {
       state.isInitialLoadComplete = true;
       requestRender();
@@ -915,6 +910,14 @@ function loadData() {
 
   const unsubProfiles = onSnapshot(query(profilesCollection), (snapshot) => {
     state.allUsers = snapshot.docs.map((d) => d.data());
+
+    // --- AGREGAR ESTO: Expandir todos por defecto al cargar ---
+    if (!state.hasInitializedPersonViews) {
+      state.allUsers.forEach((u) => state.expandedPersonViews.add(u.email));
+      state.expandedPersonViews.add("unassigned");
+      state.hasInitializedPersonViews = true; // Flag para no resetear si los datos cambian en vivo
+    }
+
     checkAllLoaded();
   });
 
@@ -923,7 +926,6 @@ function loadData() {
     const backlog = state.taskLists.find((l) => l.isBacklog);
     state.backlogId = backlog?.id ?? null;
 
-    // Lógica de selección de sprint actual
     const sprints = state.taskLists.filter(
       (l) => !l.isBacklog && !l.isArchived,
     );
@@ -952,27 +954,20 @@ function loadData() {
     checkAllLoaded();
   });
   const unsubTasks = onSnapshot(query(tasksCollection), (snapshot) => {
-    // 1. Actualizamos el estado local de tareas
     state.tasks = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-
-    // 2. Renderizamos la vista de fondo (Kanban, Backlog, etc.)
     requestRender();
 
-    // 3. ¡ESTA ES LA CLAVE! Verificamos si hay un modal de tarea abierto
     const modalContent = document.getElementById("modal-content");
     const activeId = modalContent?.dataset.activeTaskId;
 
     if (activeId) {
-      // Buscamos la tarea actualizada en el nuevo estado
       const updatedTask = state.tasks.find((t) => t.id === activeId);
       if (updatedTask) {
-        // Forzamos a ui.js a renderizar los detalles con la data fresca
         ui.renderTaskDetails(updatedTask, state);
       }
     }
   });
 
-  // Guardar unsubs para limpiar al cerrar sesión
   state.unsubscribe.push(
     unsubTriage,
     unsubProfiles,
@@ -1069,7 +1064,6 @@ function checkUnreadActivity() {
   indicator.classList.toggle("hidden", !hasUnread);
 }
 
-// Forzar visibilidad/scroll de usuarios en línea (estilo)
 const style = document.createElement("style");
 style.textContent = `
 #online-users-container{min-height:48px;max-width:100vw;overflow-x:auto;overflow-y:visible;display:flex;flex-wrap:nowrap;align-items:center;background:transparent}
@@ -1077,7 +1071,6 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// Bootstrap
 window.addEventListener("load", () => {
   ui.initializeEventListeners(state, actions);
   ui.initializeAuthButtons(actions);
