@@ -579,6 +579,12 @@ function renderPersonView(state) {
               ${peopleOptions}
           </select>
       </div>
+
+      <div class="flex flex-col justify-end">
+         <button id="btn-show-velocity" class="h-[38px] px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg border border-gray-300 transition-colors flex items-center gap-2 text-sm font-semibold" title="Ver tabla de puntos por semana">
+            <i class="fas fa-table"></i> Histórico
+         </button>
+      </div>
       
       <div class="w-full md:w-auto md:ml-auto flex items-center gap-4 text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg border border-gray-100 mt-2 md:mt-0">
           <div class="flex items-center gap-1.5" title="Puntos terminados desde el lunes">
@@ -588,9 +594,6 @@ function renderPersonView(state) {
           <div class="flex items-center gap-1.5" title="Puntos actualmente en la columna 'En Progreso'">
               <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:#2563eb; border:1px solid #1d4ed8;"></span>
               <span class="font-medium">Carga Viva</span>
-          </div>
-          <div class="border-l border-gray-300 pl-3 ml-1 italic text-gray-400">
-              * Capacidad: 20 pts/sem
           </div>
       </div>
   `;
@@ -613,6 +616,10 @@ function renderPersonView(state) {
     );
   }
 
+  const btnVelocity = controlsDiv.querySelector("#btn-show-velocity");
+  if (btnVelocity) {
+    btnVelocity.addEventListener("click", () => showVelocityReport(state));
+  }
   // 3. FILTRADO
   let tasksToShow = [];
   if (state.personViewSprintFilter === "all" || !state.personViewSprintFilter) {
@@ -741,7 +748,11 @@ function renderPersonView(state) {
                    <p class="text-xs text-gray-500">${tasks.length} tareas</p>
                </div>
            </div>
-           <i class="fas fa-chevron-down transition-transform duration-300 ${isExpanded ? "rotate-180" : ""} text-gray-400"></i>
+           <div class="pl-2">
+                   <i class="fas fa-chevron-right chevron-icon transition-transform duration-300 text-gray-400" 
+              style="transform: ${isExpanded ? "rotate(90deg)" : "rotate(0deg)"}">
+           </i>
+               </div>
         </div>`;
     } else {
       const avatar =
@@ -778,7 +789,9 @@ function renderPersonView(state) {
                    <span class="block text-sm font-bold ${loadColor}">${currentLoad} / ${WEEKLY_CAPACITY} pts</span>
                </div>
                <div class="pl-2">
-                   <i class="fas fa-chevron-down transition-transform duration-300 ${isExpanded ? "rotate-180" : ""} text-gray-400"></i>
+                   <i class="fas fa-chevron-right chevron-icon text-gray-400" 
+                      style="transform: ${isExpanded ? "rotate(90deg)" : "rotate(0deg)"}">
+                   </i>
                </div>
            </div>
         </div>`;
@@ -2240,7 +2253,29 @@ function handleAppClick(e) {
 
   const personHeader = target.closest("[data-person-toggle]");
   if (personHeader) {
-    appActions.togglePersonView(personHeader.dataset.personToggle);
+    const email = personHeader.dataset.personToggle;
+
+    // 1. Elementos (Buscamos 'chevron-icon' para que sea más genérico)
+    const chevron = personHeader.querySelector(".chevron-icon");
+    const contentBody = personHeader.nextElementSibling;
+
+    // 2. Lógica Visual (0 -> 90 grados)
+    if (contentBody) {
+      const isHidden = contentBody.classList.contains("hidden");
+
+      if (isHidden) {
+        // ABRIR
+        contentBody.classList.remove("hidden");
+        if (chevron) chevron.style.transform = "rotate(90deg)"; // <--- 90 GRADOS
+      } else {
+        // CERRAR
+        contentBody.classList.add("hidden");
+        if (chevron) chevron.style.transform = "rotate(0deg)"; // <--- 0 GRADOS
+      }
+    }
+
+    // 3. Guardar estado en silencio
+    appActions.togglePersonView(email);
   }
 }
 
@@ -3347,6 +3382,126 @@ function getNextSequenceForEpic(epicId, state) {
   });
 
   return maxSeq + 1;
+}
+
+// --- AL FINAL DE ui.js ---
+
+function showVelocityReport(state) {
+  // 1. Obtener todas las tareas completadas
+  const completedTasks = state.tasks.filter(
+    (t) =>
+      (t.status === "completed" || t.kanbanStatus === "done") && t.completedAt,
+  );
+
+  if (completedTasks.length === 0) {
+    alert("No hay tareas completadas para generar el reporte.");
+    return;
+  }
+
+  // 2. Helper para obtener "Año-Semana" (Ej: "2024-W05")
+  const getWeekKey = (date) => {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 4 - (d.getDay() || 7)); // Ajuste ISO
+    const yearStart = new Date(d.getFullYear(), 0, 1);
+    const weekNo = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+    return `${d.getFullYear()}-S${weekNo.toString().padStart(2, "0")}`;
+  };
+
+  // 3. Organizar datos: Mapa[Email][Semana] = Puntos
+  const reportData = {};
+  const allWeeks = new Set();
+  const userNames = {};
+
+  // Inicializar usuarios
+  state.allUsers.forEach((u) => {
+    const email = u.email;
+    reportData[email] = {};
+    userNames[email] = u.displayName || email.split("@")[0];
+  });
+  // Agregar opción "Sin Asignar"
+  reportData["unassigned"] = {};
+  userNames["unassigned"] = "Sin Asignar";
+
+  // Rellenar datos
+  completedTasks.forEach((t) => {
+    const date = t.completedAt.toDate
+      ? t.completedAt.toDate()
+      : new Date(t.completedAt);
+    const weekKey = getWeekKey(date);
+    const assignee = t.assignee || "unassigned";
+
+    allWeeks.add(weekKey);
+
+    if (!reportData[assignee]) reportData[assignee] = {}; // Por si es un usuario borrado
+
+    const currentPts = reportData[assignee][weekKey] || 0;
+    reportData[assignee][weekKey] = currentPts + (t.points || 0);
+  });
+
+  // 4. Ordenar semanas (Columnas)
+  const sortedWeeks = Array.from(allWeeks).sort().slice(-8); // ÚLTIMAS 8 SEMANAS para que quepa
+
+  // 5. Construir Tabla HTML
+  let tableHTML = `
+    <div class="overflow-x-auto">
+        <table class="min-w-full text-sm text-left text-gray-500 border-collapse">
+            <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b">
+                <tr>
+                    <th class="px-4 py-3 border-r">Miembro</th>
+                    ${sortedWeeks.map((w) => `<th class="px-4 py-3 text-center border-r">${w.replace("-", " ")}</th>`).join("")}
+                    <th class="px-4 py-3 text-center bg-gray-100">Promedio</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white">
+    `;
+
+  // Generar filas por usuario
+  Object.keys(reportData)
+    .sort()
+    .forEach((email) => {
+      // Solo mostrar usuarios que tengan al menos 1 punto en el periodo o sean activos
+      const pointsInPeriod = sortedWeeks.map((w) => reportData[email][w] || 0);
+      const totalPoints = pointsInPeriod.reduce((a, b) => a + b, 0);
+
+      // Ocultar filas vacías de gente inactiva (opcional, aquí las mostramos todas si son del equipo)
+      // Si quieres ocultar vacíos: if (totalPoints === 0 && email !== 'unassigned') return;
+
+      const avg = (totalPoints / sortedWeeks.length).toFixed(1);
+      const name = userNames[email] || email;
+
+      // Estilo condicional para el promedio
+      let avgColor = "text-gray-600";
+      if (avg >= 20) avgColor = "text-green-600 font-bold";
+      else if (avg < 10) avgColor = "text-amber-600";
+
+      tableHTML += `
+            <tr class="border-b hover:bg-gray-50 transition-colors">
+                <td class="px-4 py-3 font-medium text-gray-900 border-r whitespace-nowrap">${name}</td>
+                ${pointsInPeriod
+                  .map(
+                    (pts) => `
+                    <td class="px-4 py-3 text-center border-r ${pts > 0 ? "text-blue-600 font-semibold" : "text-gray-300"}">
+                        ${pts > 0 ? pts : "-"}
+                    </td>
+                `,
+                  )
+                  .join("")}
+                <td class="px-4 py-3 text-center bg-gray-50 font-bold ${avgColor}">${avg}</td>
+            </tr>
+        `;
+    });
+
+  tableHTML += `</tbody></table></div>
+    <p class="text-xs text-gray-400 mt-2 text-right">* Se muestran las últimas 8 semanas con actividad.</p>
+    `;
+
+  // 6. Mostrar Modal
+  showModal({
+    title: "Histórico de Velocidad (Puntos Completados)",
+    htmlContent: tableHTML,
+    okText: "Cerrar",
+  });
 }
 
 // --- FIN DEL ARCHIVO ui.js ---

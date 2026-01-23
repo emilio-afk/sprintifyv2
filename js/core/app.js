@@ -113,7 +113,7 @@ const actions = {
     } else {
       state.expandedPersonViews.add(email);
     }
-    requestRender();
+    //requestRender();
   },
 
   expandAllPersonViews() {
