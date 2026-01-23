@@ -1,0 +1,1588 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sprintify - Herramienta Ágil Colaborativa</title>
+
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+      integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <link
+      href="https://cdn.quilljs.com/1.3.6/quill.snow.css"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles/output.css" />
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+
+    <style>
+      /* ▼▼▼ PALETA DE COLORES Y ESTILOS ACTUALIZADOS ▼▼▼ */
+      :root {
+        --brand-700: #3c5ceb; /* Un azul más vibrante pero elegante */
+        --brand-50: #f0f2ff; /* Tono muy claro del azul para fondos sutiles */
+
+        --ink: #011963; /* Texto principal (casi negro, slate-900) */
+        --muted: #64748b; /* Texto secundario (slate-500) */
+        --bg: #d5eafd; /* Fondo general de la app (slate-50) */
+        --surface: #f4f4f4; /* Fondo de las tarjetas */
+        --border: #26262677; /* Bordes (slate-200) */
+
+        /* Sombras personalizadas para un look más suave */
+        --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+        --shadow-md:
+          0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        --shadow-lg:
+          0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+      }
+      body {
+        font-family: "Inter", sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+      }
+      .reader-content .ql-editor {
+        font-size: 1.125rem; /* Esto es 18px, puedes ajustarlo */
+        line-height: 1.75;
+      }
+      .task-card {
+        transition: all 0.2s ease-in-out;
+        cursor: pointer;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-md);
+        padding-left: 10px;
+      }
+      .task-card:hover {
+        transform: translateY(-3px);
+        box-shadow: var(--shadow-lg);
+      }
+
+      .timeline-bar {
+        position: absolute;
+        height: 2.25rem;
+        border-radius: 0.375rem;
+        background-color: #e5e7eb;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        transition:
+          transform 0.2s ease-in-out,
+          box-shadow 0.2s ease-in-out;
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        overflow: hidden;
+      }
+      .timeline-bar:hover {
+        transform: scale(1.02);
+        z-index: 10;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      }
+      .timeline-bar.status-future {
+        background-color: #f3f4f6;
+        border-style: dashed;
+      }
+      .timeline-bar.status-completed {
+        opacity: 0.8;
+      }
+      .bar-points-content {
+        position: relative;
+        z-index: 5;
+        padding-right: 0.75rem;
+        font-weight: 500;
+        color: #374151;
+      }
+      .progress-fill {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        height: 100%;
+        z-index: 1;
+        border-top-left-radius: 0.375rem;
+        border-bottom-left-radius: 0.375rem;
+        transition: width 0.5s ease-in-out;
+      }
+      .bar-title-overlay {
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 100%;
+        width: 100%;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        padding-left: 0.75rem;
+        color: white;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+      }
+      .sprint-color-indicator {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background-color: #cbd5e1;
+        border-top-left-radius: 0.375rem;
+        border-bottom-left-radius: 0.375rem;
+      }
+      .epic-indicator {
+        position: absolute;
+        top: 6px;
+        right: 8px;
+        z-index: 10;
+        font-size: 0.75rem; /* 12px */
+        opacity: 0.8;
+        transition: opacity 0.2s;
+      }
+      .task-card:hover .epic-indicator {
+        opacity: 1;
+      }
+      .task-card.dragging {
+        opacity: 0.5;
+        transform: rotate(2deg);
+        cursor: grabbing;
+      }
+      .action-icon-wrapper {
+        cursor: pointer;
+      }
+      .chevron-icon {
+        transition: transform 0.2s ease-in-out;
+      }
+      .details-shown .chevron-icon {
+        transform: rotate(90deg);
+      }
+      .avatar-image {
+        object-fit: cover;
+      }
+      .task-actions {
+        opacity: 0;
+        transition: opacity 0.2s ease-in-out;
+        pointer-events: none;
+      }
+      .task-card:hover .task-actions {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .calendar-day {
+        min-height: 100px;
+      }
+      .other-month {
+        color: #d1d5db;
+      }
+      .color-swatch {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        cursor: pointer;
+        border: 2px solid transparent;
+        transition: transform 0.2s;
+      }
+      .color-swatch:hover {
+        transform: scale(1.1);
+      }
+      .color-swatch.selected {
+        border-color: var(--brand-700);
+        box-shadow: 0 0 0 2px white;
+      }
+
+      .online-indicator {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        width: 10px;
+        height: 10px;
+        background-color: #22c55e;
+        border-radius: 50%;
+        border: 2px solid var(--surface);
+      }
+
+      #modal-content {
+        max-height: 85vh;
+        display: flex;
+        flex-direction: column;
+      }
+      #modal-body {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        position: relative;
+      }
+      #modal-body.scroll-fade::before,
+      #modal-body.scroll-fade::after {
+        content: "";
+        position: sticky;
+        display: block;
+        height: 16px;
+        z-index: 1;
+      }
+      #modal-body.scroll-fade::before {
+        top: 0;
+        background: linear-gradient(
+          to bottom,
+          rgba(255, 255, 255, 1),
+          rgba(255, 255, 255, 0)
+        );
+      }
+      #modal-body.scroll-fade::after {
+        bottom: 0;
+        background: linear-gradient(
+          to top,
+          rgba(255, 255, 255, 1),
+          rgba(255, 255, 255, 0)
+        );
+      }
+      #modal-footer {
+        position: sticky;
+        bottom: 0;
+        background: #fff;
+        border-top: 1px solid var(--border);
+        padding-top: 0.5rem;
+      }
+      #sprint-actions-menu {
+        /* Hacemos que el fondo original sea transparente a propósito */
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+      }
+
+      #sprint-actions-menu::before {
+        content: "";
+        position: absolute;
+        /* Hacemos que esta capa ocupe todo el espacio del menú */
+        inset: 0;
+
+        /* Le damos el estilo que queremos al fondo */
+        background-color: white;
+        border-radius: 0.375rem; /* rounded-md */
+        box-shadow:
+          0 10px 15px -3px rgb(0 0 0 / 0.1),
+          0 4px 6px -4px rgb(0 0 0 / 0.1); /* shadow-lg */
+        border: 1px solid #e2e8f0; /* slate-200 */
+
+        /* La ponemos detrás del texto */
+        z-index: -1;
+      }
+
+      /* Nos aseguramos de que los enlaces del menú se vean */
+      #sprint-actions-menu > a {
+        position: relative;
+      }
+
+      .sprint-menu-container {
+        position: relative;
+      }
+
+      .sprint-menu-content {
+        position: absolute;
+        right: 0; /* Alinea el menú a la derecha */
+        top: 100%; /* Lo posiciona justo debajo del botón */
+        margin-top: 0.5rem; /* mt-2 */
+        width: 12rem; /* w-48 */
+
+        /* Estilos para asegurar que no sea transparente */
+        background-color: white;
+        border-radius: 0.375rem; /* rounded-md */
+        box-shadow:
+          0 10px 15px -3px rgb(0 0 0 / 0.1),
+          0 4px 6px -4px rgb(0 0 0 / 0.1); /* shadow-lg */
+        border: 1px solid #e2e8f0;
+        z-index: 50; /* Lo pone por encima de todo */
+
+        display: none; /* Por defecto está oculto */
+      }
+
+      .sprint-menu-content::before {
+        content: "";
+        position: absolute;
+        top: -1rem; /* Sube para tocar el botón */
+        left: 0;
+        width: 100%;
+        height: 1rem; /* Rellena el hueco del margin-top */
+        background: transparent;
+      }
+
+      /* 1. Mostrar menú al hacer HOVER (versión escritorio) */
+      .sprint-menu-container:hover .sprint-menu-content {
+        display: block;
+      }
+
+      /* 2. Mantener soporte para 'is-active' (opcional para móviles/clics) */
+      .sprint-menu-container.is-active .sprint-menu-content {
+        display: block;
+      }
+
+      #sidebar {
+        background-color: theme("colors.primary-dark");
+        border-right-color: f4f4f4; /* Un borde ligeramente más claro (slate-800) */
+      }
+      #sidebar h1 {
+        color: theme("colors.text-light");
+      }
+      .sidebar-link {
+        color: #f4f4f4; /* Texto de enlaces inactivos (slate-400) */
+      }
+      .sidebar-link:hover {
+        background-color: theme(
+          primary
+        ); /* Fondo al pasar el mouse (slate-800) */
+        color: #d5eafd;
+      }
+      .sidebar-link.active {
+        background-color: #2563eb; /* Este es el azul de "Nuevo Sprint" (blue-600) */
+        color: white;
+        font-weight: 600;
+      }
+      y #sidebar footer {
+        border-top-color: #b9cee5; /* Borde superior del footer (slate-800) */
+      }
+      #sidebar footer h3 {
+        /* Títulos como "EN LÍNEA" */
+        color: #4dde5e; /* slate-500 */
+      }
+      #user-name {
+        color: #f4f4f4;
+      }
+      #user-email {
+        color: #f4f4f4;
+      }
+      #auth-button {
+        background-color: #f4f4f4;
+        color: #0b56c6;
+      }
+      #auth-button:hover {
+        background-color: #334155;
+        color: white;
+      }
+      #sidebar nav h3 {
+        /* Hacemos la regla más específica */
+        color: #d5eafd !important; /* Este es el color que puedes cambiar */
+      }
+      .nav-group-button .chevron-icon {
+        transition: transform 0.2s ease-in-out;
+        transform: rotate(
+          -90deg
+        ); /* Flecha apunta a la derecha por defecto (estilo colapsado) */
+      }
+      .nav-group-button.is-open .chevron-icon {
+        transform: rotate(
+          0deg
+        ); /* Flecha apunta hacia abajo cuando está abierto */
+      }
+      .nav-group-button .chevron-icon {
+        color: #d5eafd !important; /* Este es el color que puedes cambiar */
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100 text-gray-800">
+    <div id="app-container" class="flex h-screen">
+      <aside
+        id="sidebar"
+        class="w-64 bg-slate-900 border-r border-slate-800 flex-shrink-0 flex flex-col p-4 hidden"
+      >
+        <div class="flex items-center gap-2 mb-8">
+          <div
+            class="bg-blue-700 p-2 pb-5 rounded-lg flex items-center justify-between"
+          >
+            <i class="fas fa-rocket text-slate-100 text-3xl"></i>
+          </div>
+          <h1 class="text-3xl font-bold text-white">Sprintify</h1>
+        </div>
+
+        <nav class="flex flex-col gap-2">
+          <div class="nav-group px-3">
+            <button
+              data-action="toggle-nav-group"
+              data-target="nav-group-strategy"
+              class="nav-group-button w-full flex justify-between items-center"
+            >
+              <h3
+                class="text-sm font-semibold uppercase text-slate-400 tracking-wider"
+              >
+                Estrategia
+              </h3>
+              <i
+                class="fas fa-chevron-down chevron-icon text-slate-400 text-xs"
+              ></i>
+            </button>
+            <div
+              id="nav-group-strategy"
+              class="nav-group-content mt-2 space-y-1"
+            >
+              <a
+                href="#epics"
+                class="sidebar-link text-sm flex items-center gap-3 -ml-3 px-3 py-2 rounded-lg transition-colors duration-150"
+                ><i class="fas fa-book-atlas w-5"></i><span>Epics</span></a
+              >
+            </div>
+          </div>
+
+          <div class="nav-group px-3">
+            <button
+              data-action="toggle-nav-group"
+              data-target="nav-group-execution"
+              class="nav-group-button w-full flex justify-between items-center"
+            >
+              <h3
+                class="text-sm font-semibold uppercase text-slate-400 tracking-wider"
+              >
+                Ejecución
+              </h3>
+              <i
+                class="fas fa-chevron-down chevron-icon text-slate-400 text-xs"
+              ></i>
+            </button>
+            <div
+              id="nav-group-execution"
+              class="nav-group-content mt-2 space-y-1"
+            >
+              <a
+                href="#backlog"
+                class="sidebar-link text-sm active flex items-center gap-3 -ml-3 px-3 py-2 rounded-lg transition-colors duration-150"
+                ><i class="fas fa-layer-group w-5"></i><span>Backlog</span></a
+              >
+              <a
+                href="#sprint"
+                class="sidebar-link text-sm flex items-center gap-3 -ml-3 px-3 py-2 rounded-lg transition-colors duration-150"
+                ><i class="fas fa-person-running w-5"></i
+                ><span>Sprint Activo</span></a
+              >
+            </div>
+          </div>
+
+          <div class="nav-group px-3">
+            <button
+              data-action="toggle-nav-group"
+              data-target="nav-group-team"
+              class="nav-group-button w-full flex justify-between items-center"
+            >
+              <h3
+                class="text-sm font-semibold uppercase text-slate-400 tracking-wider"
+              >
+                Equipo
+              </h3>
+              <i
+                class="fas fa-chevron-down chevron-icon text-slate-400 text-xs"
+              ></i>
+            </button>
+            <div
+              id="nav-group-team"
+              class="nav-group-content hidden mt-2 space-y-1"
+            >
+              <a
+                href="#mytasks"
+                class="sidebar-link text-sm flex items-center gap-3 -ml-3 px-3 py-2 rounded-lg transition-colors duration-150"
+                ><i class="fas fa-user-check w-5"></i><span>Mi Trabajo</span></a
+              >
+              <a
+                href="#by-person"
+                class="sidebar-link text-sm flex items-center gap-3 -ml-3 px-3 py-2 rounded-lg transition-colors duration-150"
+                ><i class="fa-solid fa-users w-5"></i
+                ><span>Por Persona</span></a
+              >
+              <a
+                href="#activity"
+                class="sidebar-link text-sm flex items-center gap-3 -ml-3 px-3 py-2 rounded-lg relative transition-colors duration-150"
+              >
+                <i class="fas fa-bell w-5"></i>
+                <span>Actividad</span>
+                <span
+                  id="activity-unread-indicator"
+                  class="hidden absolute right-0 w-2.5 h-2.5 bg-red-500 rounded-full"
+                ></span>
+              </a>
+            </div>
+          </div>
+
+          <div class="nav-group px-3">
+            <button
+              data-action="toggle-nav-group"
+              data-target="nav-group-reports"
+              class="nav-group-button w-full flex justify-between items-center"
+            >
+              <h3
+                class="text-sm font-semibold uppercase text-slate-400 tracking-wider"
+              >
+                Reportes y Archivo
+              </h3>
+              <i
+                class="fas fa-chevron-down chevron-icon text-slate-400 text-xs"
+              ></i>
+            </button>
+            <div
+              id="nav-group-reports"
+              class="nav-group-content hidden mt-2 space-y-1"
+            >
+              <a
+                href="#summary"
+                class="sidebar-link text-sm flex items-center gap-3 -ml-3 px-3 py-2 rounded-lg transition-colors duration-150"
+                ><i class="fas fa-table-list w-5"></i
+                ><span>Resumen de Sprints</span></a
+              >
+              <a
+                href="#timeline"
+                class="sidebar-link text-sm flex items-center gap-3 -ml-3 px-3 py-2 rounded-lg transition-colors duration-150"
+                ><i class="fas fa-calendar-week w-5"></i
+                ><span>Cronograma</span></a
+              >
+              <a
+                href="#archived-sprints"
+                class="sidebar-link text-sm flex items-center gap-3 -ml-3 px-3 py-2 rounded-lg transition-colors duration-150"
+                ><i class="fas fa-archive w-5"></i
+                ><span>Sprints Archivados</span></a
+              >
+            </div>
+          </div>
+        </nav>
+
+        <footer class="mt-auto pt-4 border-t border-slate-800">
+          <div class="px-3 mb-4">
+            <a
+              href="#handbook"
+              class="sidebar-link text-sm flex items-center gap-3 -ml-3 px-3 py-2 rounded-lg transition-colors duration-150"
+              ><i class="fas fa-book w-5"></i><span>Manual de Equipo</span></a
+            >
+            <a
+              href="#settings"
+              class="sidebar-link text-sm flex items-center gap-3 -ml-3 px-3 py-2 rounded-lg transition-colors duration-150"
+              ><i class="fas fa-cog w-5"></i><span>Configuración</span></a
+            >
+          </div>
+          <div class="px-3 mb-4">
+            <h3
+              class="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-2"
+            >
+              En Línea
+            </h3>
+            <div id="online-users-container" class="flex flex-wrap gap-2"></div>
+          </div>
+          <div id="user-info" class="flex items-center gap-3 p-2 rounded-lg">
+            <img
+              id="user-avatar"
+              class="w-10 h-10 rounded-full"
+              src=""
+              alt="Avatar de Usuario"
+            />
+            <div class="text-sm overflow-hidden">
+              <p
+                id="user-name"
+                class="font-semibold truncate text-slate-100"
+              ></p>
+              <p id="user-email" class="truncate text-slate-400"></p>
+            </div>
+          </div>
+          <button
+            id="auth-button"
+            class="mt-2 w-full font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-all bg-primary text-white hover:bg-blue-700"
+          >
+            <span id="auth-button-text">Cerrar Sesión</span>
+          </button>
+        </footer>
+      </aside>
+
+      <main id="main-content" class="flex-1 p-8 overflow-y-auto hidden">
+        <header class="flex flex-wrap justify-between items-center mb-6 gap-4">
+          <h2
+            id="view-title"
+            class="text-3xl rounded-lg font-semibold mt--10 px-3 pt-2 pb-2"
+          >
+            Backlog
+          </h2>
+
+          <div id="header-controls" class="flex items-center gap-6 ml-auto">
+            <div id="calendar-connection-ui"></div>
+
+            <div
+              class="flex items-center gap-4 bg-white p-2 rounded-lg shadow-sm border border-gray-200"
+            >
+              <div class="flex items-center gap-2">
+                <label
+                  for="sprint-list-select"
+                  class="text-sm font-medium text-gray-500 pl-2"
+                  >Sprint:</label
+                >
+                <select
+                  id="sprint-list-select"
+                  class="p-1 border-none rounded-md bg-gray-50 focus:ring-2 focus:ring-blue-500"
+                ></select>
+              </div>
+              <div class="h-6 border-l border-gray-200"></div>
+              <div class="flex items-center gap-2">
+                <label
+                  for="sprint-capacity-input"
+                  class="text-sm font-medium text-gray-500"
+                  >Capacidad:</label
+                >
+                <input
+                  type="number"
+                  id="sprint-capacity-input"
+                  class="p-1 border-none rounded-md bg-gray-50 w-20 focus:ring-2 focus:ring-blue-500"
+                  placeholder="Pts"
+                />
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button
+                data-action="new-sprint"
+                class="bg-blue-500 hover:bg-blue-900 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+              >
+                <i class="fas fa-plus"></i>
+                <span>Nuevo Sprint</span>
+              </button>
+
+              <div id="sprint-menu-container" class="sprint-menu-container">
+                <button
+                  data-action="toggle-sprint-menu"
+                  class="sprint-menu-button bg-blue-500 hover:bg-blue-900 text-gray-200 font-bold py-2 px-3 rounded-lg transition-colors"
+                >
+                  <i class="fas fa-ellipsis-v"></i>
+                </button>
+                <div class="sprint-menu-content py-1">
+                  <a
+                    data-action="edit-sprint"
+                    class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
+                    ><i class="fas fa-pencil w-5 text-gray-500"></i
+                    ><span>Editar Sprint</span></a
+                  >
+                  <a
+                    data-action="archive-sprint"
+                    class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
+                    ><i class="fas fa-archive w-5 text-gray-500"></i
+                    ><span>Archivar Sprint</span></a
+                  >
+                  <a
+                    data-action="delete-sprint"
+                    class="flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 cursor-pointer"
+                    ><i class="fas fa-trash-can w-5"></i
+                    ><span>Borrar Sprint</span></a
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <section id="view-backlog" class="hidden">
+          <div
+            id="backlog-controls"
+            class="flex flex-wrap justify-between items-center mb-4 gap-4"
+          >
+            <div class="flex items-center gap-4">
+              <p class="text-gray-600">
+                Planifica tu próximo sprint desde la fuente única de trabajo.
+              </p>
+              <button
+                id="toggle-backlog-view"
+                class="bg-gray-200 hover:bg-gray-300 text-sm py-1 px-3 rounded-lg flex items-center gap-2 transition-colors duration-150"
+              >
+                <i class="fas fa-table-cells"></i> Vista Matriz
+              </button>
+            </div>
+            <div class="flex items-center gap-4">
+              <div class="flex items-center">
+                <input
+                  id="select-all-backlog-tasks"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label
+                  for="select-all-backlog-tasks"
+                  class="ml-2 block text-sm text-gray-900"
+                  >Seleccionar todo</label
+                >
+              </div>
+              <button
+                data-action="plan-sprint"
+                class="bg-blue-500 hover:bg-blue-900 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-opacity"
+              >
+                <i class="fas fa-arrow-right-to-bracket"></i> Mover al Sprint
+              </button>
+            </div>
+          </div>
+          <div
+            id="backlog-tasks-container"
+            class="bg-white p-4 rounded-xl shadow-md grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
+          ></div>
+          <div id="backlog-matrix-container" class="hidden"></div>
+          <button
+            data-action="add-task-backlog"
+            class="mt-4 w-full bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold py-2 px-4 rounded-lg border-2 border-dashed border-gray-300 transition"
+          >
+            <i
+              class="fa-solid fa-plus fa-fw inline-block w-5 h-5 text-current"
+            ></i>
+            Añadir Tarea al Backlog
+          </button>
+        </section>
+
+        <section id="view-sprint" class="hidden">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-gray-50 rounded-xl p-4 flex flex-col">
+              <h3
+                class="font-bold text-gray-500 uppercase tracking-wider mb-4 flex justify-between items-center"
+              >
+                <span>Por Hacer</span>
+                <span
+                  id="sprint-capacity-warning-todo"
+                  class="hidden text-xs font-bold text-red-500"
+                ></span>
+              </h3>
+              <div
+                id="kanban-todo"
+                class="min-h-[200px] space-y-3 flex-grow"
+                data-status="todo"
+              ></div>
+              <button
+                data-action="add-task-sprint"
+                class="mt-4 w-full bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm py-2 px-4 rounded-lg border border-dashed border-gray-300 transition"
+              >
+                <i
+                  class="fa-solid fa-plus fa-fw inline-block w-5 h-5 text-current"
+                ></i>
+                Añadir Tarea
+              </button>
+            </div>
+            <div class="bg-gray-50 rounded-xl p-4 flex flex-col">
+              <h3
+                class="font-bold text-gray-500 uppercase tracking-wider mb-4 flex justify-between items-center"
+              >
+                <span>En Progreso</span>
+                <span
+                  id="sprint-capacity-warning-inprogress"
+                  class="hidden text-xs font-bold text-red-500"
+                ></span>
+              </h3>
+              <div
+                id="kanban-inprogress"
+                class="min-h-[200px] space-y-3 flex-grow"
+                data-status="inprogress"
+              ></div>
+            </div>
+            <div class="bg-gray-50 rounded-xl p-4 flex flex-col">
+              <h3
+                class="font-bold text-gray-500 uppercase tracking-wider mb-4 flex justify-between items-center"
+              >
+                <span>Hecho</span>
+                <span
+                  id="sprint-capacity-warning-done"
+                  class="hidden text-xs font-bold text-red-500"
+                ></span>
+              </h3>
+              <div
+                id="kanban-done"
+                class="min-h-[200px] space-y-3 flex-grow"
+                data-status="done"
+              ></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-epics" class="hidden">
+          <div class="flex justify-between items-center mb-4">
+            <p class="text-gray-600">
+              Agrupa tus sprints en proyectos estratégicos de alto nivel.
+            </p>
+            <button
+              data-action="new-epic"
+              class="bg-blue-500 hover:bg-blue-900 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-opacity"
+            >
+              <i
+                class="fa-solid fa-plus fa-fw inline-block w-5 h-5 text-current"
+              ></i>
+              Nuevo Epic
+            </button>
+          </div>
+          <div id="epics-container" class="space-y-4"></div>
+        </section>
+
+        <section id="view-summary" class="hidden">
+          <div
+            id="sprints-summary-filter-container"
+            class="flex items-center gap-2 mb-4"
+          ></div>
+
+          <div class="bg-white p-6 rounded-xl shadow-md overflow-x-auto">
+            <table class="w-full text-sm text-left text-gray-500">
+              <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                <tr>
+                  <th scope="col" class="px-6 py-3 w-4"></th>
+                  <th scope="col" class="px-6 py-3">Nombre del Sprint</th>
+                  <th scope="col" class="px-6 py-3">Fechas</th>
+                  <th scope="col" class="px-6 py-3">Tareas</th>
+                  <th scope="col" class="px-6 py-3">Puntos</th>
+                  <th scope="col" class="px-6 py-3">Progreso</th>
+                  <th scope="col" class="px-6 py-3">Estado</th>
+                </tr>
+              </thead>
+              <tbody id="summary-table-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="view-archived-sprints" class="hidden">
+          <div id="archived-sprints-container" class="space-y-4"></div>
+        </section>
+        <section id="view-timeline" class="hidden">
+          <div class="bg-white p-4 rounded-xl shadow-md">
+            <div class="flex justify-between items-center mb-4">
+              <div class="flex items-center">
+                <button
+                  data-action="timeline-prev"
+                  class="p-2 rounded-md hover:bg-gray-100"
+                >
+                  <i class="fas fa-chevron-left"></i>
+                </button>
+                <h3
+                  id="timeline-month-year"
+                  class="text-lg font-semibold w-48 text-center"
+                ></h3>
+                <button
+                  data-action="timeline-next"
+                  class="p-2 rounded-md hover:bg-gray-100"
+                >
+                  <i class="fas fa-chevron-right"></i>
+                </button>
+              </div>
+            </div>
+            <div id="gantt-view">
+              <div class="relative overflow-x-auto">
+                <div id="timeline-grid" class="relative"></div>
+                <div id="timeline-container" class="relative h-48 mt-2"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-mytasks" class="hidden">
+          <div
+            id="mytasks-container"
+            class="bg-white p-4 rounded-xl shadow-md space-y-3"
+          ></div>
+        </section>
+
+        <section id="view-by-person" class="hidden space-y-4"></section>
+
+        <section id="view-activity" class="hidden">
+          <div id="activity-feed-container" class="space-y-6"></div>
+        </section>
+
+        <section id="view-handbook" class="hidden">
+          <div class="flex justify-between items-center mb-4">
+            <p class="text-gray-600">
+              Aquí puedes documentar las reglas, procesos y definiciones clave
+              de tu equipo.
+            </p>
+            <button
+              data-action="new-handbook-entry"
+              class="bg-[var(--brand-700)] hover:opacity-90 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-opacity"
+            >
+              <i class="fas fa-plus"></i> Nueva Entrada
+            </button>
+          </div>
+          <div
+            id="handbook-container"
+            class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+          ></div>
+        </section>
+
+        <section id="view-settings" class="hidden">
+          <div class="bg-white p-6 rounded-xl shadow-md">
+            <h3 class="text-xl font-bold text-gray-900 mb-6 border-b pb-4">
+              Configuración de Triage
+            </h3>
+            <p class="text-gray-600 mb-8">
+              Aquí puedes personalizar las preguntas que se usan para calcular
+              el impacto y el esfuerzo de las tareas en el backlog.
+            </p>
+            <div class="grid grid-cols-1 md:grid-cols-2">
+              <div class="pr-6 md:border-r md:border-gray-200">
+                <h4 class="text-lg font-bold text-gray-800 mb-4">
+                  Preguntas de Impacto
+                </h4>
+                <div id="impact-questions-editor" class="space-y-4"></div>
+                <button
+                  data-action="add-triage-question"
+                  data-type="impact"
+                  class="w-full mt-4 bg-transparent hover:bg-gray-50 text-gray-600 font-semibold py-2 px-4 rounded-lg border-2 border-dashed border-gray-300 hover:border-gray-400 transition flex items-center justify-center gap-2"
+                >
+                  <i class="fas fa-plus fa-sm"></i>
+                  <span>Añadir Pregunta</span>
+                </button>
+              </div>
+              <div class="pl-6 pt-8 md:pt-0">
+                <h4 class="text-lg font-bold text-gray-800 mb-4">
+                  Preguntas de Esfuerzo
+                </h4>
+                <div id="effort-questions-editor" class="space-y-4"></div>
+                <button
+                  data-action="add-triage-question"
+                  data-type="effort"
+                  class="w-full mt-4 bg-transparent hover:bg-gray-50 text-gray-600 font-semibold py-2 px-4 rounded-lg border-2 border-dashed border-gray-300 hover:border-gray-400 transition flex items-center justify-center gap-2"
+                >
+                  <i class="fas fa-plus fa-sm"></i>
+                  <span>Añadir Pregunta</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white p-6 rounded-xl shadow-md mt-8">
+            <h3 class="text-xl font-bold text-gray-900 mb-6 border-b pb-4">
+              Configuración de Matriz
+            </h3>
+            <p class="text-gray-600 mb-8">
+              Define el valor mínimo (incluyéndolo) para que una tarea sea
+              considerada de "alto" impacto o "alto" esfuerzo.
+            </p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+              <div>
+                <label
+                  for="matrix-impact-threshold"
+                  class="block text-sm font-medium text-gray-700"
+                  >Puntaje mínimo para Alto Impacto</label
+                >
+                <input
+                  type="number"
+                  id="matrix-impact-threshold"
+                  class="mt-1 w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Ej: 3"
+                />
+              </div>
+              <div>
+                <label
+                  for="matrix-effort-threshold"
+                  class="block text-sm font-medium text-gray-700"
+                  >Puntaje mínimo para Esfuerzo</label
+                >
+                <input
+                  type="number"
+                  id="matrix-effort-threshold"
+                  class="mt-1 w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Ej: 3"
+                />
+              </div>
+              <button
+                data-action="save-matrix-thresholds"
+                class="bg-primary hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+              >
+                Guardar Límites
+              </button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <div id="welcome-message" class="w-full flex items-center justify-center">
+        <div class="text-center p-6 bg-white rounded-xl shadow-md max-w-lg">
+          <i class="fas fa-rocket text-5xl text-blue-500 mb-4"></i>
+          <h2 class="text-primary-darkxl font-semibold mb-2">
+            Bienvenido a Sprintify
+          </h2>
+          <p class="text-gray-600 mb-6">
+            La herramienta colaborativa para gestionar tus sprints.
+          </p>
+          <button
+            id="login-button"
+            class="bg-[var(--brand-700)] hover:opacity-90 text-white font-bold py-3 px-6 rounded-lg shadow-md flex items-center gap-2 mx-auto transition-opacity"
+          >
+            <img
+              src="https://www.google.com/favicon.ico"
+              alt="Google icon"
+              class="w-5 h-5"
+            />
+            <span>Sign in with Google</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="modal-overlay"
+      class="modal-overlay hidden flex items-center justify-center bg-black bg-opacity-50 fixed inset-0 z-[100]"
+    >
+      <div
+        id="modal-content"
+        class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm md:max-w-5xl overflow-hidden flex flex-col max-h-[90vh]"
+      >
+        <h3 id="modal-title" class="text-xl font-bold mb-4 text-gray-800"></h3>
+
+        <div id="modal-body" class="scroll-fade overflow-y-auto pr-2 flex-1">
+          <p id="modal-text" class="mb-4 text-gray-600 hidden"></p>
+          <input
+            type="text"
+            id="modal-input"
+            class="w-full p-2 border border-gray-300 rounded-lg mb-4 hidden focus:ring-2 focus:ring-blue-500"
+          />
+
+          <div id="modal-task-details" class="hidden space-y-6">
+            <div class="border-b border-gray-100 pb-4">
+              <div class="flex justify-between items-center gap-4">
+                <div class="w-full">
+                  <span
+                    class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block"
+                    >Tarea</span
+                  >
+                  <h4
+                    id="modal-task-title"
+                    class="text-xl md:text-2xl font-bold text-slate-900 leading-tight"
+                  ></h4>
+                </div>
+                <div id="modal-task-status" class="shrink-0"></div>
+              </div>
+
+              <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div
+                  class="flex flex-col gap-1 bg-gray-50 p-3 rounded-lg border border-gray-100"
+                >
+                  <label
+                    class="text-[9px] font-bold text-gray-400 uppercase ml-1"
+                    >Proyecto (Epic)</label
+                  >
+                  <div class="relative">
+                    <select
+                      id="modal-task-epic-select"
+                      class="w-full bg-white border border-gray-200 text-xs font-semibold text-gray-700 rounded-md p-2 outline-none focus:border-blue-500 cursor-pointer truncate appearance-none"
+                    ></select>
+                  </div>
+                </div>
+
+                <div
+                  class="flex flex-col gap-1 bg-gray-50 p-3 rounded-lg border border-gray-100"
+                >
+                  <label
+                    class="text-[9px] font-bold text-gray-400 uppercase ml-1"
+                    >Resultado Clave (KR)</label
+                  >
+                  <div class="relative">
+                    <select
+                      id="modal-task-kr-select"
+                      class="w-full bg-white border border-gray-200 text-xs font-semibold text-gray-700 rounded-md p-2 outline-none focus:border-blue-500 cursor-pointer truncate appearance-none"
+                    ></select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4
+                class="text-[11px] font-bold text-gray-400 uppercase mb-3 flex items-center gap-2"
+              >
+                <i class="fa-solid fa-list-check"></i> Detalle de Tarea
+              </h4>
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div
+                  class="p-3 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col justify-center min-h-[80px]"
+                >
+                  <span
+                    class="text-[9px] font-bold text-gray-400 uppercase mb-1"
+                    >Sprint Actual</span
+                  >
+                  <span
+                    id="modal-task-sprint"
+                    class="text-xs font-bold text-slate-700 leading-tight line-clamp-2"
+                  ></span>
+                </div>
+
+                <div
+                  class="p-3 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col items-center justify-center min-h-[80px]"
+                >
+                  <span
+                    class="text-[9px] font-bold text-gray-400 uppercase mb-1"
+                    >Puntos</span
+                  >
+                  <span
+                    id="modal-task-points"
+                    class="text-3xl font-black text-blue-600 leading-none"
+                    >0</span
+                  >
+                </div>
+
+                <div
+                  class="p-3 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col justify-center min-h-[80px]"
+                >
+                  <span
+                    class="text-[9px] font-bold text-gray-400 uppercase mb-2"
+                    >Asignado</span
+                  >
+                  <div
+                    id="modal-task-assignee"
+                    class="flex items-center text-xs truncate"
+                  ></div>
+                </div>
+
+                <div
+                  class="p-3 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col justify-center min-h-[80px]"
+                >
+                  <span
+                    class="text-[9px] font-bold text-gray-400 uppercase mb-2"
+                    >Dueño (Reporter)</span
+                  >
+                  <div
+                    id="modal-task-creator"
+                    class="flex items-center text-xs truncate"
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            <div
+              class="border border-gray-200 rounded-xl overflow-hidden shadow-sm"
+            >
+              <button
+                data-action="toggle-triage-section"
+                class="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer group"
+              >
+                <span
+                  class="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-2"
+                >
+                  <i class="fa-solid fa-sort-amount-up text-amber-500"></i>
+                  Matriz de Prioridad
+                </span>
+                <div class="flex items-center gap-2">
+                  <span
+                    class="text-[9px] text-gray-400 group-hover:text-gray-600 uppercase font-semibold transition-colors"
+                    >Ver Detalles</span
+                  >
+                  <i
+                    id="triage-chevron"
+                    class="fa-solid fa-chevron-down text-gray-400 text-xs transition-transform duration-200"
+                  ></i>
+                </div>
+              </button>
+              <div
+                id="triage-content-area"
+                class="hidden border-t border-gray-100 p-4 bg-white"
+              >
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <span
+                      class="text-[10px] font-bold text-blue-600 uppercase mb-2 block border-b border-blue-50 pb-1"
+                      >Impacto (Negocio)</span
+                    >
+                    <div
+                      id="impactContainer"
+                      class="space-y-1 max-h-40 overflow-y-auto"
+                    ></div>
+                  </div>
+                  <div>
+                    <span
+                      class="text-[10px] font-bold text-orange-600 uppercase mb-2 block border-b border-orange-50 pb-1"
+                      >Esfuerzo (Técnico)</span
+                    >
+                    <div
+                      id="effortContainer"
+                      class="space-y-1 max-h-40 overflow-y-auto"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="pt-2">
+              <h4
+                class="text-[11px] font-bold text-gray-400 uppercase mb-3 flex items-center gap-2"
+              >
+                <i class="fa-solid fa-comments"></i> Actividad
+              </h4>
+              <div
+                id="comments-list"
+                class="space-y-3 max-h-48 overflow-y-auto mb-4 px-1"
+              ></div>
+
+              <div
+                class="flex gap-2 items-center bg-gray-50 p-2 rounded-xl border border-gray-200 focus-within:border-blue-300 focus-within:bg-blue-50/20 transition-colors"
+              >
+                <input
+                  type="text"
+                  id="comment-input"
+                  class="flex-1 p-2 bg-transparent border-none text-sm focus:ring-0 placeholder-gray-400 outline-none"
+                  placeholder="Escribe un comentario..."
+                />
+                <button
+                  data-action="post-comment"
+                  class="bg-slate-900 hover:bg-blue-900 text-white px-6 py-2 rounded-lg text-xs font-bold shadow-sm transition-all shrink-0"
+                >
+                  Enviar
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div id="modal-epic-inputs" class="hidden space-y-4">
+            <input type="hidden" id="modal-epic-id" />
+
+            <div class="flex flex-col md:flex-row gap-4">
+              <div class="flex-1">
+                <input
+                  type="text"
+                  id="modal-epic-title"
+                  placeholder="Título del Epic"
+                  class="w-full p-2 border rounded"
+                />
+              </div>
+              <div class="w-full md:w-1/3">
+                <select
+                  id="modal-epic-status"
+                  class="w-full p-2 border rounded bg-gray-50"
+                >
+                  <option value="Por Empezar">Por Empezar</option>
+                  <option value="En Progreso">En Progreso</option>
+                  <option value="Completado">Completado</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="text-xs font-bold text-gray-500 uppercase"
+                  >Inicio</label
+                >
+                <input
+                  type="date"
+                  id="modal-epic-start-date"
+                  class="w-full p-2 border rounded text-sm"
+                />
+              </div>
+              <div>
+                <label class="text-xs font-bold text-gray-500 uppercase"
+                  >Fin</label
+                >
+                <input
+                  type="date"
+                  id="modal-epic-end-date"
+                  class="w-full p-2 border rounded text-sm"
+                />
+              </div>
+            </div>
+
+            <textarea
+              id="modal-epic-description"
+              placeholder="Descripción"
+              class="w-full p-2 border rounded"
+            ></textarea>
+
+            <div>
+              <label
+                class="text-xs font-bold text-gray-500 uppercase mb-2 block"
+                >Color:</label
+              >
+              <div
+                id="epic-color-palette"
+                class="flex flex-wrap gap-3 p-2 border rounded bg-gray-50"
+              >
+                <div
+                  class="color-swatch"
+                  style="background-color: #172554"
+                  data-color="#172554"
+                  title="Azul Índigo"
+                ></div>
+                <div
+                  class="color-swatch"
+                  style="background-color: #1d4ed8"
+                  data-color="#1d4ed8"
+                  title="Azul Atlántico"
+                ></div>
+                <div
+                  class="color-swatch"
+                  style="background-color: #3b82f6"
+                  data-color="#3b82f6"
+                  title="Azul Cobalto"
+                ></div>
+                <div
+                  class="color-swatch"
+                  style="background-color: #bae6fd"
+                  data-color="#bae6fd"
+                  title="Azul Cielo"
+                ></div>
+
+                <div
+                  class="color-swatch"
+                  style="background-color: #064e3b"
+                  data-color="#064e3b"
+                  title="Verde Esmeralda"
+                ></div>
+                <div
+                  class="color-swatch"
+                  style="background-color: #15803d"
+                  data-color="#15803d"
+                  title="Verde Selva"
+                ></div>
+                <div
+                  class="color-swatch"
+                  style="background-color: #86efac"
+                  data-color="#86efac"
+                  title="Verde Menta"
+                ></div>
+
+                <div
+                  class="color-swatch"
+                  style="background-color: #7c2d12"
+                  data-color="#7c2d12"
+                  title="Naranja Óxido"
+                ></div>
+                <div
+                  class="color-swatch"
+                  style="background-color: #c2410c"
+                  data-color="#c2410c"
+                  title="Naranja Terracota"
+                ></div>
+                <div
+                  class="color-swatch"
+                  style="background-color: #fb923c"
+                  data-color="#fb923c"
+                  title="Naranja Coral"
+                ></div>
+
+                <div
+                  class="color-swatch"
+                  style="background-color: #fbcfe8"
+                  data-color="#fbcfe8"
+                  title="Rosa Neblina"
+                ></div>
+                <div
+                  class="color-swatch"
+                  style="background-color: #fef08a"
+                  data-color="#fef08a"
+                  title="Amarillo Pastel"
+                ></div>
+                <div
+                  class="color-swatch"
+                  style="background-color: #1f2937"
+                  data-color="#1f2937"
+                  title="Negro Grafito"
+                ></div>
+                <div
+                  class="color-swatch border border-gray-300"
+                  style="background-color: #f5f5f4"
+                  data-color="#f5f5f4"
+                  title="Hueso"
+                ></div>
+                <div
+                  class="color-swatch border border-gray-300"
+                  style="background-color: #ffffff"
+                  data-color="#ffffff"
+                  title="Blanco"
+                ></div>
+              </div>
+            </div>
+
+            <div id="kr-inputs-container" class="space-y-2">
+              <p class="text-xs font-bold text-gray-500 uppercase">
+                Key Results (Max 5):
+              </p>
+              <input
+                type="text"
+                id="modal-epic-kr-0"
+                class="kr-input w-full p-2 border rounded text-sm"
+                placeholder="KR 1"
+              />
+              <input
+                type="text"
+                id="modal-epic-kr-1"
+                class="kr-input w-full p-2 border rounded text-sm"
+                placeholder="KR 2"
+              />
+              <input
+                type="text"
+                id="modal-epic-kr-2"
+                class="kr-input w-full p-2 border rounded text-sm"
+                placeholder="KR 3"
+              />
+              <input
+                type="text"
+                id="modal-epic-kr-3"
+                class="kr-input w-full p-2 border rounded text-sm"
+                placeholder="KR 4"
+              />
+              <input
+                type="text"
+                id="modal-epic-kr-4"
+                class="kr-input w-full p-2 border rounded text-sm"
+                placeholder="KR 5"
+              />
+            </div>
+          </div>
+
+          <div id="modal-sprint-inputs" class="hidden space-y-4">
+            <div class="flex flex-col gap-1">
+              <label class="text-xs font-bold text-gray-500 uppercase"
+                >Pertenece al Epic:</label
+              >
+              <select
+                id="modal-sprint-epic-select"
+                class="w-full p-2 border rounded bg-gray-50 focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">-- Selecciona un Epic --</option>
+              </select>
+            </div>
+
+            <div class="flex flex-col gap-1">
+              <label class="text-xs font-bold text-gray-500 uppercase"
+                >Nombre del Sprint:</label
+              >
+              <div class="flex items-center gap-2">
+                <input
+                  type="text"
+                  id="modal-sprint-name"
+                  placeholder="Ej: Fase de Diseño"
+                  class="flex-1 p-2 border rounded focus:ring-2 focus:ring-blue-500"
+                />
+                <span
+                  id="modal-sprint-suffix"
+                  class="text-gray-500 font-bold text-lg bg-gray-100 px-3 py-1 rounded border border-gray-200"
+                >
+                  (#1)
+                </span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="text-xs font-bold text-gray-500 uppercase"
+                  >Inicio</label
+                >
+                <input
+                  type="date"
+                  id="modal-start-date"
+                  class="w-full p-2 border rounded"
+                />
+              </div>
+              <div>
+                <label class="text-xs font-bold text-gray-500 uppercase"
+                  >Fin</label
+                >
+                <input
+                  type="date"
+                  id="modal-end-date"
+                  class="w-full p-2 border rounded"
+                />
+              </div>
+            </div>
+
+            <input
+              type="number"
+              id="modal-sprint-capacity"
+              placeholder="Capacidad total (Pts)"
+              class="w-full p-2 border rounded"
+            />
+
+            <div id="sprint-color-palette" class="flex gap-2 p-2">
+              <div
+                class="color-swatch selected"
+                style="background-color: #3b82f6"
+                data-color="#3b82f6"
+              ></div>
+              <div
+                class="color-swatch"
+                style="background-color: #10b981"
+                data-color="#10b981"
+              ></div>
+              <div
+                class="color-swatch"
+                style="background-color: #a855f7"
+                data-color="#a855f7"
+              ></div>
+              <div
+                class="color-swatch"
+                style="background-color: #f59e0b"
+                data-color="#f59e0b"
+              ></div>
+            </div>
+          </div>
+
+          <div id="modal-handbook-inputs" class="hidden space-y-4">
+            <input
+              type="text"
+              id="modal-handbook-title"
+              placeholder="Título de la entrada"
+              class="w-full p-2 border rounded"
+            />
+            <div id="quill-wrapper">
+              <div id="handbook-editor" style="height: 250px"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-3 mt-6 pt-4 border-t">
+          <button
+            id="modal-cancel-btn"
+            class="px-6 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            CANCELAR
+          </button>
+          <button
+            id="modal-ok-btn"
+            class="px-6 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 shadow-md transition-all"
+          >
+            ACEPTAR
+          </button>
+        </div>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <script type="module" src="/js/core/app.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+
+    <script>
+      window.addEventListener(
+        "error",
+        function (e) {
+          const img = e.target;
+          if (
+            img &&
+            img.tagName === "IMG" &&
+            img.classList.contains("avatar-image")
+          ) {
+            const email =
+              img.getAttribute("title") || img.getAttribute("alt") || "";
+            const name = email.split("@")[0] || "User";
+            img.src =
+              "https://ui-avatars.com/api/?name=" +
+              encodeURIComponent(name) +
+              "&background=random&size=64";
+          }
+        },
+        true,
+      );
+    </script>
+  </body>
+</html>
+<script>
+  (() => {
+    // fas -> fa-solid
+    document
+      .querySelectorAll("i.fas")
+      .forEach((i) => i.classList.replace("fas", "fa-solid"));
+    // fa-trash-alt -> fa-trash-can (renombre en v6)
+    document.querySelectorAll("i.fa-trash-alt").forEach((i) => {
+      i.classList.remove("fa-trash-alt");
+      i.classList.add("fa-trash-can");
+    });
+    // Asegurar medida/visibilidad
+    document.querySelectorAll("i.fa-solid").forEach((i) => {
+      i.classList.add("fa-fw", "inline-block");
+      if (![...i.classList].some((c) => /^w-/.test(c)))
+        i.classList.add("w-5", "h-5");
+      if (![...i.classList].some((c) => /^text-/.test(c)))
+        i.classList.add("text-current");
+    });
+  })();
+</script>
