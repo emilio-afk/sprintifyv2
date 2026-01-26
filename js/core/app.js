@@ -125,7 +125,8 @@ const actions = {
   // ----------------------------------------------
 
   // ---- Tareas / Comentarios / Epics / Sprints ----
-  async addNewTask(title, listId) {
+  async addNewTask(title, listId, options = {}) {
+    // <--- Añadir param options
     if (
       !assertUserOr(() =>
         ui.showModal({
@@ -145,6 +146,7 @@ const actions = {
       kanbanStatus: "todo",
       createdAt: serverTimestamp(),
       createdBy: state.user.email,
+      assignee: options.assignee || null, // <--- Usar el assignee si viene
     };
     if (listId === state.backlogId) payload.order = Date.now();
 
