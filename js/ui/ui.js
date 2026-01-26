@@ -3146,19 +3146,75 @@ export function initializeEventListeners(state, actions) {
     if (!modalCallback) return hideModal();
     let result = true;
 
-    // ... (Mantén tu lógica existente del botón OK aquí tal cual estaba) ...
-    // Para simplificar, asumo que mantienes el bloque if/else original del modalOkBtn
-    // Solo asegúrate de que al final llame a modalCallback(result) y hideModal()
+    // 1. LÓGICA PARA INPUT SIMPLE (Ej: Editar Título Tarea)
+    const simpleInput = document.getElementById("modal-input");
+    if (simpleInput && !simpleInput.classList.contains("hidden")) {
+      result = simpleInput.value;
+    }
 
-    // COPIA AQUÍ EL CÓDIGO INTERNO ORIGINAL DEL modalOkBtn QUE YA TENÍAS
-    // (Handbook, Sprint, Epic, Input simple...)
+    // 2. LÓGICA PARA EPICS (¡ESTO ES LO QUE FALTABA!)
+    const epicInputs = document.getElementById("modal-epic-inputs");
+    if (epicInputs && !epicInputs.classList.contains("hidden")) {
+      const krs = [];
+      // Recopilar los 5 inputs de KRs
+      for (let i = 0; i < 5; i++) {
+        const val = document.getElementById(`modal-epic-kr-${i}`)?.value.trim();
+        if (val) krs.push(val);
+      }
 
-    // Ejemplo del bloque genérico para el input simple modificado por handleAppClick
+      result = {
+        title: document.getElementById("modal-epic-title").value,
+        description: document.getElementById("modal-epic-description").value,
+        status: document.getElementById("modal-epic-status").value,
+        startDate: document.getElementById("modal-epic-start-date").value,
+        endDate: document.getElementById("modal-epic-end-date").value,
+        color:
+          document.querySelector("#epic-color-palette .selected")?.dataset
+            .color || "#3b82f6",
+        keyResults: krs,
+      };
+    }
+
+    // 3. LÓGICA PARA SPRINTS
+    const sprintInputs = document.getElementById("modal-sprint-inputs");
+    if (sprintInputs && !sprintInputs.classList.contains("hidden")) {
+      const suffixSpan = document.getElementById("modal-sprint-suffix");
+      // Usamos el dataset.seq que guardamos al cambiar el Epic, o 0 si no existe
+      const seqNum = suffixSpan ? Number(suffixSpan.dataset.seq) || 0 : 0;
+
+      result = {
+        title: document.getElementById("modal-sprint-name").value,
+        sequence: seqNum,
+        start: document.getElementById("modal-start-date").value,
+        end: document.getElementById("modal-end-date").value,
+        capacity: document.getElementById("modal-sprint-capacity").value,
+        color:
+          document.querySelector("#sprint-color-palette .selected")?.dataset
+            .color || "#3b82f6",
+        epicId: document.getElementById("modal-sprint-epic-select").value,
+      };
+    }
+
+    // 4. LÓGICA PARA TEMAS (Themes)
+    const themeInputs = document.getElementById("modal-theme-inputs");
+    if (themeInputs && !themeInputs.classList.contains("hidden")) {
+      result = {
+        title: document.getElementById("modal-theme-title").value,
+        description: document.getElementById("modal-theme-description").value,
+      };
+    }
+
+    // 5. LÓGICA PARA HANDBOOK
+    const handbookInputs = document.getElementById("modal-handbook-inputs");
     if (
-      document.getElementById("modal-input") &&
-      !document.getElementById("modal-input").classList.contains("hidden")
+      handbookInputs &&
+      !handbookInputs.classList.contains("hidden") &&
+      quillInstance
     ) {
-      result = document.getElementById("modal-input").value;
+      result = {
+        title: document.getElementById("modal-handbook-title").value,
+        content: quillInstance.getContents(),
+      };
     }
 
     if (modalCallback) modalCallback(result);

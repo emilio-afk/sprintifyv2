@@ -943,6 +943,7 @@ function loadData() {
   const unsubEpics = onSnapshot(query(epicsCollection), (snapshot) => {
     state.epics = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
     checkAllLoaded();
+    requestRender();
   });
 
   const unsubThemes = onSnapshot(query(themesCollection), (snapshot) => {
