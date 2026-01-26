@@ -507,18 +507,141 @@ function renderEpics(state) {
   });
 }
 
+// --- EN ui.js (Reemplaza la función renderMyTasks completa) ---
+
 function renderMyTasks(state) {
   const container = document.getElementById("mytasks-container");
   if (!container || !state.user) return;
-  container.innerHTML = "";
-  const myTasks = state.tasks.filter((t) => t.assignee === state.user.email);
+
+  // 1. ESTRUCTURA (Solo la creamos si no existe para no perder el foco al escribir)
+  if (!document.getElementById("mytasks-controls-wrapper")) {
+    container.innerHTML = `
+      <div id="mytasks-controls-wrapper" class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col md:flex-row gap-4 justify-between items-end md:items-center">
+          
+          <div class="w-full md:w-1/3 relative">
+              <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+              <input type="text" id="mytasks-search" placeholder="Buscar en mis tareas..." 
+                  class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+          </div>
+
+          <div class="flex items-center gap-3 w-full md:w-auto">
+              
+              <div class="relative group">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <i class="fas fa-sort text-gray-400"></i>
+                  </div>
+                  <select id="mytasks-sort" class="pl-10 pr-8 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer hover:bg-gray-50 transition-colors">
+                      <option value="urgency">🚨 Por Urgencia (Fecha)</option>
+                      <option value="impact">🔥 Por Impacto (Prioridad)</option>
+                      <option value="effort_asc">⚡ Quick Wins (Menor esfuerzo)</option>
+                      <option value="recent">📅 Recientes primero</option>
+                  </select>
+              </div>
+
+              <label class="flex items-center gap-2 cursor-pointer select-none bg-gray-50 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
+                  <input type="checkbox" id="mytasks-hide-completed" class="form-checkbox h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-0 cursor-pointer">
+                  <span class="text-xs font-bold text-gray-600 uppercase">Ocultar Hecho</span>
+              </label>
+          </div>
+      </div>
+
+      <div id="mytasks-list-area" class="space-y-3 pb-10"></div>
+    `;
+
+    // --- EVENT LISTENERS (Se asignan una sola vez) ---
+    const searchInput = document.getElementById("mytasks-search");
+    const sortSelect = document.getElementById("mytasks-sort");
+    const hideCheck = document.getElementById("mytasks-hide-completed");
+
+    const refresh = () => renderMyTasksListArea(state); // Función auxiliar definida abajo
+
+    searchInput.addEventListener("input", refresh);
+    sortSelect.addEventListener("change", refresh);
+    hideCheck.addEventListener("change", refresh);
+  }
+
+  // 2. ACTUALIZAR LISTA (Llamamos a la lógica de renderizado)
+  renderMyTasksListArea(state);
+}
+
+// --- FUNCIÓN AUXILIAR PARA LA LÓGICA DE FILTRADO Y ORDEN ---
+function renderMyTasksListArea(state) {
+  const listContainer = document.getElementById("mytasks-list-area");
+  if (!listContainer) return;
+
+  // Inputs actuales
+  const searchVal =
+    document.getElementById("mytasks-search")?.value.toLowerCase().trim() || "";
+  const sortMode = document.getElementById("mytasks-sort")?.value || "urgency";
+  const hideCompleted =
+    document.getElementById("mytasks-hide-completed")?.checked || false;
+
+  // 1. Filtrado Base
+  let myTasks = state.tasks.filter((t) => t.assignee === state.user.email);
+
+  // 2. Filtro: Ocultar Completadas
+  if (hideCompleted) {
+    myTasks = myTasks.filter(
+      (t) => t.kanbanStatus !== "done" && t.status !== "completed",
+    );
+  }
+
+  // 3. Filtro: Búsqueda Texto
+  if (searchVal) {
+    myTasks = myTasks.filter((t) => t.title.toLowerCase().includes(searchVal));
+  }
+
+  // 4. Lógica de Ordenamiento
+  myTasks.sort((a, b) => {
+    // Helper para fechas seguras
+    const getDate = (d) =>
+      d && d.toDate ? d.toDate().getTime() : d ? new Date(d).getTime() : 0;
+
+    switch (sortMode) {
+      case "urgency": // Fecha Entrega ASC (Null al final)
+        const dateA = getDate(a.dueDate) || 9999999999999; // Futuro lejano si no tiene fecha
+        const dateB = getDate(b.dueDate) || 9999999999999;
+        return dateA - dateB;
+
+      case "impact": // Impacto DESC (Mayor impacto arriba)
+        return (b.impact || 0) - (a.impact || 0);
+
+      case "effort_asc": // Puntos ASC (Menor esfuerzo arriba)
+        // Tratamos 0 o null como "sin estimar", los mandamos al fondo o al principio?
+        // Mejor al principio para estimular estimación, o lógica normal matemática.
+        return (a.points || 0) - (b.points || 0);
+
+      case "recent": // Creado DESC (Más nuevo arriba)
+      default:
+        return getDate(b.createdAt) - getDate(a.createdAt);
+    }
+  });
+
+  // 5. Renderizado Final
+  listContainer.innerHTML = "";
+
   if (myTasks.length > 0) {
+    // Agrupación visual opcional: Separar "Vencido/Hoy" si estamos en modo urgencia
+    // Por simplicidad, renderizamos la lista plana pero ordenada
     myTasks.forEach((t) => {
-      const context = getTaskContext(t, state);
-      container.appendChild(createTaskElement(t, context, state));
+      const context = t.listId === state.backlogId ? "backlog" : "sprint";
+      listContainer.appendChild(createTaskElement(t, context, state));
     });
+
+    // Contador de resultados
+    const countLabel = document.createElement("div");
+    countLabel.className = "text-xs text-gray-400 text-right mt-2 italic";
+    countLabel.innerText = `Mostrando ${myTasks.length} tarea(s)`;
+    listContainer.appendChild(countLabel);
   } else {
-    container.innerHTML = `<p class="text-gray-500 text-center p-4">No tienes tareas asignadas.</p>`;
+    // Estado Vacío
+    listContainer.innerHTML = `
+        <div class="flex flex-col items-center justify-center py-12 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50">
+            <i class="fas fa-filter text-3xl mb-3 opacity-50"></i>
+            <p class="text-sm font-medium">No se encontraron tareas con estos filtros.</p>
+            <p class="text-xs mt-1">Intenta cambiar la búsqueda o el orden.</p>
+        </div>
+    `;
   }
 }
 // --- EN ui.js ---
@@ -550,9 +673,9 @@ function renderPersonView(state) {
     .filter((l) => !l.isBacklog && !l.isArchived)
     .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
     .forEach((s) => {
-      if (s.id !== state.currentSprintId) {
-        sprintOptions += `<option value="${s.id}">${s.title}</option>`;
-      }
+      // CORRECCIÓN: Quitamos el 'if (s.id !== state.currentSprintId)'
+      // Ahora agregamos TODOS los sprints a la lista sin discriminar.
+      sprintOptions += `<option value="${s.id}">${s.title}</option>`;
     });
 
   const uniqueEmails = new Set();
