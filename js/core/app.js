@@ -66,7 +66,7 @@ const state = {
   personViewPersonFilter: "all", // Filtro de persona ('all' o email)
   personViewSprintFilter: "all",
   hasInitializedPersonViews: false, // Para evitar resetear la vista en cada update
-
+  collapsedColumns: new Set(), // Almacena los IDs ('todo', 'inprogress', 'done')
   expandedEpicIds: new Set(),
   handbookEntries: [],
   triageConfig: null,
@@ -116,6 +116,14 @@ const actions = {
     //requestRender();
   },
 
+  toggleColumnCollapse(columnId) {
+    if (state.collapsedColumns.has(columnId)) {
+      state.collapsedColumns.delete(columnId);
+    } else {
+      state.collapsedColumns.add(columnId);
+    }
+    requestRender();
+  },
   expandAllPersonViews() {
     if (state.allUsers.length > 0) {
       state.allUsers.forEach((u) => state.expandedPersonViews.add(u.email));

@@ -623,7 +623,7 @@
                 ></select>
               </div>
               <div class="h-6 border-l border-gray-200"></div>
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 hidden">
                 <label
                   for="sprint-capacity-input"
                   class="text-sm font-medium text-gray-500"
@@ -733,58 +733,40 @@
         </section>
 
         <section id="view-sprint" class="hidden">
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="bg-gray-50 rounded-xl p-4 flex flex-col">
-              <h3
-                class="font-bold text-gray-500 uppercase tracking-wider mb-4 flex justify-between items-center"
-              >
-                <span>Por Hacer</span>
-                <span
-                  id="sprint-capacity-warning-todo"
-                  class="hidden text-xs font-bold text-red-500"
-                ></span>
-              </h3>
+          <div
+            class="flex gap-6 h-full overflow-x-auto items-start"
+            id="kanban-grid"
+          >
+            <div
+              id="col-todo-wrapper"
+              class="flex-1 bg-gray-50 rounded-xl p-4 flex flex-col transition-all duration-300 ease-in-out"
+            >
+              <div id="header-todo" class="mb-4"></div>
+
               <div
                 id="kanban-todo"
                 class="min-h-[200px] space-y-3 flex-grow"
                 data-status="todo"
               ></div>
-              <button
-                data-action="add-task-sprint"
-                class="mt-4 w-full bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm py-2 px-4 rounded-lg border border-dashed border-gray-300 transition"
-              >
-                <i
-                  class="fa-solid fa-plus fa-fw inline-block w-5 h-5 text-current"
-                ></i>
-                Añadir Tarea
-              </button>
             </div>
-            <div class="bg-gray-50 rounded-xl p-4 flex flex-col">
-              <h3
-                class="font-bold text-gray-500 uppercase tracking-wider mb-4 flex justify-between items-center"
-              >
-                <span>En Progreso</span>
-                <span
-                  id="sprint-capacity-warning-inprogress"
-                  class="hidden text-xs font-bold text-red-500"
-                ></span>
-              </h3>
+
+            <div
+              id="col-inprogress-wrapper"
+              class="flex-1 bg-gray-50 rounded-xl p-4 flex flex-col transition-all duration-300 ease-in-out"
+            >
+              <div id="header-inprogress" class="mb-4"></div>
               <div
                 id="kanban-inprogress"
                 class="min-h-[200px] space-y-3 flex-grow"
                 data-status="inprogress"
               ></div>
             </div>
-            <div class="bg-gray-50 rounded-xl p-4 flex flex-col">
-              <h3
-                class="font-bold text-gray-500 uppercase tracking-wider mb-4 flex justify-between items-center"
-              >
-                <span>Hecho</span>
-                <span
-                  id="sprint-capacity-warning-done"
-                  class="hidden text-xs font-bold text-red-500"
-                ></span>
-              </h3>
+
+            <div
+              id="col-done-wrapper"
+              class="flex-1 bg-gray-50 rounded-xl p-4 flex flex-col transition-all duration-300 ease-in-out"
+            >
+              <div id="header-done" class="mb-4"></div>
               <div
                 id="kanban-done"
                 class="min-h-[200px] space-y-3 flex-grow"

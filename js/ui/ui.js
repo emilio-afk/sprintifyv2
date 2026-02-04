@@ -309,16 +309,134 @@ function toggleBacklogView(state) {
     renderBacklog(state);
   }
 }
+// EN js/ui/ui.js - REEMPLAZA LA FUNCIÓN EXISTENTE renderSprintKanban
 
 function renderSprintKanban(state) {
-  if (!dom.kanban.todo) return;
-  Object.values(dom.kanban).forEach((col) => (col.innerHTML = ""));
-  const sprintTasks = state.tasks.filter(
-    (t) => t.listId === state.currentSprintId,
-  );
-  sprintTasks.forEach((task) => {
-    const column = dom.kanban[task.kanbanStatus] || dom.kanban.todo;
-    column.appendChild(createTaskElement(task, "sprint", state));
+  // Definimos las columnas y sus títulos
+  const columns = [
+    { key: "todo", title: "Por Hacer" },
+    { key: "inprogress", title: "En Progreso" },
+    { key: "done", title: "Hecho" },
+  ];
+
+  columns.forEach((col) => {
+    const wrapper = document.getElementById(`col-${col.key}-wrapper`);
+    if (!wrapper) return;
+
+    // Verificar si está colapsada
+    const isCollapsed = state.collapsedColumns.has(col.key);
+
+    // --- MODO COLAPSADO ---
+    if (isCollapsed) {
+      // Ajustamos estilos del wrapper para que sea delgado
+      wrapper.className =
+        "w-12 py-4 bg-gray-100 rounded-xl flex flex-col items-center justify-center transition-all duration-300 cursor-pointer hover:bg-gray-200 border border-gray-200";
+      wrapper.dataset.action = "collapse-column";
+      wrapper.dataset.col = col.key;
+      wrapper.title = "Clic para expandir";
+
+      // HTML Vertical
+      wrapper.innerHTML = `
+        <div class="h-full flex items-center justify-center pointer-events-none">
+           <span class="whitespace-nowrap font-bold text-gray-400 uppercase tracking-widest text-xs" style="writing-mode: vertical-rl; transform: rotate(180deg);">
+              ${col.title}
+           </span>
+        </div>
+        <div class="mt-2 text-gray-400 pointer-events-none"><i class="fa-solid fa-expand"></i></div>
+      `;
+      return; // Terminamos aquí si está colapsada
+    }
+
+    // --- MODO EXPANDIDO ---
+    // Restauramos clases originales
+    wrapper.className =
+      "flex-1 min-w-0 bg-gray-50 rounded-xl p-4 flex flex-col transition-all duration-300 ease-in-out border border-transparent";
+    // Quitamos data-action del wrapper para que no colapse al hacer clic en el fondo
+    wrapper.removeAttribute("data-action");
+
+    // 1. Construir Encabezado
+    const addBtnHTML =
+      col.key === "todo"
+        ? `<button data-action="add-task-sprint" class="text-blue-500 hover:text-blue-700 transition-colors" title="Añadir Tarea">
+             <i class="fa-solid fa-circle-plus text-xl"></i>
+           </button>`
+        : "";
+
+    const headerHTML = `
+      <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-200/50">
+        <h3 class="font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2 text-sm">
+          <button data-action="collapse-column" data-col="${col.key}" class="text-gray-400 hover:text-gray-600 transition-colors" title="Colapsar">
+            <i class="fa-solid fa-compress"></i>
+          </button>
+          <span>${col.title}</span>
+        </h3>
+        ${addBtnHTML}
+      </div>
+      <div id="kanban-${col.key}" class="min-h-[200px] space-y-3 flex-grow swimlane-drop-zone" data-status="${col.key}"></div>
+    `;
+
+    wrapper.innerHTML = headerHTML;
+
+    // 2. Filtrar y Ordenar Tareas (Más viejas primero)
+    const container = wrapper.querySelector(`#kanban-${col.key}`);
+
+    // Filtramos tareas de este sprint y columna
+    let colTasks = state.tasks.filter(
+      (t) =>
+        t.listId === state.currentSprintId &&
+        (t.kanbanStatus === col.key || (col.key === "todo" && !t.kanbanStatus)),
+    );
+
+    // ORDENAR: Antigüedad (Fecha de creación ASCENDENTE)
+    // Las fechas más pequeñas (viejas) van primero
+    colTasks.sort((a, b) => {
+      const dateA = a.createdAt?.seconds || 0;
+      const dateB = b.createdAt?.seconds || 0;
+      return dateA - dateB;
+    });
+
+    // 3. Renderizar (Top 5 + Resto oculto)
+    const visibleTasks = colTasks.slice(0, 5);
+    const hiddenTasks = colTasks.slice(5);
+
+    visibleTasks.forEach((task) => {
+      container.appendChild(createTaskElement(task, "sprint", state));
+    });
+
+    // Si hay más de 5, creamos el acordeón
+    if (hiddenTasks.length > 0) {
+      // Separador visual
+      const separator = document.createElement("div");
+      separator.className = "flex items-center gap-2 py-2";
+      separator.innerHTML = `<div class="h-px bg-gray-200 flex-1"></div><span class="text-[10px] text-gray-400 font-medium">Más recientes</span><div class="h-px bg-gray-200 flex-1"></div>`;
+      container.appendChild(separator);
+
+      // Botón "Ver más"
+      const toggleBtn = document.createElement("button");
+      toggleBtn.className =
+        "w-full py-1.5 text-xs font-semibold text-gray-500 bg-white border border-gray-200 rounded hover:bg-gray-50 transition-colors mb-2";
+      toggleBtn.innerHTML = `<i class="fa-solid fa-chevron-down mr-1"></i> Ver ${hiddenTasks.length} tareas más`;
+
+      // Contenedor oculto
+      const hiddenContainer = document.createElement("div");
+      hiddenContainer.className = "hidden space-y-3";
+
+      hiddenTasks.forEach((task) => {
+        hiddenContainer.appendChild(createTaskElement(task, "sprint", state));
+      });
+
+      // Acción del botón
+      toggleBtn.onclick = () => {
+        hiddenContainer.classList.toggle("hidden");
+        const isHidden = hiddenContainer.classList.contains("hidden");
+        toggleBtn.innerHTML = isHidden
+          ? `<i class="fa-solid fa-chevron-down mr-1"></i> Ver ${hiddenTasks.length} tareas más`
+          : `<i class="fa-solid fa-chevron-up mr-1"></i> Ocultar recientes`;
+      };
+
+      container.appendChild(toggleBtn);
+      container.appendChild(hiddenContainer);
+    }
   });
 }
 function renderThemes(state) {
@@ -2080,6 +2198,12 @@ function handleAppClick(e) {
 
   if (actionTarget) {
     const action = actionTarget.dataset.action;
+
+    if (action === "collapse-column") {
+      const colId = actionTarget.dataset.col;
+      appActions.toggleColumnCollapse(colId);
+      return;
+    }
 
     if (action === "open-handbook-entry") {
       const entryId = actionTarget.dataset.id;
