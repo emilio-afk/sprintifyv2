@@ -209,6 +209,86 @@ function createCommentElement(comment, index, state) {
   return commentEl;
 }
 
+// Compact task element for list views (Mi trabajo)
+function createCompactTaskElement(task, state) {
+  const { allUsers, taskLists } = state;
+  const isCompleted = task.status === "completed" || task.kanbanStatus === "done";
+  const user = allUsers.find((u) => u.email === task.assignee);
+  const userPhotoURL = user?.photoURL
+    ? user.photoURL
+    : `https://ui-avatars.com/api/?name=${task.assignee || ""}`;
+  const sprint = taskLists.find((l) => l.id === task.listId);
+  const sprintColor = sprint?.color || "#3b82f6";
+
+  const compact = document.createElement("div");
+  compact.className = `compact-task flex items-center justify-between gap-3 bg-white p-3 rounded-lg border border-gray-200 hover:shadow-sm transition-colors ${isCompleted ? "opacity-60" : ""}`;
+  compact.id = `compact-${task.id}`;
+
+  const left = document.createElement("div");
+  left.className = "flex items-center gap-3 min-w-0";
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.className = "form-checkbox h-4 w-4 text-blue-600";
+  if (isCompleted) checkbox.checked = true;
+
+  const title = document.createElement("div");
+  title.className = "min-w-0 flex-1";
+  title.innerHTML = `<div class="text-sm font-medium text-slate-800 truncate">${task.title}</div><div class="text-xs text-gray-400 truncate mt-0.5">${task.description ? (task.description.length > 80 ? task.description.slice(0, 80) + "…" : task.description) : ""}</div>`;
+
+  left.appendChild(checkbox);
+  left.appendChild(title);
+
+  const right = document.createElement("div");
+  right.className = "flex items-center gap-3 ml-2 shrink-0";
+
+  const points = document.createElement("div");
+  points.className = "text-xs text-gray-600 font-semibold";
+  points.innerText = (task.points || 0) > 0 ? `${task.points} pts` : "";
+
+  const due = document.createElement("div");
+  due.className = "text-xs text-gray-400";
+  if (task.dueDate) {
+    const d = task.dueDate.toDate ? task.dueDate.toDate() : new Date(task.dueDate);
+    due.innerText = d.toLocaleDateString();
+  }
+
+  const assignee = document.createElement("img");
+  assignee.src = userPhotoURL;
+  assignee.className = "w-6 h-6 rounded-full object-cover border";
+  assignee.title = task.assignee || "Sin asignar";
+
+  right.appendChild(points);
+  right.appendChild(due);
+  right.appendChild(assignee);
+
+  compact.appendChild(left);
+  compact.appendChild(right);
+
+  // Checkbox behavior: update task status like other task-card handlers
+  checkbox.addEventListener("change", (e) => {
+    e.stopPropagation();
+    const isChecked = e.target.checked;
+    if (typeof appActions !== "undefined" && appActions.updateTask) {
+      appActions.updateTask(task.id, {
+        status: isChecked ? "completed" : "needsAction",
+        kanbanStatus: isChecked ? "done" : "todo",
+        completedAt: isChecked ? Timestamp.now() : null,
+      });
+    } else {
+      compact.classList.toggle("opacity-60", isChecked);
+    }
+  });
+
+  // Abrir modal de detalles al hacer click en la tarjeta (excepto el checkbox)
+  compact.addEventListener("click", (e) => {
+    if (e.target === checkbox || e.target.closest('input[type="checkbox"]')) return;
+    openTaskDetailsModal(task);
+  });
+
+  return compact;
+}
+
 function createActivityCommentElement(comment, index, state, taskId) {
   if (!comment) return document.createElement("div");
   const author = state.allUsers.find((u) => u.email === comment.authorEmail);
@@ -917,31 +997,60 @@ function renderMyTasks(state) {
     container.innerHTML = `
       <div id="mytasks-controls-wrapper" class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col md:flex-row gap-4 justify-between items-end md:items-center">
           
-          <div class="w-full md:w-1/3 relative">
+            <div class="w-full md:w-1/3 relative">
               <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
               <input type="text" id="mytasks-search" placeholder="Buscar en mis tareas..." 
-                  class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all">
-          </div>
+                class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+            </div>
 
-          <div class="flex items-center gap-3 w-full md:w-auto">
-              
+            <div class="flex items-center gap-3 w-full md:w-auto flex-wrap">
               <div class="relative group">
-                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <i class="fas fa-sort text-gray-400"></i>
-                  </div>
-                  <select id="mytasks-sort" class="pl-10 pr-8 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer hover:bg-gray-50 transition-colors">
-                      <option value="urgency">🚨 Por Urgencia (Fecha)</option>
-                      <option value="impact">🔥 Por Impacto (Prioridad)</option>
-                      <option value="effort_asc">⚡ Quick Wins (Menor esfuerzo)</option>
-                      <option value="recent">📅 Recientes primero</option>
-                  </select>
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <i class="fas fa-sort text-gray-400"></i>
+                </div>
+                <select id="mytasks-sort" class="pl-10 pr-8 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer hover:bg-gray-50 transition-colors">
+                  <option value="recent_desc">📅 Más recientes</option>
+                  <option value="recent_asc">📅 Más antiguos</option>
+                  <option value="due_asc">⏰ Vencimiento próximo</option>
+                  <option value="due_desc">⏰ Vencimiento lejano</option>
+                  <option value="points_desc">🔢 Puntos (mayor primero)</option>
+                  <option value="points_asc">🔢 Puntos (menor primero)</option>
+                </select>
+              </div>
+
+              <div>
+              <select id="mytasks-sprint-filter" class="py-2 pr-6 pl-3 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none hover:bg-gray-50">
+                <option value="all">Todos los Sprints</option>
+                ${state.taskLists
+                  .filter((l) => !l.isBacklog && !l.isArchived)
+                  .map((s) => `<option value="${s.id}">${s.title}</option>`)
+                  .join("")}
+              </select>
+              </div>
+
+              <div>
+              <select id="mytasks-status-filter" class="py-2 pr-6 pl-3 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none hover:bg-gray-50">
+                <option value="all">Estado: Todos</option>
+                <option value="todo">Por Empezar</option>
+                <option value="inprogress">En Progreso</option>
+                <option value="completed">Completado</option>
+              </select>
+              </div>
+
+              <div>
+              <select id="mytasks-priority-filter" class="py-2 pr-6 pl-3 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none hover:bg-gray-50">
+                <option value="all">Prioridad: Todas</option>
+                <option value="high">Alta</option>
+                <option value="medium">Media</option>
+                <option value="low">Baja</option>
+              </select>
               </div>
 
               <label class="flex items-center gap-2 cursor-pointer select-none bg-gray-50 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
-                  <input type="checkbox" id="mytasks-hide-completed" class="form-checkbox h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-0 cursor-pointer">
-                  <span class="text-xs font-bold text-gray-600 uppercase">Ocultar Hecho</span>
+                <input type="checkbox" id="mytasks-hide-completed" class="form-checkbox h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-0 cursor-pointer">
+                <span class="text-xs font-bold text-gray-600 uppercase">Ocultar Hecho</span>
               </label>
-          </div>
+            </div>
       </div>
 
       <div id="mytasks-list-area" class="space-y-3 pb-10"></div>
@@ -952,11 +1061,18 @@ function renderMyTasks(state) {
     const sortSelect = document.getElementById("mytasks-sort");
     const hideCheck = document.getElementById("mytasks-hide-completed");
 
+    const sprintSelect = document.getElementById("mytasks-sprint-filter");
+    const statusSelect = document.getElementById("mytasks-status-filter");
+    const prioritySelect = document.getElementById("mytasks-priority-filter");
+
     const refresh = () => renderMyTasksListArea(state); // Función auxiliar definida abajo
 
     searchInput.addEventListener("input", refresh);
     sortSelect.addEventListener("change", refresh);
     hideCheck.addEventListener("change", refresh);
+    sprintSelect.addEventListener("change", refresh);
+    statusSelect.addEventListener("change", refresh);
+    prioritySelect.addEventListener("change", refresh);
   }
 
   // 2. ACTUALIZAR LISTA (Llamamos a la lógica de renderizado)
@@ -970,11 +1086,19 @@ function renderMyTasksListArea(state) {
 
   // Inputs actuales
   const searchVal = document.getElementById("mytasks-search")?.value.toLowerCase().trim() || "";
-  const sortMode = document.getElementById("mytasks-sort")?.value || "urgency";
+  const sortMode = document.getElementById("mytasks-sort")?.value || "recent_desc";
   const hideCompleted = document.getElementById("mytasks-hide-completed")?.checked || false;
+  const sprintFilter = document.getElementById("mytasks-sprint-filter")?.value || "all";
+  const statusFilter = document.getElementById("mytasks-status-filter")?.value || "all";
+  const priorityFilter = document.getElementById("mytasks-priority-filter")?.value || "all";
 
   // 1. Filtrado Base
   let myTasks = state.tasks.filter((t) => t.assignee === state.user.email);
+
+  // 1.b Filtro por Sprint
+  if (sprintFilter && sprintFilter !== "all") {
+    myTasks = myTasks.filter((t) => t.listId === sprintFilter);
+  }
 
   // 2. Filtro: Ocultar Completadas
   if (hideCompleted) {
@@ -986,26 +1110,56 @@ function renderMyTasksListArea(state) {
     myTasks = myTasks.filter((t) => t.title.toLowerCase().includes(searchVal));
   }
 
+  // 4. Filtro: Estado
+  if (statusFilter && statusFilter !== "all") {
+    if (statusFilter === "completed") {
+      myTasks = myTasks.filter((t) => t.status === "completed" || t.kanbanStatus === "done");
+    } else if (statusFilter === "inprogress") {
+      myTasks = myTasks.filter((t) => t.status === "inprogress" || t.kanbanStatus === "inprogress");
+    } else if (statusFilter === "todo") {
+      myTasks = myTasks.filter(
+        (t) =>
+          !t.status ||
+          (t.status !== "completed" && t.kanbanStatus !== "inprogress" && t.status !== "inprogress")
+      );
+    }
+  }
+
+  // 5. Filtro: Prioridad (impact)
+  if (priorityFilter && priorityFilter !== "all") {
+    myTasks = myTasks.filter((t) => {
+      const impact = t.impact || 0;
+      if (priorityFilter === "high") return impact >= 7;
+      if (priorityFilter === "medium") return impact >= 4 && impact <= 6;
+      if (priorityFilter === "low") return impact <= 3;
+      return true;
+    });
+  }
+
   // 4. Lógica de Ordenamiento
   myTasks.sort((a, b) => {
     // Helper para fechas seguras
     const getDate = (d) => (d && d.toDate ? d.toDate().getTime() : d ? new Date(d).getTime() : 0);
 
     switch (sortMode) {
-      case "urgency": // Fecha Entrega ASC (Null al final)
-        const dateA = getDate(a.dueDate) || 9999999999999; // Futuro lejano si no tiene fecha
+      case "recent_desc":
+        return getDate(b.createdAt) - getDate(a.createdAt);
+      case "recent_asc":
+        return getDate(a.createdAt) - getDate(b.createdAt);
+      case "due_asc": {
+        const dateA = getDate(a.dueDate) || 9999999999999;
         const dateB = getDate(b.dueDate) || 9999999999999;
         return dateA - dateB;
-
-      case "impact": // Impacto DESC (Mayor impacto arriba)
-        return (b.impact || 0) - (a.impact || 0);
-
-      case "effort_asc": // Puntos ASC (Menor esfuerzo arriba)
-        // Tratamos 0 o null como "sin estimar", los mandamos al fondo o al principio?
-        // Mejor al principio para estimular estimación, o lógica normal matemática.
+      }
+      case "due_desc": {
+        const dateA = getDate(a.dueDate) || 0;
+        const dateB = getDate(b.dueDate) || 0;
+        return dateB - dateA;
+      }
+      case "points_desc":
+        return (b.points || 0) - (a.points || 0);
+      case "points_asc":
         return (a.points || 0) - (b.points || 0);
-
-      case "recent": // Creado DESC (Más nuevo arriba)
       default:
         return getDate(b.createdAt) - getDate(a.createdAt);
     }
@@ -1018,8 +1172,7 @@ function renderMyTasksListArea(state) {
     // Agrupación visual opcional: Separar "Vencido/Hoy" si estamos en modo urgencia
     // Por simplicidad, renderizamos la lista plana pero ordenada
     myTasks.forEach((t) => {
-      const context = t.listId === state.backlogId ? "backlog" : "sprint";
-      listContainer.appendChild(createTaskElement(t, context, state));
+      listContainer.appendChild(createCompactTaskElement(t, state));
     });
 
     // Contador de resultados
