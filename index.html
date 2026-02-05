@@ -21,10 +21,7 @@
       rel="stylesheet"
     />
 
-    <link
-      href="https://cdn.quilljs.com/1.3.6/quill.snow.css"
-      rel="stylesheet"
-    />
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet" />
     <link rel="stylesheet" href="/styles/output.css" />
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -45,10 +42,8 @@
 
         /* Sombras personalizadas para un look más suave */
         --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-        --shadow-md:
-          0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-        --shadow-lg:
-          0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
       }
       body {
         font-family: "Inter", sans-serif;
@@ -234,19 +229,11 @@
       }
       #modal-body.scroll-fade::before {
         top: 0;
-        background: linear-gradient(
-          to bottom,
-          rgba(255, 255, 255, 1),
-          rgba(255, 255, 255, 0)
-        );
+        background: linear-gradient(to bottom, rgba(255, 255, 255, 1), rgba(255, 255, 255, 0));
       }
       #modal-body.scroll-fade::after {
         bottom: 0;
-        background: linear-gradient(
-          to top,
-          rgba(255, 255, 255, 1),
-          rgba(255, 255, 255, 0)
-        );
+        background: linear-gradient(to top, rgba(255, 255, 255, 1), rgba(255, 255, 255, 0));
       }
       #modal-footer {
         position: sticky;
@@ -339,9 +326,7 @@
         color: #f4f4f4; /* Texto de enlaces inactivos (slate-400) */
       }
       .sidebar-link:hover {
-        background-color: theme(
-          primary
-        ); /* Fondo al pasar el mouse (slate-800) */
+        background-color: theme(primary); /* Fondo al pasar el mouse (slate-800) */
         color: #d5eafd;
       }
       .sidebar-link.active {
@@ -376,14 +361,10 @@
       }
       .nav-group-button .chevron-icon {
         transition: transform 0.2s ease-in-out;
-        transform: rotate(
-          -90deg
-        ); /* Flecha apunta a la derecha por defecto (estilo colapsado) */
+        transform: rotate(-90deg); /* Flecha apunta a la derecha por defecto (estilo colapsado) */
       }
       .nav-group-button.is-open .chevron-icon {
-        transform: rotate(
-          0deg
-        ); /* Flecha apunta hacia abajo cuando está abierto */
+        transform: rotate(0deg); /* Flecha apunta hacia abajo cuando está abierto */
       }
       .nav-group-button .chevron-icon {
         color: #d5eafd !important; /* Este es el color que puedes cambiar */
@@ -397,9 +378,7 @@
         class="w-64 bg-slate-900 border-r border-slate-800 flex-shrink-0 flex flex-col p-4 hidden"
       >
         <div class="flex items-center gap-2 mb-8">
-          <div
-            class="bg-blue-700 p-2 pb-5 rounded-lg flex items-center justify-between"
-          >
+          <div class="bg-blue-700 p-2 pb-5 rounded-lg flex items-center justify-between">
             <i class="fas fa-rocket text-slate-100 text-3xl"></i>
           </div>
           <h1 class="text-3xl font-bold text-white">Sprintify</h1>
@@ -412,19 +391,12 @@
               data-target="nav-group-strategy"
               class="nav-group-button w-full flex justify-between items-center"
             >
-              <h3
-                class="text-sm font-semibold uppercase text-slate-400 tracking-wider"
-              >
+              <h3 class="text-sm font-semibold uppercase text-slate-400 tracking-wider">
                 Estrategia
               </h3>
-              <i
-                class="fas fa-chevron-down chevron-icon text-slate-400 text-xs"
-              ></i>
+              <i class="fas fa-chevron-down chevron-icon text-slate-400 text-xs"></i>
             </button>
-            <div
-              id="nav-group-strategy"
-              class="nav-group-content mt-2 space-y-1"
-            >
+            <div id="nav-group-strategy" class="nav-group-content mt-2 space-y-1">
               <a
                 href="#epics"
                 class="sidebar-link text-sm flex items-center gap-3 -ml-3 px-3 py-2 rounded-lg transition-colors duration-150"
@@ -439,19 +411,12 @@
               data-target="nav-group-execution"
               class="nav-group-button w-full flex justify-between items-center"
             >
-              <h3
-                class="text-sm font-semibold uppercase text-slate-400 tracking-wider"
-              >
+              <h3 class="text-sm font-semibold uppercase text-slate-400 tracking-wider">
                 Ejecución
               </h3>
-              <i
-                class="fas fa-chevron-down chevron-icon text-slate-400 text-xs"
-              ></i>
+              <i class="fas fa-chevron-down chevron-icon text-slate-400 text-xs"></i>
             </button>
-            <div
-              id="nav-group-execution"
-              class="nav-group-content mt-2 space-y-1"
-            >
+            <div id="nav-group-execution" class="nav-group-content mt-2 space-y-1">
               <a
                 href="#backlog"
                 class="sidebar-link text-sm active flex items-center gap-3 -ml-3 px-3 py-2 rounded-lg transition-colors duration-150"
@@ -460,8 +425,7 @@
               <a
                 href="#sprint"
                 class="sidebar-link text-sm flex items-center gap-3 -ml-3 px-3 py-2 rounded-lg transition-colors duration-150"
-                ><i class="fas fa-person-running w-5"></i
-                ><span>Sprint Activo</span></a
+                ><i class="fas fa-person-running w-5"></i><span>Sprint Activo</span></a
               >
             </div>
           </div>
@@ -472,19 +436,10 @@
               data-target="nav-group-team"
               class="nav-group-button w-full flex justify-between items-center"
             >
-              <h3
-                class="text-sm font-semibold uppercase text-slate-400 tracking-wider"
-              >
-                Equipo
-              </h3>
-              <i
-                class="fas fa-chevron-down chevron-icon text-slate-400 text-xs"
-              ></i>
+              <h3 class="text-sm font-semibold uppercase text-slate-400 tracking-wider">Equipo</h3>
+              <i class="fas fa-chevron-down chevron-icon text-slate-400 text-xs"></i>
             </button>
-            <div
-              id="nav-group-team"
-              class="nav-group-content hidden mt-2 space-y-1"
-            >
+            <div id="nav-group-team" class="nav-group-content hidden mt-2 space-y-1">
               <a
                 href="#mytasks"
                 class="sidebar-link text-sm flex items-center gap-3 -ml-3 px-3 py-2 rounded-lg transition-colors duration-150"
@@ -493,8 +448,7 @@
               <a
                 href="#by-person"
                 class="sidebar-link text-sm flex items-center gap-3 -ml-3 px-3 py-2 rounded-lg transition-colors duration-150"
-                ><i class="fa-solid fa-users w-5"></i
-                ><span>Por Persona</span></a
+                ><i class="fa-solid fa-users w-5"></i><span>Por Persona</span></a
               >
               <a
                 href="#activity"
@@ -516,36 +470,26 @@
               data-target="nav-group-reports"
               class="nav-group-button w-full flex justify-between items-center"
             >
-              <h3
-                class="text-sm font-semibold uppercase text-slate-400 tracking-wider"
-              >
+              <h3 class="text-sm font-semibold uppercase text-slate-400 tracking-wider">
                 Reportes y Archivo
               </h3>
-              <i
-                class="fas fa-chevron-down chevron-icon text-slate-400 text-xs"
-              ></i>
+              <i class="fas fa-chevron-down chevron-icon text-slate-400 text-xs"></i>
             </button>
-            <div
-              id="nav-group-reports"
-              class="nav-group-content hidden mt-2 space-y-1"
-            >
+            <div id="nav-group-reports" class="nav-group-content hidden mt-2 space-y-1">
               <a
                 href="#summary"
                 class="sidebar-link text-sm flex items-center gap-3 -ml-3 px-3 py-2 rounded-lg transition-colors duration-150"
-                ><i class="fas fa-table-list w-5"></i
-                ><span>Resumen de Sprints</span></a
+                ><i class="fas fa-table-list w-5"></i><span>Resumen de Sprints</span></a
               >
               <a
                 href="#timeline"
                 class="sidebar-link text-sm flex items-center gap-3 -ml-3 px-3 py-2 rounded-lg transition-colors duration-150"
-                ><i class="fas fa-calendar-week w-5"></i
-                ><span>Cronograma</span></a
+                ><i class="fas fa-calendar-week w-5"></i><span>Cronograma</span></a
               >
               <a
                 href="#archived-sprints"
                 class="sidebar-link text-sm flex items-center gap-3 -ml-3 px-3 py-2 rounded-lg transition-colors duration-150"
-                ><i class="fas fa-archive w-5"></i
-                ><span>Sprints Archivados</span></a
+                ><i class="fas fa-archive w-5"></i><span>Sprints Archivados</span></a
               >
             </div>
           </div>
@@ -565,25 +509,15 @@
             >
           </div>
           <div class="px-3 mb-4">
-            <h3
-              class="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-2"
-            >
+            <h3 class="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-2">
               En Línea
             </h3>
             <div id="online-users-container" class="flex flex-wrap gap-2"></div>
           </div>
           <div id="user-info" class="flex items-center gap-3 p-2 rounded-lg">
-            <img
-              id="user-avatar"
-              class="w-10 h-10 rounded-full"
-              src=""
-              alt="Avatar de Usuario"
-            />
+            <img id="user-avatar" class="w-10 h-10 rounded-full" src="" alt="Avatar de Usuario" />
             <div class="text-sm overflow-hidden">
-              <p
-                id="user-name"
-                class="font-semibold truncate text-slate-100"
-              ></p>
+              <p id="user-name" class="font-semibold truncate text-slate-100"></p>
               <p id="user-email" class="truncate text-slate-400"></p>
             </div>
           </div>
@@ -598,10 +532,7 @@
 
       <main id="main-content" class="flex-1 p-8 overflow-y-auto hidden">
         <header class="flex flex-wrap justify-between items-center mb-6 gap-4">
-          <h2
-            id="view-title"
-            class="text-3xl rounded-lg font-semibold mt--10 px-3 pt-2 pb-2"
-          >
+          <h2 id="view-title" class="text-3xl rounded-lg font-semibold mt--10 px-3 pt-2 pb-2">
             Backlog
           </h2>
 
@@ -612,9 +543,7 @@
               class="flex items-center gap-4 bg-white p-2 rounded-lg shadow-sm border border-gray-200"
             >
               <div class="flex items-center gap-2">
-                <label
-                  for="sprint-list-select"
-                  class="text-sm font-medium text-gray-500 pl-2"
+                <label for="sprint-list-select" class="text-sm font-medium text-gray-500 pl-2"
                   >Sprint:</label
                 >
                 <select
@@ -624,9 +553,7 @@
               </div>
               <div class="h-6 border-l border-gray-200"></div>
               <div class="flex items-center gap-2 hidden">
-                <label
-                  for="sprint-capacity-input"
-                  class="text-sm font-medium text-gray-500"
+                <label for="sprint-capacity-input" class="text-sm font-medium text-gray-500"
                   >Capacidad:</label
                 >
                 <input
@@ -658,20 +585,17 @@
                   <a
                     data-action="edit-sprint"
                     class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
-                    ><i class="fas fa-pencil w-5 text-gray-500"></i
-                    ><span>Editar Sprint</span></a
+                    ><i class="fas fa-pencil w-5 text-gray-500"></i><span>Editar Sprint</span></a
                   >
                   <a
                     data-action="archive-sprint"
                     class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
-                    ><i class="fas fa-archive w-5 text-gray-500"></i
-                    ><span>Archivar Sprint</span></a
+                    ><i class="fas fa-archive w-5 text-gray-500"></i><span>Archivar Sprint</span></a
                   >
                   <a
                     data-action="delete-sprint"
                     class="flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 cursor-pointer"
-                    ><i class="fas fa-trash-can w-5"></i
-                    ><span>Borrar Sprint</span></a
+                    ><i class="fas fa-trash-can w-5"></i><span>Borrar Sprint</span></a
                   >
                 </div>
               </div>
@@ -680,10 +604,7 @@
         </header>
 
         <section id="view-backlog" class="hidden">
-          <div
-            id="backlog-controls"
-            class="flex flex-wrap justify-between items-center mb-4 gap-4"
-          >
+          <div id="backlog-controls" class="flex flex-wrap justify-between items-center mb-4 gap-4">
             <div class="flex items-center gap-4">
               <p class="text-gray-600">
                 Planifica tu próximo sprint desde la fuente única de trabajo.
@@ -702,9 +623,7 @@
                   type="checkbox"
                   class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <label
-                  for="select-all-backlog-tasks"
-                  class="ml-2 block text-sm text-gray-900"
+                <label for="select-all-backlog-tasks" class="ml-2 block text-sm text-gray-900"
                   >Seleccionar todo</label
                 >
               </div>
@@ -725,18 +644,13 @@
             data-action="add-task-backlog"
             class="mt-4 w-full bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold py-2 px-4 rounded-lg border-2 border-dashed border-gray-300 transition"
           >
-            <i
-              class="fa-solid fa-plus fa-fw inline-block w-5 h-5 text-current"
-            ></i>
+            <i class="fa-solid fa-plus fa-fw inline-block w-5 h-5 text-current"></i>
             Añadir Tarea al Backlog
           </button>
         </section>
 
         <section id="view-sprint" class="hidden">
-          <div
-            class="flex gap-6 h-full overflow-x-auto items-start"
-            id="kanban-grid"
-          >
+          <div class="flex gap-6 h-full overflow-x-auto items-start" id="kanban-grid">
             <div
               id="col-todo-wrapper"
               class="flex-1 bg-gray-50 rounded-xl p-4 flex flex-col transition-all duration-300 ease-in-out"
@@ -778,16 +692,12 @@
 
         <section id="view-epics" class="hidden">
           <div class="flex justify-between items-center mb-4">
-            <p class="text-gray-600">
-              Agrupa tus sprints en proyectos estratégicos de alto nivel.
-            </p>
+            <p class="text-gray-600">Agrupa tus sprints en proyectos estratégicos de alto nivel.</p>
             <button
               data-action="new-epic"
               class="bg-blue-500 hover:bg-blue-900 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-opacity"
             >
-              <i
-                class="fa-solid fa-plus fa-fw inline-block w-5 h-5 text-current"
-              ></i>
+              <i class="fa-solid fa-plus fa-fw inline-block w-5 h-5 text-current"></i>
               Nuevo Epic
             </button>
           </div>
@@ -795,10 +705,7 @@
         </section>
 
         <section id="view-summary" class="hidden">
-          <div
-            id="sprints-summary-filter-container"
-            class="flex items-center gap-2 mb-4"
-          ></div>
+          <div id="sprints-summary-filter-container" class="flex items-center gap-2 mb-4"></div>
 
           <div class="bg-white p-6 rounded-xl shadow-md overflow-x-auto">
             <table class="w-full text-sm text-left text-gray-500">
@@ -825,20 +732,11 @@
           <div class="bg-white p-4 rounded-xl shadow-md">
             <div class="flex justify-between items-center mb-4">
               <div class="flex items-center">
-                <button
-                  data-action="timeline-prev"
-                  class="p-2 rounded-md hover:bg-gray-100"
-                >
+                <button data-action="timeline-prev" class="p-2 rounded-md hover:bg-gray-100">
                   <i class="fas fa-chevron-left"></i>
                 </button>
-                <h3
-                  id="timeline-month-year"
-                  class="text-lg font-semibold w-48 text-center"
-                ></h3>
-                <button
-                  data-action="timeline-next"
-                  class="p-2 rounded-md hover:bg-gray-100"
-                >
+                <h3 id="timeline-month-year" class="text-lg font-semibold w-48 text-center"></h3>
+                <button data-action="timeline-next" class="p-2 rounded-md hover:bg-gray-100">
                   <i class="fas fa-chevron-right"></i>
                 </button>
               </div>
@@ -853,10 +751,7 @@
         </section>
 
         <section id="view-mytasks" class="hidden">
-          <div
-            id="mytasks-container"
-            class="bg-white p-4 rounded-xl shadow-md space-y-3"
-          ></div>
+          <div id="mytasks-container" class="bg-white p-4 rounded-xl shadow-md space-y-3"></div>
         </section>
 
         <section id="view-by-person" class="hidden space-y-4"></section>
@@ -868,8 +763,7 @@
         <section id="view-handbook" class="hidden">
           <div class="flex justify-between items-center mb-4">
             <p class="text-gray-600">
-              Aquí puedes documentar las reglas, procesos y definiciones clave
-              de tu equipo.
+              Aquí puedes documentar las reglas, procesos y definiciones clave de tu equipo.
             </p>
             <button
               data-action="new-handbook-entry"
@@ -890,14 +784,12 @@
               Configuración de Triage
             </h3>
             <p class="text-gray-600 mb-8">
-              Aquí puedes personalizar las preguntas que se usan para calcular
-              el impacto y el esfuerzo de las tareas en el backlog.
+              Aquí puedes personalizar las preguntas que se usan para calcular el impacto y el
+              esfuerzo de las tareas en el backlog.
             </p>
             <div class="grid grid-cols-1 md:grid-cols-2">
               <div class="pr-6 md:border-r md:border-gray-200">
-                <h4 class="text-lg font-bold text-gray-800 mb-4">
-                  Preguntas de Impacto
-                </h4>
+                <h4 class="text-lg font-bold text-gray-800 mb-4">Preguntas de Impacto</h4>
                 <div id="impact-questions-editor" class="space-y-4"></div>
                 <button
                   data-action="add-triage-question"
@@ -909,9 +801,7 @@
                 </button>
               </div>
               <div class="pl-6 pt-8 md:pt-0">
-                <h4 class="text-lg font-bold text-gray-800 mb-4">
-                  Preguntas de Esfuerzo
-                </h4>
+                <h4 class="text-lg font-bold text-gray-800 mb-4">Preguntas de Esfuerzo</h4>
                 <div id="effort-questions-editor" class="space-y-4"></div>
                 <button
                   data-action="add-triage-question"
@@ -930,14 +820,12 @@
               Configuración de Matriz
             </h3>
             <p class="text-gray-600 mb-8">
-              Define el valor mínimo (incluyéndolo) para que una tarea sea
-              considerada de "alto" impacto o "alto" esfuerzo.
+              Define el valor mínimo (incluyéndolo) para que una tarea sea considerada de "alto"
+              impacto o "alto" esfuerzo.
             </p>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
               <div>
-                <label
-                  for="matrix-impact-threshold"
-                  class="block text-sm font-medium text-gray-700"
+                <label for="matrix-impact-threshold" class="block text-sm font-medium text-gray-700"
                   >Puntaje mínimo para Alto Impacto</label
                 >
                 <input
@@ -948,9 +836,7 @@
                 />
               </div>
               <div>
-                <label
-                  for="matrix-effort-threshold"
-                  class="block text-sm font-medium text-gray-700"
+                <label for="matrix-effort-threshold" class="block text-sm font-medium text-gray-700"
                   >Puntaje mínimo para Esfuerzo</label
                 >
                 <input
@@ -974,21 +860,13 @@
       <div id="welcome-message" class="w-full flex items-center justify-center">
         <div class="text-center p-6 bg-white rounded-xl shadow-md max-w-lg">
           <i class="fas fa-rocket text-5xl text-blue-500 mb-4"></i>
-          <h2 class="text-primary-darkxl font-semibold mb-2">
-            Bienvenido a Sprintify
-          </h2>
-          <p class="text-gray-600 mb-6">
-            La herramienta colaborativa para gestionar tus sprints.
-          </p>
+          <h2 class="text-primary-darkxl font-semibold mb-2">Bienvenido a Sprintify</h2>
+          <p class="text-gray-600 mb-6">La herramienta colaborativa para gestionar tus sprints.</p>
           <button
             id="login-button"
             class="bg-[var(--brand-700)] hover:opacity-90 text-white font-bold py-3 px-6 rounded-lg shadow-md flex items-center gap-2 mx-auto transition-opacity"
           >
-            <img
-              src="https://www.google.com/favicon.ico"
-              alt="Google icon"
-              class="w-5 h-5"
-            />
+            <img src="https://www.google.com/favicon.ico" alt="Google icon" class="w-5 h-5" />
             <span>Sign in with Google</span>
           </button>
         </div>
@@ -1030,11 +908,8 @@
               </div>
 
               <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div
-                  class="flex flex-col gap-1 bg-gray-50 p-3 rounded-lg border border-gray-100"
-                >
-                  <label
-                    class="text-[9px] font-bold text-gray-400 uppercase ml-1"
+                <div class="flex flex-col gap-1 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                  <label class="text-[9px] font-bold text-gray-400 uppercase ml-1"
                     >Proyecto (Epic)</label
                   >
                   <div class="relative">
@@ -1045,11 +920,8 @@
                   </div>
                 </div>
 
-                <div
-                  class="flex flex-col gap-1 bg-gray-50 p-3 rounded-lg border border-gray-100"
-                >
-                  <label
-                    class="text-[9px] font-bold text-gray-400 uppercase ml-1"
+                <div class="flex flex-col gap-1 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                  <label class="text-[9px] font-bold text-gray-400 uppercase ml-1"
                     >Resultado Clave (KR)</label
                   >
                   <div class="relative">
@@ -1072,8 +944,7 @@
                 <div
                   class="p-3 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col justify-center min-h-[80px]"
                 >
-                  <span
-                    class="text-[9px] font-bold text-gray-400 uppercase mb-1"
+                  <span class="text-[9px] font-bold text-gray-400 uppercase mb-1"
                     >Sprint Actual</span
                   >
                   <span
@@ -1085,10 +956,7 @@
                 <div
                   class="p-3 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col items-center justify-center min-h-[80px]"
                 >
-                  <span
-                    class="text-[9px] font-bold text-gray-400 uppercase mb-1"
-                    >Puntos</span
-                  >
+                  <span class="text-[9px] font-bold text-gray-400 uppercase mb-1">Puntos</span>
                   <span
                     id="modal-task-points"
                     class="text-3xl font-black text-blue-600 leading-none"
@@ -1099,34 +967,22 @@
                 <div
                   class="p-3 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col justify-center min-h-[80px]"
                 >
-                  <span
-                    class="text-[9px] font-bold text-gray-400 uppercase mb-2"
-                    >Asignado</span
-                  >
-                  <div
-                    id="modal-task-assignee"
-                    class="flex items-center text-xs truncate"
-                  ></div>
+                  <span class="text-[9px] font-bold text-gray-400 uppercase mb-2">Asignado</span>
+                  <div id="modal-task-assignee" class="flex items-center text-xs truncate"></div>
                 </div>
 
                 <div
                   class="p-3 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col justify-center min-h-[80px]"
                 >
-                  <span
-                    class="text-[9px] font-bold text-gray-400 uppercase mb-2"
+                  <span class="text-[9px] font-bold text-gray-400 uppercase mb-2"
                     >Dueño (Reporter)</span
                   >
-                  <div
-                    id="modal-task-creator"
-                    class="flex items-center text-xs truncate"
-                  ></div>
+                  <div id="modal-task-creator" class="flex items-center text-xs truncate"></div>
                 </div>
               </div>
             </div>
 
-            <div
-              class="border border-gray-200 rounded-xl overflow-hidden shadow-sm"
-            >
+            <div class="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
               <button
                 data-action="toggle-triage-section"
                 class="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer group"
@@ -1148,30 +1004,21 @@
                   ></i>
                 </div>
               </button>
-              <div
-                id="triage-content-area"
-                class="hidden border-t border-gray-100 p-4 bg-white"
-              >
+              <div id="triage-content-area" class="hidden border-t border-gray-100 p-4 bg-white">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <span
                       class="text-[10px] font-bold text-blue-600 uppercase mb-2 block border-b border-blue-50 pb-1"
                       >Impacto (Negocio)</span
                     >
-                    <div
-                      id="impactContainer"
-                      class="space-y-1 max-h-40 overflow-y-auto"
-                    ></div>
+                    <div id="impactContainer" class="space-y-1 max-h-40 overflow-y-auto"></div>
                   </div>
                   <div>
                     <span
                       class="text-[10px] font-bold text-orange-600 uppercase mb-2 block border-b border-orange-50 pb-1"
                       >Esfuerzo (Técnico)</span
                     >
-                    <div
-                      id="effortContainer"
-                      class="space-y-1 max-h-40 overflow-y-auto"
-                    ></div>
+                    <div id="effortContainer" class="space-y-1 max-h-40 overflow-y-auto"></div>
                   </div>
                 </div>
               </div>
@@ -1183,10 +1030,7 @@
               >
                 <i class="fa-solid fa-comments"></i> Actividad
               </h4>
-              <div
-                id="comments-list"
-                class="space-y-3 max-h-48 overflow-y-auto mb-4 px-1"
-              ></div>
+              <div id="comments-list" class="space-y-3 max-h-48 overflow-y-auto mb-4 px-1"></div>
 
               <div
                 class="flex gap-2 items-center bg-gray-50 p-2 rounded-xl border border-gray-200 focus-within:border-blue-300 focus-within:bg-blue-50/20 transition-colors"
@@ -1220,10 +1064,7 @@
                 />
               </div>
               <div class="w-full md:w-1/3">
-                <select
-                  id="modal-epic-status"
-                  class="w-full p-2 border rounded bg-gray-50"
-                >
+                <select id="modal-epic-status" class="w-full p-2 border rounded bg-gray-50">
                   <option value="Por Empezar">Por Empezar</option>
                   <option value="En Progreso">En Progreso</option>
                   <option value="Completado">Completado</option>
@@ -1233,9 +1074,7 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label class="text-xs font-bold text-gray-500 uppercase"
-                  >Inicio</label
-                >
+                <label class="text-xs font-bold text-gray-500 uppercase">Inicio</label>
                 <input
                   type="date"
                   id="modal-epic-start-date"
@@ -1243,9 +1082,7 @@
                 />
               </div>
               <div>
-                <label class="text-xs font-bold text-gray-500 uppercase"
-                  >Fin</label
-                >
+                <label class="text-xs font-bold text-gray-500 uppercase">Fin</label>
                 <input
                   type="date"
                   id="modal-epic-end-date"
@@ -1261,10 +1098,7 @@
             ></textarea>
 
             <div>
-              <label
-                class="text-xs font-bold text-gray-500 uppercase mb-2 block"
-                >Color:</label
-              >
+              <label class="text-xs font-bold text-gray-500 uppercase mb-2 block">Color:</label>
               <div
                 id="epic-color-palette"
                 class="flex flex-wrap gap-3 p-2 border rounded bg-gray-50"
@@ -1366,9 +1200,7 @@
             </div>
 
             <div id="kr-inputs-container" class="space-y-2">
-              <p class="text-xs font-bold text-gray-500 uppercase">
-                Key Results (Max 5):
-              </p>
+              <p class="text-xs font-bold text-gray-500 uppercase">Key Results (Max 5):</p>
               <input
                 type="text"
                 id="modal-epic-kr-0"
@@ -1404,9 +1236,7 @@
 
           <div id="modal-sprint-inputs" class="hidden space-y-4">
             <div class="flex flex-col gap-1">
-              <label class="text-xs font-bold text-gray-500 uppercase"
-                >Pertenece al Epic:</label
-              >
+              <label class="text-xs font-bold text-gray-500 uppercase">Pertenece al Epic:</label>
               <select
                 id="modal-sprint-epic-select"
                 class="w-full p-2 border rounded bg-gray-50 focus:ring-2 focus:ring-blue-500"
@@ -1416,9 +1246,7 @@
             </div>
 
             <div class="flex flex-col gap-1">
-              <label class="text-xs font-bold text-gray-500 uppercase"
-                >Nombre del Sprint:</label
-              >
+              <label class="text-xs font-bold text-gray-500 uppercase">Nombre del Sprint:</label>
               <div class="flex items-center gap-2">
                 <input
                   type="text"
@@ -1437,24 +1265,12 @@
 
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="text-xs font-bold text-gray-500 uppercase"
-                  >Inicio</label
-                >
-                <input
-                  type="date"
-                  id="modal-start-date"
-                  class="w-full p-2 border rounded"
-                />
+                <label class="text-xs font-bold text-gray-500 uppercase">Inicio</label>
+                <input type="date" id="modal-start-date" class="w-full p-2 border rounded" />
               </div>
               <div>
-                <label class="text-xs font-bold text-gray-500 uppercase"
-                  >Fin</label
-                >
-                <input
-                  type="date"
-                  id="modal-end-date"
-                  class="w-full p-2 border rounded"
-                />
+                <label class="text-xs font-bold text-gray-500 uppercase">Fin</label>
+                <input type="date" id="modal-end-date" class="w-full p-2 border rounded" />
               </div>
             </div>
 
@@ -1528,13 +1344,8 @@
         "error",
         function (e) {
           const img = e.target;
-          if (
-            img &&
-            img.tagName === "IMG" &&
-            img.classList.contains("avatar-image")
-          ) {
-            const email =
-              img.getAttribute("title") || img.getAttribute("alt") || "";
+          if (img && img.tagName === "IMG" && img.classList.contains("avatar-image")) {
+            const email = img.getAttribute("title") || img.getAttribute("alt") || "";
             const name = email.split("@")[0] || "User";
             img.src =
               "https://ui-avatars.com/api/?name=" +
@@ -1542,7 +1353,7 @@
               "&background=random&size=64";
           }
         },
-        true,
+        true
       );
     </script>
   </body>
@@ -1550,9 +1361,7 @@
 <script>
   (() => {
     // fas -> fa-solid
-    document
-      .querySelectorAll("i.fas")
-      .forEach((i) => i.classList.replace("fas", "fa-solid"));
+    document.querySelectorAll("i.fas").forEach((i) => i.classList.replace("fas", "fa-solid"));
     // fa-trash-alt -> fa-trash-can (renombre en v6)
     document.querySelectorAll("i.fa-trash-alt").forEach((i) => {
       i.classList.remove("fa-trash-alt");
@@ -1561,10 +1370,8 @@
     // Asegurar medida/visibilidad
     document.querySelectorAll("i.fa-solid").forEach((i) => {
       i.classList.add("fa-fw", "inline-block");
-      if (![...i.classList].some((c) => /^w-/.test(c)))
-        i.classList.add("w-5", "h-5");
-      if (![...i.classList].some((c) => /^text-/.test(c)))
-        i.classList.add("text-current");
+      if (![...i.classList].some((c) => /^w-/.test(c))) i.classList.add("w-5", "h-5");
+      if (![...i.classList].some((c) => /^text-/.test(c))) i.classList.add("text-current");
     });
   })();
 </script>

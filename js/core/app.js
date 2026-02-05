@@ -10,12 +10,7 @@ import {
   profilesCollection,
   handbookCollection,
 } from "./firebase.js";
-import {
-  handleAuth,
-  login,
-  logout,
-  getCalendarAccessToken,
-} from "../integrations/auth.js";
+import { handleAuth, login, logout, getCalendarAccessToken } from "../integrations/auth.js";
 import * as ui from "../ui/ui.js";
 import {
   onSnapshot,
@@ -140,7 +135,7 @@ const actions = {
         ui.showModal({
           title: "Sesión requerida",
           text: "Inicia sesión para crear tareas.",
-        }),
+        })
       )
     )
       return;
@@ -196,8 +191,7 @@ const actions = {
       text: "¿Estás seguro?",
       okText: "Borrar",
       okClass: "bg-red-600",
-      callback: async (ok) =>
-        ok && deleteDoc(doc(tasksCollection, taskId)).catch(console.error),
+      callback: async (ok) => ok && deleteDoc(doc(tasksCollection, taskId)).catch(console.error),
     });
   },
   returnTaskToBacklog(taskId) {
@@ -218,10 +212,7 @@ const actions = {
   async moveTasksToSprint(taskIds, sprintId) {
     if (!sprintId || !Array.isArray(taskIds) || taskIds.length === 0) return;
     const batch = writeBatch(db);
-    taskIds.forEach(
-      (id) =>
-        id && batch.update(doc(tasksCollection, id), { listId: sprintId }),
-    );
+    taskIds.forEach((id) => id && batch.update(doc(tasksCollection, id), { listId: sprintId }));
     try {
       await batch.commit();
     } catch (e) {
@@ -305,9 +296,7 @@ const actions = {
       if (!me) return;
       const readBy = Array.isArray(comment.readBy) ? [...comment.readBy] : [];
       const isRead = readBy.includes(me);
-      const nextReadBy = isRead
-        ? readBy.filter((x) => x !== me)
-        : [...readBy, me];
+      const nextReadBy = isRead ? readBy.filter((x) => x !== me) : [...readBy, me];
       const updated = [...task.comments];
       updated[commentIndex] = { ...comment, readBy: nextReadBy };
       try {
@@ -319,18 +308,9 @@ const actions = {
   },
 
   addNewSprint(result) {
-    const {
-      title,
-      sequence,
-      start,
-      end,
-      capacity = 0,
-      color,
-      epicId,
-    } = result || {};
+    const { title, sequence, start, end, capacity = 0, color, epicId } = result || {};
 
-    if (!title || !start || !end)
-      return ui.showModal({ title: "Error", text: "Faltan datos." });
+    if (!title || !start || !end) return ui.showModal({ title: "Error", text: "Faltan datos." });
 
     addDoc(listsCollection, {
       title,
@@ -348,15 +328,7 @@ const actions = {
   },
 
   updateSprint(sprintId, result) {
-    const {
-      title,
-      sequence,
-      start,
-      end,
-      capacity = 0,
-      color,
-      epicId,
-    } = result || {};
+    const { title, sequence, start, end, capacity = 0, color, epicId } = result || {};
 
     const updates = {
       title,
@@ -375,16 +347,14 @@ const actions = {
     }
 
     updateDoc(doc(listsCollection, sprintId), updates).catch((e) =>
-      console.error("updateSprint:", e),
+      console.error("updateSprint:", e)
     );
   },
 
   updateSprintCapacity(sprintId, newCapacity) {
     const cap = Number(newCapacity);
     if (!sprintId || Number.isNaN(cap)) return;
-    updateDoc(doc(listsCollection, sprintId), { capacity: cap }).catch(
-      console.error,
-    );
+    updateDoc(doc(listsCollection, sprintId), { capacity: cap }).catch(console.error);
   },
 
   deleteSprint(sprintId) {
@@ -433,10 +403,7 @@ const actions = {
         if (!confirmed) return;
 
         try {
-          const tasksQuery = query(
-            tasksCollection,
-            where("listId", "==", sprintId),
-          );
+          const tasksQuery = query(tasksCollection, where("listId", "==", sprintId));
           const tasksSnapshot = await getDocs(tasksQuery);
 
           const batch = writeBatch(db);
@@ -458,10 +425,9 @@ const actions = {
 
           if (sprintId === state.currentSprintId) {
             const availableSprints = state.taskLists.filter(
-              (l) => !l.isBacklog && !l.isArchived && l.id !== sprintId,
+              (l) => !l.isBacklog && !l.isArchived && l.id !== sprintId
             );
-            state.currentSprintId =
-              availableSprints.length > 0 ? availableSprints[0].id : null;
+            state.currentSprintId = availableSprints.length > 0 ? availableSprints[0].id : null;
             requestRender();
           }
         } catch (e) {
@@ -489,7 +455,7 @@ const actions = {
     };
 
     updateDoc(doc(listsCollection, sprintId), updates).catch((e) =>
-      console.error("Error al restaurar sprint:", e),
+      console.error("Error al restaurar sprint:", e)
     );
   },
   addNewEpic(result) {
@@ -509,9 +475,7 @@ const actions = {
       startDate: result.startDate
         ? Timestamp.fromDate(new Date(`${result.startDate}T00:00:00`))
         : serverTimestamp(),
-      endDate: result.endDate
-        ? Timestamp.fromDate(new Date(`${result.endDate}T00:00:00`))
-        : null,
+      endDate: result.endDate ? Timestamp.fromDate(new Date(`${result.endDate}T00:00:00`)) : null,
       keyResults: result.keyResults || [],
       createdAt: serverTimestamp(),
       createdBy: state.user?.email ?? null,
@@ -535,10 +499,7 @@ const actions = {
         if (!ok) return;
         try {
           const b = writeBatch(db);
-          const q = query(
-            listsCollection,
-            where("epicIds", "array-contains", epicId),
-          );
+          const q = query(listsCollection, where("epicIds", "array-contains", epicId));
           const s = await getDocs(q);
           s.forEach((d) => b.update(d.ref, { epicIds: arrayRemove(epicId) }));
           b.delete(doc(epicsCollection, epicId));
@@ -600,9 +561,7 @@ const actions = {
   async updateBacklogOrder(taskIds) {
     if (!Array.isArray(taskIds) || taskIds.length === 0) return;
     const batch = writeBatch(db);
-    taskIds.forEach(
-      (id, idx) => id && batch.update(doc(tasksCollection, id), { order: idx }),
-    );
+    taskIds.forEach((id, idx) => id && batch.update(doc(tasksCollection, id), { order: idx }));
     try {
       await batch.commit();
     } catch (e) {
@@ -612,21 +571,14 @@ const actions = {
 
   updateTriageScore(taskId) {
     if (!state.triageConfig) return console.error("Triage config no cargada.");
-    const impactChecks = document.querySelectorAll(
-      "#triage-impact-questions input:checked",
-    );
-    const effortChecks = document.querySelectorAll(
-      "#triage-effort-questions input:checked",
-    );
+    const impactChecks = document.querySelectorAll("#triage-impact-questions input:checked");
+    const effortChecks = document.querySelectorAll("#triage-effort-questions input:checked");
 
     const impactSel = Array.from(impactChecks).map((cb) => cb.dataset.id);
     const effortSel = Array.from(effortChecks).map((cb) => cb.dataset.id);
 
     const sumBy = (arr, bank) =>
-      arr.reduce(
-        (acc, id) => acc + (bank.find((q) => q.id === id)?.weight ?? 0),
-        0,
-      );
+      arr.reduce((acc, id) => acc + (bank.find((q) => q.id === id)?.weight ?? 0), 0);
 
     const impact = sumBy(impactSel, state.triageConfig.impact || []);
     const effort = sumBy(effortSel, state.triageConfig.effort || []);
@@ -688,8 +640,7 @@ const actions = {
   },
 
   async executeCalendarAction(actionFn) {
-    if (!state.googleAccessToken)
-      throw new Error("Primero conecta Google Calendar.");
+    if (!state.googleAccessToken) throw new Error("Primero conecta Google Calendar.");
     try {
       return await actionFn(state.googleAccessToken);
     } catch (err) {
@@ -705,8 +656,7 @@ const actions = {
   async syncTaskToCalendar(taskId) {
     const task = getTaskById(taskId);
     if (!task) return;
-    const act = async (token) =>
-      calendar.createTaskEvent(task, state.sprintifyCalendarId, token);
+    const act = async (token) => calendar.createTaskEvent(task, state.sprintifyCalendarId, token);
     try {
       ui.showModal({
         title: "Sincronizando...",
@@ -770,20 +720,17 @@ const actions = {
     const mine = state.tasks.filter(
       (t) =>
         t.assignee === me &&
-        t.comments?.some(
-          (c) => c.authorEmail !== me && !c.readBy?.includes(me),
-        ),
+        t.comments?.some((c) => c.authorEmail !== me && !c.readBy?.includes(me))
     );
     mine.forEach((t) => {
       const updated = t.comments.map((c) =>
         c.authorEmail !== me && !c.readBy?.includes(me)
           ? { ...c, readBy: [...(c.readBy || []), me] }
-          : c,
+          : c
       );
       batch.update(doc(tasksCollection, t.id), { comments: updated });
     });
-    if (mine.length)
-      batch.commit().catch((e) => console.error("markAllAsRead:", e));
+    if (mine.length) batch.commit().catch((e) => console.error("markAllAsRead:", e));
   },
 
   async toggleEpicKr(epicId, krIndex) {
@@ -858,8 +805,7 @@ const actions = {
       text: "¿Borrar esta entrada del manual?",
       okText: "Sí, Borrar",
       okClass: "bg-red-600",
-      callback: (ok) =>
-        ok && deleteDoc(doc(handbookCollection, entryId)).catch(console.error),
+      callback: (ok) => ok && deleteDoc(doc(handbookCollection, entryId)).catch(console.error),
     });
   },
 
@@ -908,15 +854,10 @@ function loadData() {
     }
   };
 
-  const unsubTriage = onSnapshot(
-    doc(db, "triageQuestions", "default"),
-    (snap) => {
-      state.triageConfig = snap.exists()
-        ? snap.data()
-        : { impact: [], effort: [] };
-      checkAllLoaded();
-    },
-  );
+  const unsubTriage = onSnapshot(doc(db, "triageQuestions", "default"), (snap) => {
+    state.triageConfig = snap.exists() ? snap.data() : { impact: [], effort: [] };
+    checkAllLoaded();
+  });
 
   const unsubProfiles = onSnapshot(query(profilesCollection), (snapshot) => {
     state.allUsers = snapshot.docs.map((d) => d.data());
@@ -937,12 +878,10 @@ function loadData() {
     const backlog = state.taskLists.find((l) => l.isBacklog);
     state.backlogId = backlog?.id ?? null;
 
-    const sprints = state.taskLists.filter(
-      (l) => !l.isBacklog && !l.isArchived,
-    );
+    const sprints = state.taskLists.filter((l) => !l.isBacklog && !l.isArchived);
     if (!state.currentSprintId && sprints.length) {
       state.currentSprintId = sprints.sort(
-        (a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0),
+        (a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)
       )[0].id;
     }
     checkAllLoaded();
@@ -986,7 +925,7 @@ function loadData() {
     unsubLists,
     unsubEpics,
     unsubThemes,
-    unsubTasks,
+    unsubTasks
   );
 }
 
@@ -1013,9 +952,7 @@ function setupPresenceSystem(user) {
   const statusRef = ref(rtdb, "/status");
   const unsub = onValue(statusRef, (snap) => {
     const statuses = snap.val() || {};
-    let onlineUsers = Object.values(statuses).filter(
-      (s) => s.state === "online",
-    );
+    let onlineUsers = Object.values(statuses).filter((s) => s.state === "online");
     if (user?.displayName && !onlineUsers.some((u) => u.email === user.email)) {
       onlineUsers.push({
         displayName: user.displayName,
@@ -1042,9 +979,7 @@ function handleDeepLink() {
 
 function checkSprintCapacity() {
   const sprint = state.taskLists.find((l) => l.id === state.currentSprintId);
-  const warnings = document.querySelectorAll(
-    '[id^="sprint-capacity-warning-"]',
-  );
+  const warnings = document.querySelectorAll('[id^="sprint-capacity-warning-"]');
   if (!sprint?.capacity || sprint.capacity <= 0)
     return warnings.forEach((el) => el.classList.add("hidden"));
 
@@ -1071,7 +1006,7 @@ function checkUnreadActivity() {
   const me = state.user.email;
   const myTasks = state.tasks.filter((t) => t.assignee === me);
   const hasUnread = myTasks.some((t) =>
-    t.comments?.some((c) => c.authorEmail !== me && !c.readBy?.includes(me)),
+    t.comments?.some((c) => c.authorEmail !== me && !c.readBy?.includes(me))
   );
   indicator.classList.toggle("hidden", !hasUnread);
 }

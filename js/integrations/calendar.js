@@ -1,6 +1,5 @@
 // calendar.js
-const APP_BASE_URL =
-  typeof location !== "undefined" ? location.origin : "https://example.com";
+const APP_BASE_URL = typeof location !== "undefined" ? location.origin : "https://example.com";
 
 // Manejo centralizado de respuestas de Google APIs
 async function parseGoogleResponse(response) {
@@ -27,29 +26,23 @@ export async function findOrCreateSprintifyCalendar(accessToken) {
   const headers = { Authorization: `Bearer ${accessToken}` };
 
   // 1) Buscar si ya existe
-  const listRes = await fetch(
-    "https://www.googleapis.com/calendar/v3/users/me/calendarList",
-    {
-      headers,
-    },
-  );
+  const listRes = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList", {
+    headers,
+  });
   const list = await parseGoogleResponse(listRes);
   const existing = list.items?.find((c) => c.summary === "Sprintify");
   if (existing) return existing.id;
 
   // 2) Crear si no existe
-  const createRes = await fetch(
-    "https://www.googleapis.com/calendar/v3/calendars",
-    {
-      method: "POST",
-      headers: { ...headers, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        summary: "Sprintify",
-        description: "Calendario para eventos creados desde SPW.",
-        timeZone: "America/Monterrey",
-      }),
-    },
-  );
+  const createRes = await fetch("https://www.googleapis.com/calendar/v3/calendars", {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      summary: "Sprintify",
+      description: "Calendario para eventos creados desde SPW.",
+      timeZone: "America/Monterrey",
+    }),
+  });
   const created = await parseGoogleResponse(createRes);
   return created.id;
 }
@@ -76,7 +69,7 @@ export async function createTaskEvent(task, calendarId, accessToken) {
       method: "POST",
       headers,
       body: JSON.stringify(event),
-    },
+    }
   );
   const created = await parseGoogleResponse(res);
   return created.id;
@@ -86,9 +79,9 @@ export async function getEventStatus(eventId, calendarId, accessToken) {
   const headers = { Authorization: `Bearer ${accessToken}` };
   const res = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
-      calendarId,
+      calendarId
     )}/events/${encodeURIComponent(eventId)}`,
-    { headers },
+    { headers }
   );
 
   if (res.status === 404) return "not_found";

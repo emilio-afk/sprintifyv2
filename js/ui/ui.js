@@ -32,8 +32,7 @@ function createTaskElement(task, context, state) {
 
   // --- 1. HELPERS DE FECHA AVANZADOS ---
   const now = new Date();
-  const getDate = (ts) =>
-    ts && ts.toDate ? ts.toDate() : ts ? new Date(ts) : null;
+  const getDate = (ts) => (ts && ts.toDate ? ts.toDate() : ts ? new Date(ts) : null);
 
   const createdAt = getDate(task.createdAt) || now;
   const completedAt = getDate(task.completedAt);
@@ -42,19 +41,14 @@ function createTaskElement(task, context, state) {
   // Lógica de Antigüedad (Days Open)
   // Si está completada, calculamos hasta la fecha de fin. Si no, hasta hoy.
   const endCalcDate = isCompleted && completedAt ? completedAt : now;
-  const daysOpen = Math.round(
-    (endCalcDate - createdAt) / (1000 * 60 * 60 * 24),
-  );
+  const daysOpen = Math.round((endCalcDate - createdAt) / (1000 * 60 * 60 * 24));
 
   // Lógica de Tiempo en Progreso (Time in Progress)
   let timeInProgressHTML = "";
 
   // Solo mostramos contador si tiene fecha de inicio Y (está en progreso O ya se completó)
   // Si se movió a "Por Hacer", startedAt debería ser null, así que esto no se ejecuta.
-  if (
-    startedAt &&
-    (task.kanbanStatus === "inprogress" || task.status === "completed")
-  ) {
+  if (startedAt && (task.kanbanStatus === "inprogress" || task.status === "completed")) {
     const progressEndDate = isCompleted && completedAt ? completedAt : now;
 
     // Diferencia en milisegundos
@@ -74,9 +68,7 @@ function createTaskElement(task, context, state) {
 
     const icon = isCompleted ? "fa-flag-checkered" : "fa-stopwatch"; // Icono distinto si terminó
     // Si está completado gris, si está vivo azul animado (pulso opcional)
-    const colorClass = isCompleted
-      ? "text-gray-400"
-      : "text-blue-600 font-bold";
+    const colorClass = isCompleted ? "text-gray-400" : "text-blue-600 font-bold";
     const animClass = !isCompleted ? "fa-beat-fade" : ""; // Animación suave si está corriendo
 
     timeInProgressHTML = `
@@ -90,8 +82,7 @@ function createTaskElement(task, context, state) {
   // --- LÓGICA DE HERENCIA ---
   const todayForCalc = new Date();
   const currentDay = todayForCalc.getDay();
-  const diff =
-    todayForCalc.getDate() - currentDay + (currentDay === 0 ? -6 : 1);
+  const diff = todayForCalc.getDate() - currentDay + (currentDay === 0 ? -6 : 1);
   const startOfWeek = new Date(todayForCalc.setDate(diff));
   startOfWeek.setHours(0, 0, 0, 0);
   const isInherited = createdAt < startOfWeek;
@@ -206,9 +197,7 @@ function createCommentElement(comment, index, state) {
   const authorAvatar = author?.photoURL
     ? author.photoURL
     : `https://ui-avatars.com/api/?name=${comment.author ? comment.author.split(" ")[0] : "A"}`;
-  const date = comment.timestamp
-    ? comment.timestamp.toDate().toLocaleString("es-MX")
-    : "";
+  const date = comment.timestamp ? comment.timestamp.toDate().toLocaleString("es-MX") : "";
   const isAuthor = state.user && state.user.email === comment.authorEmail;
   const commentActions = isAuthor
     ? `<div class="text-xs mt-1"><button class="font-semibold text-blue-600 hover:underline" data-action="edit-comment" data-index="${index}">Editar</button><button class="font-semibold text-red-500 hover:underline ml-2" data-action="delete-comment" data-index="${index}">Borrar</button></div>`
@@ -226,9 +215,7 @@ function createActivityCommentElement(comment, index, state, taskId) {
   const authorAvatar = author
     ? author.photoURL
     : `https://ui-avatars.com/api/?name=${comment.author ? comment.author.split(" ")[0] : "A"}`;
-  const date = comment.timestamp
-    ? comment.timestamp.toDate().toLocaleString("es-MX")
-    : "";
+  const date = comment.timestamp ? comment.timestamp.toDate().toLocaleString("es-MX") : "";
   const isRead = comment.readBy?.includes(state.user.email);
   const commentEl = document.createElement("div");
   commentEl.className = "flex items-start gap-3";
@@ -243,9 +230,7 @@ function renderBacklog(state) {
   const backlogTasks = state.tasks.filter((t) => t.listId === state.backlogId);
   if (backlogTasks.length > 0) {
     backlogTasks.forEach((task) => {
-      dom.backlogTasksContainer.appendChild(
-        createTaskElement(task, "backlog", state),
-      );
+      dom.backlogTasksContainer.appendChild(createTaskElement(task, "backlog", state));
     });
   } else {
     dom.backlogTasksContainer.innerHTML =
@@ -275,9 +260,7 @@ function renderBacklogMatrix(state) {
   const lists = {
     quick: dom.backlogMatrixContainer.querySelector('[data-quad-list="quick"]'),
     major: dom.backlogMatrixContainer.querySelector('[data-quad-list="major"]'),
-    filler: dom.backlogMatrixContainer.querySelector(
-      '[data-quad-list="filler"]',
-    ),
+    filler: dom.backlogMatrixContainer.querySelector('[data-quad-list="filler"]'),
     maybe: dom.backlogMatrixContainer.querySelector('[data-quad-list="maybe"]'),
   };
   tasks.forEach((t) => {
@@ -288,24 +271,18 @@ function renderBacklogMatrix(state) {
 }
 
 function toggleBacklogView(state) {
-  if (
-    !dom.backlogTasksContainer ||
-    !dom.backlogMatrixContainer ||
-    !dom.toggleBacklogViewBtn
-  )
+  if (!dom.backlogTasksContainer || !dom.backlogMatrixContainer || !dom.toggleBacklogViewBtn)
     return;
   const matrixHidden = dom.backlogMatrixContainer.classList.contains("hidden");
   if (matrixHidden) {
     dom.backlogTasksContainer.classList.add("hidden");
     dom.backlogMatrixContainer.classList.remove("hidden");
-    dom.toggleBacklogViewBtn.innerHTML =
-      '<i class="fas fa-list"></i> Vista Lista';
+    dom.toggleBacklogViewBtn.innerHTML = '<i class="fas fa-list"></i> Vista Lista';
     renderBacklogMatrix(state);
   } else {
     dom.backlogMatrixContainer.classList.add("hidden");
     dom.backlogTasksContainer.classList.remove("hidden");
-    dom.toggleBacklogViewBtn.innerHTML =
-      '<i class="fas fa-table-cells"></i> Vista Matriz';
+    dom.toggleBacklogViewBtn.innerHTML = '<i class="fas fa-table-cells"></i> Vista Matriz';
     renderBacklog(state);
   }
 }
@@ -384,7 +361,7 @@ function renderSprintKanban(state) {
     let colTasks = state.tasks.filter(
       (t) =>
         t.listId === state.currentSprintId &&
-        (t.kanbanStatus === col.key || (col.key === "todo" && !t.kanbanStatus)),
+        (t.kanbanStatus === col.key || (col.key === "todo" && !t.kanbanStatus))
     );
 
     // ORDENAR: Antigüedad (Fecha de creación ASCENDENTE)
@@ -449,7 +426,7 @@ function renderThemes(state) {
   }
 
   const sortedThemes = [...state.themes].sort(
-    (a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0),
+    (a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)
   );
 
   sortedThemes.forEach((theme) => {
@@ -468,7 +445,7 @@ function renderThemes(state) {
           <i class="fa-solid fa-book-atlas" style="color: ${epic.color || "#cbd5e1"}"></i>
           <span class="font-medium text-sm text-gray-700">${epic.title}</span>
         </div>
-      `,
+      `
         )
         .join("");
     }
@@ -508,12 +485,11 @@ function renderEpics(state) {
   }
 
   const sortedEpics = [...state.epics].sort(
-    (a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0),
+    (a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)
   );
 
   // GRID PRINCIPAL
-  container.className =
-    "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start";
+  container.className = "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start";
 
   sortedEpics.forEach((epic) => {
     // --- CÁLCULOS ---
@@ -525,12 +501,8 @@ function renderEpics(state) {
 
     let timeLabel = "Sin fecha";
     if (epic.startDate && epic.endDate) {
-      const start = epic.startDate.toDate
-        ? epic.startDate.toDate()
-        : new Date(epic.startDate);
-      const end = epic.endDate.toDate
-        ? epic.endDate.toDate()
-        : new Date(epic.endDate);
+      const start = epic.startDate.toDate ? epic.startDate.toDate() : new Date(epic.startDate);
+      const end = epic.endDate.toDate ? epic.endDate.toDate() : new Date(epic.endDate);
       const today = new Date();
       start.setHours(0, 0, 0, 0);
       end.setHours(23, 59, 59, 999);
@@ -542,19 +514,15 @@ function renderEpics(state) {
       const daysPassed = Math.ceil(elapsed / (1000 * 60 * 60 * 24));
 
       if (daysPassed < 0) timeLabel = `En ${Math.abs(daysPassed)} días`;
-      else if (daysPassed > totalDays)
-        timeLabel = `Fin hace ${daysPassed - totalDays}d`;
+      else if (daysPassed > totalDays) timeLabel = `Fin hace ${daysPassed - totalDays}d`;
       else timeLabel = `Día ${daysPassed}/${totalDays}`;
     }
 
     const definedKRs = epic.keyResults || [];
     const completedIndices = epic.completedKrIndices || [];
-    const validCompletedCount = completedIndices.filter(
-      (idx) => idx < definedKRs.length,
-    ).length;
+    const validCompletedCount = completedIndices.filter((idx) => idx < definedKRs.length).length;
     const totalDefined = definedKRs.length;
-    const krProgress =
-      totalDefined > 0 ? (validCompletedCount / totalDefined) * 100 : 0;
+    const krProgress = totalDefined > 0 ? (validCompletedCount / totalDefined) * 100 : 0;
     const isExpanded = state.expandedEpicIds.has(epic.id);
 
     // HTML KRs
@@ -587,8 +555,7 @@ function renderEpics(state) {
         icon: "fa-check-circle",
       },
     };
-    const statusStyle =
-      statusConfig[epic.status] || statusConfig["Por Empezar"];
+    const statusStyle = statusConfig[epic.status] || statusConfig["Por Empezar"];
     const epicColor = epic.color || "#3b82f6";
 
     // --- RENDERIZADO ---
@@ -719,20 +686,16 @@ function renderMyTasksListArea(state) {
   if (!listContainer) return;
 
   // Inputs actuales
-  const searchVal =
-    document.getElementById("mytasks-search")?.value.toLowerCase().trim() || "";
+  const searchVal = document.getElementById("mytasks-search")?.value.toLowerCase().trim() || "";
   const sortMode = document.getElementById("mytasks-sort")?.value || "urgency";
-  const hideCompleted =
-    document.getElementById("mytasks-hide-completed")?.checked || false;
+  const hideCompleted = document.getElementById("mytasks-hide-completed")?.checked || false;
 
   // 1. Filtrado Base
   let myTasks = state.tasks.filter((t) => t.assignee === state.user.email);
 
   // 2. Filtro: Ocultar Completadas
   if (hideCompleted) {
-    myTasks = myTasks.filter(
-      (t) => t.kanbanStatus !== "done" && t.status !== "completed",
-    );
+    myTasks = myTasks.filter((t) => t.kanbanStatus !== "done" && t.status !== "completed");
   }
 
   // 3. Filtro: Búsqueda Texto
@@ -743,8 +706,7 @@ function renderMyTasksListArea(state) {
   // 4. Lógica de Ordenamiento
   myTasks.sort((a, b) => {
     // Helper para fechas seguras
-    const getDate = (d) =>
-      d && d.toDate ? d.toDate().getTime() : d ? new Date(d).getTime() : 0;
+    const getDate = (d) => (d && d.toDate ? d.toDate().getTime() : d ? new Date(d).getTime() : 0);
 
     switch (sortMode) {
       case "urgency": // Fecha Entrega ASC (Null al final)
@@ -873,18 +835,16 @@ function renderPersonView(state) {
 
   // Restore selections
   const sprintSelect = controlsDiv.querySelector("#person-view-filter");
-  if (state.personViewSprintFilter)
-    sprintSelect.value = state.personViewSprintFilter;
+  if (state.personViewSprintFilter) sprintSelect.value = state.personViewSprintFilter;
   const personSelect = controlsDiv.querySelector("#person-view-people-filter");
-  if (state.personViewPersonFilter)
-    personSelect.value = state.personViewPersonFilter;
+  if (state.personViewPersonFilter) personSelect.value = state.personViewPersonFilter;
 
   if (typeof appActions !== "undefined") {
     sprintSelect.addEventListener("change", (e) =>
-      appActions.setPersonViewSprintFilter(e.target.value),
+      appActions.setPersonViewSprintFilter(e.target.value)
     );
     personSelect.addEventListener("change", (e) =>
-      appActions.setPersonViewPersonFilter(e.target.value),
+      appActions.setPersonViewPersonFilter(e.target.value)
     );
   }
 
@@ -900,13 +860,10 @@ function renderPersonView(state) {
       .map((l) => l.id);
     tasksToShow = state.tasks.filter((t) => activeSprintIds.includes(t.listId));
   } else {
-    tasksToShow = state.tasks.filter(
-      (t) => t.listId === state.personViewSprintFilter,
-    );
+    tasksToShow = state.tasks.filter((t) => t.listId === state.personViewSprintFilter);
   }
 
-  const normalize = (email) =>
-    email ? email.trim().toLowerCase() : "unassigned";
+  const normalize = (email) => (email ? email.trim().toLowerCase() : "unassigned");
   const grouped = { unassigned: [] };
   const profileMap = {};
 
@@ -964,23 +921,13 @@ function renderPersonView(state) {
     const doneThisWeekTasks = tasks.filter((t) => {
       if (t.kanbanStatus !== "done" && t.status !== "completed") return false;
       if (!t.completedAt) return false;
-      const d = t.completedAt.toDate
-        ? t.completedAt.toDate()
-        : new Date(t.completedAt);
+      const d = t.completedAt.toDate ? t.completedAt.toDate() : new Date(t.completedAt);
       return d >= currentWeekStart;
     });
-    const ptsDoneThisWeek = doneThisWeekTasks.reduce(
-      (sum, t) => sum + (t.points || 0),
-      0,
-    );
+    const ptsDoneThisWeek = doneThisWeekTasks.reduce((sum, t) => sum + (t.points || 0), 0);
 
-    const inProgressTasks = tasks.filter(
-      (t) => t.kanbanStatus === "inprogress",
-    );
-    const ptsInProgress = inProgressTasks.reduce(
-      (sum, t) => sum + (t.points || 0),
-      0,
-    );
+    const inProgressTasks = tasks.filter((t) => t.kanbanStatus === "inprogress");
+    const ptsInProgress = inProgressTasks.reduce((sum, t) => sum + (t.points || 0), 0);
 
     const todoTasks = tasks.filter((t) => t.kanbanStatus === "todo");
     const ptsTodo = todoTasks.reduce((sum, t) => sum + (t.points || 0), 0);
@@ -989,10 +936,7 @@ function renderPersonView(state) {
 
     // Porcentajes
     const pctDone = Math.min(100, (ptsDoneThisWeek / WEEKLY_CAPACITY) * 100);
-    const pctProg = Math.min(
-      100 - pctDone,
-      (ptsInProgress / WEEKLY_CAPACITY) * 100,
-    );
+    const pctProg = Math.min(100 - pctDone, (ptsInProgress / WEEKLY_CAPACITY) * 100);
     const spaceLeft = 100 - pctDone - pctProg;
     const pctTodo = Math.min(spaceLeft, (ptsTodo / WEEKLY_CAPACITY) * 100);
 
@@ -1028,8 +972,7 @@ function renderPersonView(state) {
         </div>`;
     } else {
       const avatar =
-        userProfile?.photoURL ||
-        `https://ui-avatars.com/api/?name=${emailKey.split("@")[0]}`;
+        userProfile?.photoURL || `https://ui-avatars.com/api/?name=${emailKey.split("@")[0]}`;
       const name = userProfile?.displayName || emailKey;
 
       headerHTML = `
@@ -1113,10 +1056,7 @@ function renderPersonView(state) {
       // 1. Filtrado General
       let colTasks = tasks.filter((t) => {
         if (statusKey === "todo")
-          return (
-            t.kanbanStatus === "todo" ||
-            !["inprogress", "done"].includes(t.kanbanStatus)
-          );
+          return t.kanbanStatus === "todo" || !["inprogress", "done"].includes(t.kanbanStatus);
         return t.kanbanStatus === statusKey;
       });
 
@@ -1153,9 +1093,7 @@ function renderPersonView(state) {
             recentTasks.push(t);
             return;
           }
-          const d = t.completedAt.toDate
-            ? t.completedAt.toDate()
-            : new Date(t.completedAt);
+          const d = t.completedAt.toDate ? t.completedAt.toDate() : new Date(t.completedAt);
           if (d >= currentWeekStart) {
             recentTasks.push(t);
           } else {
@@ -1169,7 +1107,7 @@ function renderPersonView(state) {
         const recentHidden = recentTasks.slice(10); // Exceso de la semana actual
 
         recentVisible.forEach((task) =>
-          dropZone.appendChild(createTaskElement(task, "sprint", state)),
+          dropZone.appendChild(createTaskElement(task, "sprint", state))
         );
 
         // Si hay más de 10 de ESTA semana, botón "Ver más recientes"
@@ -1177,9 +1115,7 @@ function renderPersonView(state) {
           const moreRecentContainer = document.createElement("div");
           moreRecentContainer.className = "hidden space-y-2";
           recentHidden.forEach((task) =>
-            moreRecentContainer.appendChild(
-              createTaskElement(task, "sprint", state),
-            ),
+            moreRecentContainer.appendChild(createTaskElement(task, "sprint", state))
           );
           dropZone.appendChild(moreRecentContainer);
 
@@ -1206,9 +1142,7 @@ function renderPersonView(state) {
           historyContainer.className = "hidden space-y-2 opacity-80"; // Un poco más transparentes para denotar antigüedad
 
           oldTasks.forEach((task) =>
-            historyContainer.appendChild(
-              createTaskElement(task, "sprint", state),
-            ),
+            historyContainer.appendChild(createTaskElement(task, "sprint", state))
           );
 
           // Botón Activador (Estilo carpeta)
@@ -1235,9 +1169,7 @@ function renderPersonView(state) {
         }
       } else {
         // RENDER NORMAL (ToDo / InProgress)
-        colTasks.forEach((task) =>
-          dropZone.appendChild(createTaskElement(task, "sprint", state)),
-        );
+        colTasks.forEach((task) => dropZone.appendChild(createTaskElement(task, "sprint", state)));
       }
 
       columnsGrid.appendChild(colDiv);
@@ -1258,7 +1190,7 @@ function renderActivityView(state) {
     .sort(
       (a, b) =>
         (b.comments[b.comments.length - 1].timestamp?.seconds || 0) -
-        (a.comments[a.comments.length - 1].timestamp?.seconds || 0),
+        (a.comments[a.comments.length - 1].timestamp?.seconds || 0)
     );
   if (tasksWithComments.length === 0) {
     container.innerHTML =
@@ -1271,9 +1203,7 @@ function renderActivityView(state) {
     const commentsContainer = document.createElement("div");
     commentsContainer.className = "space-y-4";
     task.comments.forEach((comment, index) => {
-      commentsContainer.appendChild(
-        createActivityCommentElement(comment, index, state, task.id),
-      );
+      commentsContainer.appendChild(createActivityCommentElement(comment, index, state, task.id));
     });
     taskWrapper.innerHTML = `<h3 class="font-bold text-lg mb-3">En la tarea: <span class="text-blue-600">${task.title}</span></h3>`;
     taskWrapper.appendChild(commentsContainer);
@@ -1282,9 +1212,7 @@ function renderActivityView(state) {
 }
 
 function renderSprintsSummary(state) {
-  const filterContainer = document.getElementById(
-    "sprints-summary-filter-container",
-  );
+  const filterContainer = document.getElementById("sprints-summary-filter-container");
   if (filterContainer) {
     const filters = [
       { key: "all", label: "Todos" },
@@ -1313,16 +1241,11 @@ function renderSprintsSummary(state) {
   switch (state.sprintsSummaryFilter) {
     case "active":
       sprints = state.taskLists.filter(
-        (s) =>
-          !s.isArchived &&
-          s.startDate?.toDate() <= today &&
-          s.endDate?.toDate() >= today,
+        (s) => !s.isArchived && s.startDate?.toDate() <= today && s.endDate?.toDate() >= today
       );
       break;
     case "future":
-      sprints = state.taskLists.filter(
-        (s) => !s.isArchived && s.startDate?.toDate() > today,
-      );
+      sprints = state.taskLists.filter((s) => !s.isArchived && s.startDate?.toDate() > today);
       break;
     case "archived":
       sprints = state.taskLists.filter((s) => s.isArchived);
@@ -1332,9 +1255,7 @@ function renderSprintsSummary(state) {
       sprints = state.taskLists.filter((l) => !l.isBacklog && l.startDate);
       break;
   }
-  sprints.sort(
-    (a, b) => (a.startDate?.seconds || 0) - (b.startDate?.seconds || 0),
-  );
+  sprints.sort((a, b) => (a.startDate?.seconds || 0) - (b.startDate?.seconds || 0));
   const fragment = document.createDocumentFragment();
   const formatDate = (date) => {
     const d = new Date(date);
@@ -1370,15 +1291,11 @@ function renderSprintsSummary(state) {
   sprints.forEach((sprint) => {
     if (!sprint.startDate || !sprint.endDate) return;
     const sprintTasks = state.tasks.filter((t) => t.listId === sprint.id);
-    const totalPoints = sprintTasks.reduce(
-      (sum, t) => sum + (t.points || 0),
-      0,
-    );
+    const totalPoints = sprintTasks.reduce((sum, t) => sum + (t.points || 0), 0);
     const completedPoints = sprintTasks
       .filter((t) => t.status === "completed" || t.kanbanStatus === "done")
       .reduce((sum, t) => sum + (t.points || 0), 0);
-    const progress =
-      totalPoints > 0 ? (completedPoints / totalPoints) * 100 : 0;
+    const progress = totalPoints > 0 ? (completedPoints / totalPoints) * 100 : 0;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const startDate = sprint.startDate.toDate();
@@ -1386,9 +1303,7 @@ function renderSprintsSummary(state) {
     let statusText, statusClass, statusIcon;
     const allTasksCompleted =
       sprintTasks.length > 0 &&
-      sprintTasks.every(
-        (t) => t.status === "completed" || t.kanbanStatus === "done",
-      );
+      sprintTasks.every((t) => t.status === "completed" || t.kanbanStatus === "done");
     if (allTasksCompleted || (today > endDate && progress > 0)) {
       statusText = "Completado";
       statusClass = "bg-green-100 text-green-800";
@@ -1403,20 +1318,16 @@ function renderSprintsSummary(state) {
       statusIcon = '<i class="fas fa-person-running mr-1.5"></i>';
     }
     const sprintRow = document.createElement("tr");
-    sprintRow.className =
-      "sprint-summary-row bg-white border-b hover:bg-gray-50";
+    sprintRow.className = "sprint-summary-row bg-white border-b hover:bg-gray-50";
     const timeStatusHTML = getTimeStatus(startDate, endDate);
     const sprintColor = sprint.color || "#3b82f6";
     const textColorClass = progress >= 50 ? "text-white" : "text-gray-800";
     const progressBarHTML = `<div class="w-full bg-gray-200 h-5 relative overflow-hidden"><div class="h-full transition-all duration-500" style="width:${progress}%; background-color: ${sprintColor};"></div><div class="absolute inset-0 flex items-center justify-center"><span class="text-xs font-bold ${textColorClass}">${Math.round(progress)}%</span></div></div>`;
     const creator = state.allUsers.find((u) => u.email === sprint.createdBy);
-    const creatorName = creator
-      ? creator.displayName
-      : (sprint.createdBy || "").split("@")[0];
+    const creatorName = creator ? creator.displayName : (sprint.createdBy || "").split("@")[0];
     const sprintTitleHTML = `${sprint.title}<span class="block text-xs text-gray-500 font-normal">por ${creatorName}</span>`;
     sprintRow.innerHTML = `<td class="px-6 py-4"><i class="fas fa-chevron-right chevron-icon"></i></td><th scope="row" class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">${sprintTitleHTML}</th><td class="px-6 py-4 text-sm">${formatDate(startDate)} a ${formatDate(endDate)}${timeStatusHTML}</td><td class="px-6 py-4 text-center">${sprintTasks.length}</td><td class="px-6 py-4 text-center">${completedPoints}/${totalPoints}</td><td class="px-6 py-4">${progressBarHTML}</td><td class="px-6 py-4"><span class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full whitespace-nowrap ${statusClass}">${statusIcon}${statusText}</span></td>`;
-    let tasksHTML =
-      '<p class="text-gray-500 p-4">Este sprint no tiene tareas.</p>';
+    let tasksHTML = '<p class="text-gray-500 p-4">Este sprint no tiene tareas.</p>';
     if (sprintTasks.length > 0) {
       tasksHTML =
         `<div class="overflow-y-auto max-h-80 border rounded-lg"><table class="w-full text-sm">...</table></div>`.replace(
@@ -1430,7 +1341,7 @@ function renderSprintsSummary(state) {
               };
               return `<tr class="border-b"><td class="px-6 py-3">${task.title}</td><td class="px-6 py-3">${ksm[task.kanbanStatus] || "Por Hacer"}</td><td class="px-6 py-3">${task.points || 0}</td></tr>`;
             })
-            .join("")} </tbody>`,
+            .join("")} </tbody>`
         );
     }
     const detailsRow = document.createElement("tr");
@@ -1445,25 +1356,17 @@ function renderSprintsSummary(state) {
     const canvas = document.getElementById(`burndown-chart-${sprint.id}`);
     if (!canvas) return;
     const sprintTasks = state.tasks.filter((t) => t.listId === sprint.id);
-    const totalPoints = sprintTasks.reduce(
-      (sum, t) => sum + (t.points || 0),
-      0,
-    );
+    const totalPoints = sprintTasks.reduce((sum, t) => sum + (t.points || 0), 0);
     const startDate = sprint.startDate.toDate();
     const endDate = sprint.endDate.toDate();
     const sprintColor = sprint.color || "#3b82f6";
     const sprintDurationDays = Math.max(
       1,
-      Math.round((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1,
+      Math.round((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1
     );
-    const labels = Array.from(
-      { length: sprintDurationDays },
-      (_, i) => `Día ${i}`,
-    );
+    const labels = Array.from({ length: sprintDurationDays }, (_, i) => `Día ${i}`);
     const pointsPerDayIdeal = totalPoints / Math.max(1, sprintDurationDays - 1);
-    const idealData = labels.map((_, i) =>
-      Math.max(0, totalPoints - pointsPerDayIdeal * i),
-    );
+    const idealData = labels.map((_, i) => Math.max(0, totalPoints - pointsPerDayIdeal * i));
     const actualData = Array.from({ length: sprintDurationDays }, (_, i) => {
       const dayThreshold = new Date(startDate);
       dayThreshold.setDate(startDate.getDate() + i);
@@ -1523,17 +1426,13 @@ function renderArchivedSprints(state) {
     .filter((l) => l.isArchived)
     .sort((a, b) => (b.endDate?.seconds || 0) - (a.endDate?.seconds || 0));
   if (archivedSprints.length === 0) {
-    container.innerHTML =
-      '<p class="text-center text-gray-500">No hay sprints archivados.</p>';
+    container.innerHTML = '<p class="text-center text-gray-500">No hay sprints archivados.</p>';
     return;
   }
   const fragment = document.createDocumentFragment();
   archivedSprints.forEach((sprint) => {
     const sprintTasks = state.tasks.filter((t) => t.listId === sprint.id);
-    const completedPoints = sprintTasks.reduce(
-      (sum, t) => sum + (t.points || 0),
-      0,
-    );
+    const completedPoints = sprintTasks.reduce((sum, t) => sum + (t.points || 0), 0);
     const summaryCard = document.createElement("div");
     summaryCard.className =
       "archived-sprint-summary bg-white p-4 rounded-lg shadow-md flex justify-between items-center cursor-pointer hover:bg-gray-50 transition-colors";
@@ -1565,7 +1464,7 @@ function renderArchivedSprints(state) {
                     <span class="text-gray-700">${task.title}</span>
                     <span class="font-bold bg-gray-200 text-gray-600 rounded-full px-2 py-0.5 text-xs">${task.points || 0} Pts</span>
                 </div>
-            `,
+            `
         )
         .join("");
       detailsContainer.innerHTML = `<h4 class="font-semibold mb-2 text-gray-600">Tareas Completadas:</h4><div class="space-y-1">${taskList}</div>`;
@@ -1614,7 +1513,7 @@ function renderTimeline(state) {
       l.startDate &&
       typeof l.startDate.toDate === "function" &&
       l.endDate &&
-      typeof l.endDate.toDate === "function",
+      typeof l.endDate.toDate === "function"
   );
 
   container.style.height = `${sprints.length * 3.5}rem`;
@@ -1644,15 +1543,11 @@ function renderTimeline(state) {
     if (left + width > 100) width = 100 - left;
 
     const sprintTasks = state.tasks.filter((t) => t.listId === sprint.id);
-    const totalPoints = sprintTasks.reduce(
-      (sum, t) => sum + (t.points || 0),
-      0,
-    );
+    const totalPoints = sprintTasks.reduce((sum, t) => sum + (t.points || 0), 0);
     const completedPoints = sprintTasks
       .filter((t) => t.status === "completed" || t.kanbanStatus === "done")
       .reduce((sum, t) => sum + (t.points || 0), 0);
-    const progress =
-      totalPoints > 0 ? (completedPoints / totalPoints) * 100 : 0;
+    const progress = totalPoints > 0 ? (completedPoints / totalPoints) * 100 : 0;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     let statusClass = "status-inprogress";
@@ -1684,8 +1579,7 @@ function renderComments(task, state) {
   if (!commentsList) return;
   commentsList.innerHTML = "";
   if (!task.comments || task.comments.length === 0) {
-    commentsList.innerHTML =
-      '<p class="text-center text-gray-500 text-sm">No hay comentarios.</p>';
+    commentsList.innerHTML = '<p class="text-center text-gray-500 text-sm">No hay comentarios.</p>';
     return;
   }
   task.comments
@@ -1699,17 +1593,12 @@ function renderComments(task, state) {
 function getIconForEntry(title) {
   const lowerTitle = title.toLowerCase();
   if (lowerTitle.includes("sprint")) return "fa-person-running";
-  if (lowerTitle.includes("punto") || lowerTitle.includes("estimar"))
-    return "fa-coins";
+  if (lowerTitle.includes("punto") || lowerTitle.includes("estimar")) return "fa-coins";
   if (lowerTitle.includes("epic")) return "fa-book-atlas";
-  if (lowerTitle.includes("kanban") || lowerTitle.includes("flujo"))
-    return "fa-columns";
-  if (lowerTitle.includes("calidad") || lowerTitle.includes("hecho"))
-    return "fa-check-double";
-  if (lowerTitle.includes("matriz") || lowerTitle.includes("prioridad"))
-    return "fa-table-cells";
-  if (lowerTitle.includes("rol") || lowerTitle.includes("equipo"))
-    return "fa-users";
+  if (lowerTitle.includes("kanban") || lowerTitle.includes("flujo")) return "fa-columns";
+  if (lowerTitle.includes("calidad") || lowerTitle.includes("hecho")) return "fa-check-double";
+  if (lowerTitle.includes("matriz") || lowerTitle.includes("prioridad")) return "fa-table-cells";
+  if (lowerTitle.includes("rol") || lowerTitle.includes("equipo")) return "fa-users";
   return "fa-book-open";
 }
 
@@ -1718,7 +1607,7 @@ export function renderHandbook(state) {
   if (!container) return;
   container.innerHTML = "";
   const sortedEntries = [...state.handbookEntries].sort(
-    (a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0),
+    (a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)
   );
   if (sortedEntries.length === 0) {
     container.innerHTML = `<div class="text-center bg-white p-8 rounded-xl shadow-md col-span-full"><i class="fas fa-book-open text-4xl text-gray-300 mb-4"></i><h3 class="text-xl font-bold text-gray-700">El manual está vacío</h3><p class="text-gray-500 mt-2">Usa el botón "Nueva Entrada" para empezar a documentar.</p></div>`;
@@ -1732,16 +1621,12 @@ export function renderHandbook(state) {
     entryEl.dataset.action = "open-handbook-entry";
     const iconClass = getIconForEntry(entry.title);
     const author = state.allUsers.find((u) => u.email === entry.createdBy);
-    const authorName = author
-      ? author.displayName
-      : entry.createdBy || "Desconocido";
+    const authorName = author ? author.displayName : entry.createdBy || "Desconocido";
     const authorAvatar = author
       ? author.photoURL
       : `https://ui-avatars.com/api/?name=${authorName}`;
     const createdAt = entry.createdAt
-      ? entry.createdAt
-          .toDate()
-          .toLocaleDateString("es-MX", { month: "long", day: "numeric" })
+      ? entry.createdAt.toDate().toLocaleDateString("es-MX", { month: "long", day: "numeric" })
       : "";
     entryEl.innerHTML = `
             <div>
@@ -1776,8 +1661,7 @@ function renderSettingsView(state) {
   effortEditor.innerHTML = "";
   const config = state.triageConfig;
   if (!config) {
-    impactEditor.innerHTML =
-      '<p class="text-sm text-gray-500">Cargando configuración...</p>';
+    impactEditor.innerHTML = '<p class="text-sm text-gray-500">Cargando configuración...</p>';
     return;
   }
   const createQuestionEditor = (q, type) => {
@@ -1803,18 +1687,10 @@ function renderSettingsView(state) {
         `;
     return el;
   };
-  (config.impact || []).forEach((q) =>
-    impactEditor.appendChild(createQuestionEditor(q, "impact")),
-  );
-  (config.effort || []).forEach((q) =>
-    effortEditor.appendChild(createQuestionEditor(q, "effort")),
-  );
-  const impactThresholdInput = document.getElementById(
-    "matrix-impact-threshold",
-  );
-  const effortThresholdInput = document.getElementById(
-    "matrix-effort-threshold",
-  );
+  (config.impact || []).forEach((q) => impactEditor.appendChild(createQuestionEditor(q, "impact")));
+  (config.effort || []).forEach((q) => effortEditor.appendChild(createQuestionEditor(q, "effort")));
+  const impactThresholdInput = document.getElementById("matrix-impact-threshold");
+  const effortThresholdInput = document.getElementById("matrix-effort-threshold");
   if (impactThresholdInput && config?.matrixThresholds) {
     impactThresholdInput.value = config.matrixThresholds.impact;
   }
@@ -1845,9 +1721,7 @@ export function handleRouteChange(state) {
   const hash = window.location.hash || "#backlog";
 
   Object.values(views).forEach((view) => view && view.classList.add("hidden"));
-  document
-    .querySelectorAll(".sidebar-link")
-    .forEach((link) => link.classList.remove("active"));
+  document.querySelectorAll(".sidebar-link").forEach((link) => link.classList.remove("active"));
 
   document
     .querySelectorAll(".nav-group-button")
@@ -1870,9 +1744,7 @@ export function handleRouteChange(state) {
 
       const parentGroup = activeLink.closest(".nav-group-content");
       if (parentGroup) {
-        const button = document.querySelector(
-          `[data-target="${parentGroup.id}"]`,
-        );
+        const button = document.querySelector(`[data-target="${parentGroup.id}"]`);
         if (button) {
           button.classList.add("is-open");
           parentGroup.classList.remove("hidden");
@@ -1896,8 +1768,7 @@ export function handleRouteChange(state) {
         break;
       case "#backlog": {
         const matrixViewIsActive =
-          dom.backlogMatrixContainer &&
-          !dom.backlogMatrixContainer.classList.contains("hidden");
+          dom.backlogMatrixContainer && !dom.backlogMatrixContainer.classList.contains("hidden");
         if (matrixViewIsActive) {
           renderBacklogMatrix(state);
         } else {
@@ -1940,21 +1811,14 @@ export function renderActiveSprintTitle(state) {
   const domViewTitle = document.getElementById("view-title");
   if (!domViewTitle || window.location.hash !== "#sprint") return;
 
-  const selectedSprint = state.taskLists.find(
-    (l) => l.id === state.currentSprintId,
-  );
+  const selectedSprint = state.taskLists.find((l) => l.id === state.currentSprintId);
   let title = selectedSprint ? selectedSprint.title : "Sprint Activo";
 
-  const sprintTasks = state.tasks.filter(
-    (t) => t.listId === state.currentSprintId,
-  );
+  const sprintTasks = state.tasks.filter((t) => t.listId === state.currentSprintId);
   const completedPoints = sprintTasks
     .filter((t) => t.kanbanStatus === "done")
     .reduce((sum, task) => sum + (task.points || 0), 0);
-  const totalPoints = sprintTasks.reduce(
-    (sum, task) => sum + (task.points || 0),
-    0,
-  );
+  const totalPoints = sprintTasks.reduce((sum, task) => sum + (task.points || 0), 0);
   const myPoints = sprintTasks
     .filter((t) => t.assignee === state.user.email)
     .reduce((sum, task) => sum + (task.points || 0), 0);
@@ -2046,9 +1910,7 @@ function showHandbookModal(entry = null) {
     return;
   }
   const isEditing = entry !== null;
-  const title = isEditing
-    ? "Editar Entrada del Manual"
-    : "Nueva Entrada del Manual";
+  const title = isEditing ? "Editar Entrada del Manual" : "Nueva Entrada del Manual";
   const okText = isEditing ? "Guardar Cambios" : "Crear Entrada";
   const callback = (result) => {
     if (isEditing) {
@@ -2058,9 +1920,7 @@ function showHandbookModal(entry = null) {
     }
   };
   showModal({ title, handbookInputs: true, okText, callback });
-  document.getElementById("modal-handbook-title").value = isEditing
-    ? entry.title
-    : "";
+  document.getElementById("modal-handbook-title").value = isEditing ? entry.title : "";
   const wrapper = document.getElementById("quill-wrapper");
   wrapper.innerHTML = '<div id="handbook-editor" style="height: 250px;"></div>';
   const editorContainer = document.getElementById("handbook-editor");
@@ -2078,9 +1938,7 @@ function showHandbookModal(entry = null) {
   });
   if (isEditing && entry.content) {
     if (entry.content.blocks) {
-      const plainText = entry.content.blocks
-        .map((block) => block.data.text || "")
-        .join("\n");
+      const plainText = entry.content.blocks.map((block) => block.data.text || "").join("\n");
       quillInstance.setText(plainText);
     } else {
       quillInstance.setContents(entry.content);
@@ -2103,19 +1961,13 @@ function showThemeModal(theme = null) {
 
   showModal({ title, themeInputs: true, okText, callback });
 
-  document.getElementById("modal-theme-title").value = isEditing
-    ? theme.title
-    : "";
-  document.getElementById("modal-theme-description").value = isEditing
-    ? theme.description
-    : "";
+  document.getElementById("modal-theme-title").value = isEditing ? theme.title : "";
+  document.getElementById("modal-theme-description").value = isEditing ? theme.description : "";
 }
 function showHandbookReaderModal(entry) {
   if (!entry) return;
   const author = appState.allUsers.find((u) => u.email === entry.createdBy);
-  const authorName = author
-    ? author.displayName
-    : entry.createdBy || "Desconocido";
+  const authorName = author ? author.displayName : entry.createdBy || "Desconocido";
   const createdAt = entry.createdAt
     ? entry.createdAt.toDate().toLocaleDateString("es-MX", {
         year: "numeric",
@@ -2142,9 +1994,7 @@ function showHandbookReaderModal(entry) {
     });
     if (entry.content) {
       if (entry.content.blocks) {
-        const plainText = entry.content.blocks
-          .map((block) => block.data.text || "")
-          .join("\n");
+        const plainText = entry.content.blocks.map((block) => block.data.text || "").join("\n");
         readerQuill.setText(plainText);
       } else {
         readerQuill.setContents(entry.content);
@@ -2162,9 +2012,7 @@ function handleAppClick(e) {
 
   if (colorSwatch) {
     const palette = colorSwatch.parentElement;
-    palette
-      .querySelectorAll(".color-swatch")
-      .forEach((sw) => sw.classList.remove("selected"));
+    palette.querySelectorAll(".color-swatch").forEach((sw) => sw.classList.remove("selected"));
     colorSwatch.classList.add("selected");
     return;
   }
@@ -2216,9 +2064,7 @@ function handleAppClick(e) {
 
     const questionEditor = target.closest("[data-id]");
     const cloneConfig = () =>
-      JSON.parse(
-        JSON.stringify(appState.triageConfig || { impact: [], effort: [] }),
-      );
+      JSON.parse(JSON.stringify(appState.triageConfig || { impact: [], effort: [] }));
 
     if (action === "add-triage-question") {
       const type = actionTarget.dataset.type;
@@ -2236,10 +2082,7 @@ function handleAppClick(e) {
       const id = questionEditor.dataset.id;
       const type = questionEditor.dataset.type;
       const newText = questionEditor.querySelector('[data-role="text"]').value;
-      const newWeight = parseInt(
-        questionEditor.querySelector('[data-role="weight"]').value,
-        10,
-      );
+      const newWeight = parseInt(questionEditor.querySelector('[data-role="weight"]').value, 10);
       const newConfig = cloneConfig();
       const questionToUpdate = newConfig[type].find((q) => q.id === id);
       if (questionToUpdate) {
@@ -2266,9 +2109,7 @@ function handleAppClick(e) {
         // 1. Obtener Sprints Activos para el Dropdown
         const activeSprints = appState.taskLists
           .filter((l) => !l.isBacklog && !l.isArchived)
-          .sort(
-            (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0),
-          );
+          .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
         if (activeSprints.length === 0) {
           alert("No hay sprints activos. Crea uno primero.");
@@ -2278,8 +2119,7 @@ function handleAppClick(e) {
         // 2. Generar opciones del Select (Pre-seleccionar el actual si existe)
         let sprintOptions = "";
         activeSprints.forEach((s) => {
-          const isSelected =
-            s.id === appState.currentSprintId ? "selected" : "";
+          const isSelected = s.id === appState.currentSprintId ? "selected" : "";
           sprintOptions += `<option value="${s.id}" ${isSelected}>${s.title}</option>`;
         });
 
@@ -2312,17 +2152,14 @@ function handleAppClick(e) {
               appActions.addNewTask(
                 titleInput.value,
                 sprintSelect.value, // Usamos el ID del sprint seleccionado
-                { assignee: targetEmail },
+                { assignee: targetEmail }
               );
             }
           },
         });
 
         // Foco automático en el input
-        setTimeout(
-          () => document.getElementById("quick-task-title")?.focus(),
-          100,
-        );
+        setTimeout(() => document.getElementById("quick-task-title")?.focus(), 100);
         return;
       }
       case "toggle-triage-section": {
@@ -2395,12 +2232,8 @@ function handleAppClick(e) {
       */
 
       case "save-matrix-thresholds": {
-        const impactThreshold = document.getElementById(
-          "matrix-impact-threshold",
-        ).value;
-        const effortThreshold = document.getElementById(
-          "matrix-effort-threshold",
-        ).value;
+        const impactThreshold = document.getElementById("matrix-impact-threshold").value;
+        const effortThreshold = document.getElementById("matrix-effort-threshold").value;
         appActions.updateTriageConfig({
           matrixThresholds: {
             impact: Number(impactThreshold) || 3,
@@ -2420,9 +2253,7 @@ function handleAppClick(e) {
 
       case "edit-handbook-entry": {
         const entryIdToEdit = actionTarget.dataset.id;
-        const entry = appState.handbookEntries.find(
-          (e) => e.id === entryIdToEdit,
-        );
+        const entry = appState.handbookEntries.find((e) => e.id === entryIdToEdit);
         if (entry) showHandbookModal(entry);
         return;
       }
@@ -2455,8 +2286,7 @@ function handleAppClick(e) {
       case "edit-comment":
       case "delete-comment": {
         const commentIndex = Number(actionTarget.dataset.index);
-        const taskIdForComment =
-          document.getElementById("modal-content")?.dataset.activeTaskId;
+        const taskIdForComment = document.getElementById("modal-content")?.dataset.activeTaskId;
         appActions.handleCommentAction(action, taskIdForComment, commentIndex);
         return;
       }
@@ -2473,11 +2303,8 @@ function handleAppClick(e) {
 
         // 1. Resetear UI
         const palette = document.getElementById("sprint-color-palette");
-        palette
-          .querySelectorAll(".selected")
-          .forEach((el) => el.classList.remove("selected"));
-        if (palette.firstElementChild)
-          palette.firstElementChild.classList.add("selected");
+        palette.querySelectorAll(".selected").forEach((el) => el.classList.remove("selected"));
+        if (palette.firstElementChild) palette.firstElementChild.classList.add("selected");
 
         const nameInput = document.getElementById("modal-sprint-name");
         nameInput.value = ""; // Limpiar input
@@ -2487,8 +2314,7 @@ function handleAppClick(e) {
         const suffixSpan = document.getElementById("modal-sprint-suffix");
 
         // Llenar Select
-        epicSelect.innerHTML =
-          '<option value="">-- Selecciona un Epic --</option>';
+        epicSelect.innerHTML = '<option value="">-- Selecciona un Epic --</option>';
         appState.epics.forEach((epic) => {
           epicSelect.add(new Option(epic.title, epic.id));
         });
@@ -2542,8 +2368,8 @@ function handleAppClick(e) {
       case "plan-sprint": {
         const selectedTaskIds = Array.from(
           document.querySelectorAll(
-            "#backlog-tasks-container .task-card input[data-select-task]:checked",
-          ),
+            "#backlog-tasks-container .task-card input[data-select-task]:checked"
+          )
         ).map((cb) => cb.closest(".task-card").id);
         appActions.moveTasksToSprint(selectedTaskIds, appState.currentSprintId);
         return;
@@ -2563,8 +2389,7 @@ function handleAppClick(e) {
           title: `Añadir Tarea al Sprint`,
           input: true,
           okText: "Añadir",
-          callback: (title) =>
-            appActions.addNewTask(title, appState.currentSprintId),
+          callback: (title) => appActions.addNewTask(title, appState.currentSprintId),
         });
         return;
       case "timeline-prev":
@@ -2582,10 +2407,11 @@ function handleAppClick(e) {
   const sprintRow = target.closest(".sprint-summary-row");
   if (sprintRow) {
     sprintRow.classList.toggle("details-shown");
-    sprintRow.querySelector(".chevron-icon").style.transform =
-      sprintRow.classList.contains("details-shown")
-        ? "rotate(90deg)"
-        : "rotate(0deg)";
+    sprintRow.querySelector(".chevron-icon").style.transform = sprintRow.classList.contains(
+      "details-shown"
+    )
+      ? "rotate(90deg)"
+      : "rotate(0deg)";
     sprintRow.nextElementSibling?.classList.toggle("hidden");
     return;
   }
@@ -2595,9 +2421,7 @@ function handleAppClick(e) {
     archivedSprintRow.classList.toggle("details-shown");
     const icon = archivedSprintRow.querySelector(".chevron-icon");
     if (icon) {
-      icon.style.transform = archivedSprintRow.classList.contains(
-        "details-shown",
-      )
+      icon.style.transform = archivedSprintRow.classList.contains("details-shown")
         ? "rotate(90deg)"
         : "rotate(0deg)";
     }
@@ -2742,15 +2566,11 @@ function handleTaskCardAction(action, taskId) {
         htmlContent: contentHTML,
         okText: "Guardar Puntos",
         callback: () => {
-          const selectedBtn = document.querySelector(
-            ".point-selector-btn.selected-in-modal",
-          );
+          const selectedBtn = document.querySelector(".point-selector-btn.selected-in-modal");
           let val = selectedBtn ? Number(selectedBtn.dataset.value) : null;
 
           if (val === null) {
-            const manualVal = document.getElementById(
-              "manual-points-input",
-            ).value;
+            const manualVal = document.getElementById("manual-points-input").value;
             val = manualVal === "" ? 0 : Number(manualVal);
           }
 
@@ -2771,8 +2591,7 @@ function handleTaskCardAction(action, taskId) {
               });
               btn.className =
                 "point-selector-btn bg-blue-600 text-white ring-2 ring-blue-300 shadow-md flex flex-col items-center justify-center py-2 px-1 rounded-lg transition-all selected-in-modal";
-              document.getElementById("manual-points-input").value =
-                btn.dataset.value;
+              document.getElementById("manual-points-input").value = btn.dataset.value;
             }
           });
         }
@@ -2798,7 +2617,7 @@ function handleTaskCardAction(action, taskId) {
 
       // 2. ORDENAR ALFABÉTICAMENTE
       const sortedUsers = uniqueUsers.sort((a, b) =>
-        (a.displayName || a.email).localeCompare(b.displayName || b.email),
+        (a.displayName || a.email).localeCompare(b.displayName || b.email)
       );
 
       // 3. GENERAR OPCIONES
@@ -2867,30 +2686,20 @@ function handleEpicCardAction(action, epicId) {
 
     // 1. Datos básicos
     document.getElementById("modal-epic-title").value = epic.title || "";
-    document.getElementById("modal-epic-description").value =
-      epic.description || "";
-    document.getElementById("modal-epic-status").value =
-      epic.status || "Por Empezar";
+    document.getElementById("modal-epic-description").value = epic.description || "";
+    document.getElementById("modal-epic-status").value = epic.status || "Por Empezar";
 
     // 2. Fechas
     if (epic.startDate) {
-      const dateVal = epic.startDate.toDate
-        ? epic.startDate.toDate()
-        : new Date(epic.startDate);
-      document.getElementById("modal-epic-start-date").value = dateVal
-        .toISOString()
-        .split("T")[0];
+      const dateVal = epic.startDate.toDate ? epic.startDate.toDate() : new Date(epic.startDate);
+      document.getElementById("modal-epic-start-date").value = dateVal.toISOString().split("T")[0];
     } else {
       document.getElementById("modal-epic-start-date").value = "";
     }
 
     if (epic.endDate) {
-      const dateVal = epic.endDate.toDate
-        ? epic.endDate.toDate()
-        : new Date(epic.endDate);
-      document.getElementById("modal-epic-end-date").value = dateVal
-        .toISOString()
-        .split("T")[0];
+      const dateVal = epic.endDate.toDate ? epic.endDate.toDate() : new Date(epic.endDate);
+      document.getElementById("modal-epic-end-date").value = dateVal.toISOString().split("T")[0];
     } else {
       document.getElementById("modal-epic-end-date").value = "";
     }
@@ -2898,9 +2707,7 @@ function handleEpicCardAction(action, epicId) {
     // 3. Color
     const palette = document.getElementById("epic-color-palette");
     if (palette) {
-      palette
-        .querySelectorAll(".selected")
-        .forEach((el) => el.classList.remove("selected"));
+      palette.querySelectorAll(".selected").forEach((el) => el.classList.remove("selected"));
       if (epic.color) {
         const swatch = palette.querySelector(`[data-color="${epic.color}"]`);
         if (swatch) swatch.classList.add("selected");
@@ -2930,17 +2737,14 @@ function handleEpicCardAction(action, epicId) {
 }
 
 function handleEditSprintClick() {
-  const sprint = appState.taskLists.find(
-    (l) => l.id === appState.currentSprintId,
-  );
+  const sprint = appState.taskLists.find((l) => l.id === appState.currentSprintId);
   if (!sprint || sprint.isBacklog) return;
 
   showModal({
     title: `Editar Sprint`,
     sprintInputs: true,
     okText: "Guardar Cambios",
-    callback: (result) =>
-      appActions.updateSprint(appState.currentSprintId, result),
+    callback: (result) => appActions.updateSprint(appState.currentSprintId, result),
   });
 
   const nameInput = document.getElementById("modal-sprint-name");
@@ -2950,7 +2754,7 @@ function handleEditSprintClick() {
   // Verificar que los elementos existen (Diagnóstico para tu problema visual)
   if (!epicSelect || !suffixSpan) {
     console.error(
-      "ERROR CRÍTICO: No se encuentran los campos de Epic o Sufijo en el HTML. Verifica tu index.html",
+      "ERROR CRÍTICO: No se encuentran los campos de Epic o Sufijo en el HTML. Verifica tu index.html"
     );
     return;
   }
@@ -2958,9 +2762,7 @@ function handleEditSprintClick() {
   // 1. Llenar Epics
   epicSelect.innerHTML = '<option value="">-- Selecciona un Epic --</option>';
   if (appState.epics && appState.epics.length > 0) {
-    appState.epics.forEach((epic) =>
-      epicSelect.add(new Option(epic.title, epic.id)),
-    );
+    appState.epics.forEach((epic) => epicSelect.add(new Option(epic.title, epic.id)));
   }
 
   // 2. Determinar Número de Secuencia Actual
@@ -2987,8 +2789,7 @@ function handleEditSprintClick() {
   suffixSpan.dataset.seq = seqNum || 0;
 
   // 4. Seleccionar Epic Actual
-  const currentEpicId =
-    sprint.epicId || (sprint.epicIds && sprint.epicIds[0]) || "";
+  const currentEpicId = sprint.epicId || (sprint.epicIds && sprint.epicIds[0]) || "";
   epicSelect.value = currentEpicId;
 
   // 5. Habilitar y Asignar Evento de Cambio (La lógica de recálculo)
@@ -3027,17 +2828,12 @@ function handleEditSprintClick() {
       .toDate()
       .toISOString()
       .split("T")[0];
-  document.getElementById("modal-sprint-capacity").value =
-    sprint.capacity || "";
+  document.getElementById("modal-sprint-capacity").value = sprint.capacity || "";
 
   const palette = document.getElementById("sprint-color-palette");
-  palette
-    .querySelectorAll(".selected")
-    .forEach((el) => el.classList.remove("selected"));
+  palette.querySelectorAll(".selected").forEach((el) => el.classList.remove("selected"));
   if (sprint.color)
-    palette
-      .querySelector(`[data-color="${sprint.color}"]`)
-      ?.classList.add("selected");
+    palette.querySelector(`[data-color="${sprint.color}"]`)?.classList.add("selected");
 }
 
 function handlePostComment() {
@@ -3074,16 +2870,14 @@ function handleAppChange(e) {
 
   // 2. Asignar Epic a Tarea
   if (target.dataset.action === "assign-epic") {
-    const taskId =
-      document.getElementById("modal-content")?.dataset.activeTaskId;
+    const taskId = document.getElementById("modal-content")?.dataset.activeTaskId;
     if (taskId) appActions.assignEpicToTask(taskId, target.value);
     return;
   }
 
   // 3. Triage Checkbox
   if (target.closest("#modal-triage-view") && target.type === "checkbox") {
-    const taskId =
-      document.getElementById("modal-content")?.dataset.activeTaskId;
+    const taskId = document.getElementById("modal-content")?.dataset.activeTaskId;
     if (taskId) {
       appActions.updateTriageScore(taskId);
     }
@@ -3116,9 +2910,7 @@ export function initializeEventListeners(state, actions) {
   document.addEventListener("change", handleAppChange);
 
   if (dom.toggleBacklogViewBtn) {
-    dom.toggleBacklogViewBtn.addEventListener("click", () =>
-      toggleBacklogView(appState),
-    );
+    dom.toggleBacklogViewBtn.addEventListener("click", () => toggleBacklogView(appState));
   }
 
   // --- DRAG START ---
@@ -3182,9 +2974,7 @@ export function initializeEventListeners(state, actions) {
     if (!taskId) return;
 
     // A) Soltar en KANBAN SPRINT (Vista normal)
-    const kanbanCol = e.target.closest(
-      "#kanban-todo, #kanban-inprogress, #kanban-done",
-    );
+    const kanbanCol = e.target.closest("#kanban-todo, #kanban-inprogress, #kanban-done");
     if (kanbanCol) {
       e.preventDefault();
       const newStatus = kanbanCol.id.replace("kanban-", ""); // todo, inprogress, done
@@ -3202,8 +2992,7 @@ export function initializeEventListeners(state, actions) {
       const newStatus = colDiv.dataset.swimlaneStatus;
       const newAssigneeRaw = colDiv.dataset.assignee;
       // Si es "unassigned", mandamos null, si no, el email
-      const newAssignee =
-        newAssigneeRaw === "unassigned" ? null : newAssigneeRaw;
+      const newAssignee = newAssigneeRaw === "unassigned" ? null : newAssigneeRaw;
 
       updateTaskStatusLogic(taskId, newStatus, newAssignee);
       return;
@@ -3251,8 +3040,7 @@ export function initializeEventListeners(state, actions) {
       updates.status = "completed";
       updates.completedAt = Timestamp.now();
       // Mantenemos startedAt para cálculo final
-      if (window.confetti)
-        confetti({ particleCount: 50, spread: 50, origin: { y: 0.7 } });
+      if (window.confetti) confetti({ particleCount: 50, spread: 50, origin: { y: 0.7 } });
     } else if (newStatus === "todo") {
       // Resetear todo
       updates.status = "needsAction";
@@ -3292,9 +3080,7 @@ export function initializeEventListeners(state, actions) {
         status: document.getElementById("modal-epic-status").value,
         startDate: document.getElementById("modal-epic-start-date").value,
         endDate: document.getElementById("modal-epic-end-date").value,
-        color:
-          document.querySelector("#epic-color-palette .selected")?.dataset
-            .color || "#3b82f6",
+        color: document.querySelector("#epic-color-palette .selected")?.dataset.color || "#3b82f6",
         keyResults: krs,
       };
     }
@@ -3313,8 +3099,7 @@ export function initializeEventListeners(state, actions) {
         end: document.getElementById("modal-end-date").value,
         capacity: document.getElementById("modal-sprint-capacity").value,
         color:
-          document.querySelector("#sprint-color-palette .selected")?.dataset
-            .color || "#3b82f6",
+          document.querySelector("#sprint-color-palette .selected")?.dataset.color || "#3b82f6",
         epicId: document.getElementById("modal-sprint-epic-select").value,
       };
     }
@@ -3330,11 +3115,7 @@ export function initializeEventListeners(state, actions) {
 
     // 5. LÓGICA PARA HANDBOOK
     const handbookInputs = document.getElementById("modal-handbook-inputs");
-    if (
-      handbookInputs &&
-      !handbookInputs.classList.contains("hidden") &&
-      quillInstance
-    ) {
+    if (handbookInputs && !handbookInputs.classList.contains("hidden") && quillInstance) {
       result = {
         title: document.getElementById("modal-handbook-title").value,
         content: quillInstance.getContents(),
@@ -3346,9 +3127,7 @@ export function initializeEventListeners(state, actions) {
   });
 
   if (sprintSelector) {
-    sprintSelector.addEventListener("change", (e) =>
-      appActions.setCurrentSprintId(e.target.value),
-    );
+    sprintSelector.addEventListener("change", (e) => appActions.setCurrentSprintId(e.target.value));
   }
   if (sprintCapacityInput) {
     sprintCapacityInput.addEventListener("change", (e) => {
@@ -3503,7 +3282,7 @@ export function renderTaskDetails(task, state) {
 
   // Ordenar usuarios
   const sortedUsers = [...state.allUsers].sort((a, b) =>
-    (a.displayName || a.email).localeCompare(b.displayName || b.email),
+    (a.displayName || a.email).localeCompare(b.displayName || b.email)
   );
 
   sortedUsers.forEach((u) => {
@@ -3548,22 +3327,16 @@ export function renderTaskDetails(task, state) {
 
   // --- 4. ALINEACIÓN ESTRATÉGICA (EPIC/KR) ---
   if (els.epicSelect && els.krSelect) {
-    els.epicSelect.innerHTML =
-      '<option value="">-- Seleccionar Epic --</option>';
-    state.epics?.forEach((epic) =>
-      els.epicSelect.add(new Option(epic.title, epic.id)),
-    );
+    els.epicSelect.innerHTML = '<option value="">-- Seleccionar Epic --</option>';
+    state.epics?.forEach((epic) => els.epicSelect.add(new Option(epic.title, epic.id)));
     els.epicSelect.value = task.epicId || "";
 
     const updateKRDropdown = (epicId, currentKrId) => {
       els.krSelect.innerHTML = '<option value="">-- Seleccionar KR --</option>';
       const selectedEpic = state.epics?.find((e) => e.id === epicId);
       if (selectedEpic?.keyResults) {
-        selectedEpic.keyResults.forEach((kr, index) =>
-          els.krSelect.add(new Option(kr, index)),
-        );
-        els.krSelect.value =
-          currentKrId !== undefined && currentKrId !== null ? currentKrId : "";
+        selectedEpic.keyResults.forEach((kr, index) => els.krSelect.add(new Option(kr, index)));
+        els.krSelect.value = currentKrId !== undefined && currentKrId !== null ? currentKrId : "";
       }
     };
 
@@ -3603,16 +3376,8 @@ export function renderTaskDetails(task, state) {
 
   // CORRECCIÓN 2: Usamos els.impactContainer en lugar de la variable global indefinida
   if (els.impactContainer && els.effortContainer && triageConfig) {
-    renderTriageColumn(
-      els.impactContainer,
-      triageConfig.impact,
-      task.triageImpactSelections || [],
-    );
-    renderTriageColumn(
-      els.effortContainer,
-      triageConfig.effort,
-      task.triageEffortSelections || [],
-    );
+    renderTriageColumn(els.impactContainer, triageConfig.impact, task.triageImpactSelections || []);
+    renderTriageColumn(els.effortContainer, triageConfig.effort, task.triageEffortSelections || []);
   }
 
   // --- 6. HISTORIAL ---
@@ -3620,10 +3385,7 @@ export function renderTaskDetails(task, state) {
     els.history.innerHTML =
       task.history?.length > 0
         ? [...task.history]
-            .sort(
-              (a, b) =>
-                (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0),
-            )
+            .sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0))
             .map(
               (entry) => `
             <div class="flex items-center gap-3 text-xs py-2 border-b border-gray-100 last:border-0">
@@ -3635,7 +3397,7 @@ export function renderTaskDetails(task, state) {
               <span class="text-[10px] text-gray-400 font-mono">
                 ${entry.timestamp ? entry.timestamp.toDate().toLocaleDateString("es-MX") : ""}
               </span>
-            </div>`,
+            </div>`
             )
             .join("")
         : '<p class="text-center text-gray-400 text-xs py-2 italic">Sin actividad reciente.</p>';
@@ -3658,9 +3420,7 @@ export function renderTaskDetails(task, state) {
           '<p class="text-center text-gray-500 text-sm">No hay comentarios.</p>';
       } else {
         task.comments
-          .sort(
-            (a, b) => (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0),
-          )
+          .sort((a, b) => (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0))
           .forEach((comment, index) => {
             // createCommentElement es interna de ui.js, accesible aquí
             // Necesitamos acceder a createCommentElement. Si no es exportada,
@@ -3722,7 +3482,7 @@ export function renderOnlineUsers(onlineUsers) {
   container.innerHTML = onlineUsers
     .map(
       (user) =>
-        `<div class="relative" title="${user.displayName}"><img src="${user.photoURL}" alt="${user.displayName}" class="w-8 h-8 rounded-full"><div class="online-indicator"></div></div>`,
+        `<div class="relative" title="${user.displayName}"><img src="${user.photoURL}" alt="${user.displayName}" class="w-8 h-8 rounded-full"><div class="online-indicator"></div></div>`
     )
     .join("");
 }
@@ -3751,9 +3511,7 @@ function getNextSequenceForEpic(epicId, state) {
 
   // Filtramos sprints de este Epic (usando ambas referencias por compatibilidad)
   const epicSprints = state.taskLists.filter(
-    (l) =>
-      !l.isBacklog &&
-      (l.epicId === epicId || (l.epicIds && l.epicIds.includes(epicId))),
+    (l) => !l.isBacklog && (l.epicId === epicId || (l.epicIds && l.epicIds.includes(epicId)))
   );
 
   let maxSeq = 0;
@@ -3781,8 +3539,7 @@ function getNextSequenceForEpic(epicId, state) {
 function showVelocityReport(state) {
   // 1. Obtener todas las tareas completadas
   const completedTasks = state.tasks.filter(
-    (t) =>
-      (t.status === "completed" || t.kanbanStatus === "done") && t.completedAt,
+    (t) => (t.status === "completed" || t.kanbanStatus === "done") && t.completedAt
   );
 
   if (completedTasks.length === 0) {
@@ -3817,9 +3574,7 @@ function showVelocityReport(state) {
 
   // Rellenar datos
   completedTasks.forEach((t) => {
-    const date = t.completedAt.toDate
-      ? t.completedAt.toDate()
-      : new Date(t.completedAt);
+    const date = t.completedAt.toDate ? t.completedAt.toDate() : new Date(t.completedAt);
     const weekKey = getWeekKey(date);
     const assignee = t.assignee || "unassigned";
 
@@ -3876,7 +3631,7 @@ function showVelocityReport(state) {
                     <td class="px-4 py-3 text-center border-r ${pts > 0 ? "text-blue-600 font-semibold" : "text-gray-300"}">
                         ${pts > 0 ? pts : "-"}
                     </td>
-                `,
+                `
                   )
                   .join("")}
                 <td class="px-4 py-3 text-center bg-gray-50 font-bold ${avgColor}">${avg}</td>

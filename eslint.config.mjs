@@ -36,10 +36,7 @@ export default defineConfig([
         },
       ],
       // Calidad práctica
-      "no-unused-vars": [
-        "warn",
-        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
-      ],
+      "no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       "no-case-declarations": "error", // obliga llaves en case con let/const
       "no-empty": ["warn", { allowEmptyCatch: true }],
     },

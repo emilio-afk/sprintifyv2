@@ -23,7 +23,7 @@ async function persistUserProfile(user) {
         photoURL: user.photoURL,
         lastLogin: serverTimestamp(),
       },
-      { merge: true },
+      { merge: true }
     );
   } catch (err) {
     console.error("[AUTH] Error al guardar perfil:", err);
@@ -60,13 +60,11 @@ export function getCalendarAccessToken() {
   return new Promise((resolve, reject) => {
     try {
       const tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id:
-          "48796270891-b8ntkuu928apb61htrqblkft9q3u2dk8.apps.googleusercontent.com",
+        client_id: "48796270891-b8ntkuu928apb61htrqblkft9q3u2dk8.apps.googleusercontent.com",
         scope:
           "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly",
         callback: (tokenResponse) => {
-          if (tokenResponse?.access_token)
-            return resolve(tokenResponse.access_token);
+          if (tokenResponse?.access_token) return resolve(tokenResponse.access_token);
           reject(new Error("No se recibió token de acceso de Google."));
         },
       });
