@@ -228,14 +228,106 @@ function renderBacklog(state) {
   if (!dom.backlogTasksContainer) return;
   dom.backlogTasksContainer.innerHTML = "";
   const backlogTasks = state.tasks.filter((t) => t.listId === state.backlogId);
-  if (backlogTasks.length > 0) {
-    backlogTasks.forEach((task) => {
-      dom.backlogTasksContainer.appendChild(createTaskElement(task, "backlog", state));
-    });
-  } else {
+
+  if (backlogTasks.length === 0) {
     dom.backlogTasksContainer.innerHTML =
       '<p class="text-gray-500 text-center col-span-full py-8">El backlog está vacío.</p>';
+    return;
   }
+
+  // Agrupar tareas por épica (normalizar epicId)
+  const grouped = {};
+  const noEpicId = "__sin_epic__"; // ID único para tareas sin épica
+
+  backlogTasks.forEach((task) => {
+    // Normalizar epicId: si está vacío, null, undefined, o no es string → usar ID especial
+    let epicId = noEpicId;
+
+    // Solo usar epicId si:
+    // 1. Es un string no vacío
+    // 2. La épica EXISTE en state.epics
+    if (
+      task.epicId &&
+      typeof task.epicId === "string" &&
+      task.epicId.trim() !== "" &&
+      state.epics.find((e) => e.id === task.epicId.trim())
+    ) {
+      epicId = task.epicId.trim();
+    }
+
+    if (!grouped[epicId]) {
+      grouped[epicId] = [];
+    }
+    grouped[epicId].push(task);
+  });
+
+  // Ordenar: épicas con tareas primero, luego sin épica
+  const epicIds = Object.keys(grouped).sort((a, b) => {
+    if (a === noEpicId) return 1;
+    if (b === noEpicId) return -1;
+    const epicA = state.epics.find((e) => e.id === a);
+    const epicB = state.epics.find((e) => e.id === b);
+    return (epicA?.createdAt?.seconds || 0) - (epicB?.createdAt?.seconds || 0);
+  });
+
+  // Renderizar cada grupo de épica
+  epicIds.forEach((epicId) => {
+    const tasks = grouped[epicId];
+    const isNoEpic = epicId === noEpicId;
+    const epic = isNoEpic ? null : state.epics.find((e) => e.id === epicId);
+    const isCollapsed = state.collapsedBacklogEpics.has(epicId);
+
+    // Contenedor de grupo
+    const groupWrapper = document.createElement("div");
+    groupWrapper.className = "mb-4";
+    groupWrapper.id = `backlog-epic-group-${epicId}`;
+
+    // Header colapsable
+    const header = document.createElement("div");
+    header.className =
+      "flex items-center gap-3 p-3 bg-gradient-to-r from-slate-50 to-slate-100 rounded-lg border border-slate-200 cursor-pointer hover:from-slate-100 hover:to-slate-150 transition-all mb-2 group";
+    header.dataset.action = "toggle-backlog-epic";
+    header.dataset.epicId = epicId;
+
+    const epicColor = epic?.color || "#64748b";
+    const epicName = epic?.title || "Sin Épica";
+    const taskCount = tasks.length;
+    const doneCount = tasks.filter((t) => t.status === "completed").length;
+    const points = tasks.reduce((sum, t) => sum + (t.points || 0), 0);
+    const donePoints = tasks
+      .filter((t) => t.status === "completed")
+      .reduce((sum, t) => sum + (t.points || 0), 0);
+
+    const chevron = isCollapsed ? "fa-chevron-right" : "fa-chevron-down";
+
+    header.innerHTML = `
+      <div style="flex-shrink: 0; width: 4px; height: 24px; background-color: ${epicColor}; border-radius: 2px;"></div>
+      <i class="fas ${chevron} text-slate-400 group-hover:text-slate-600 transition-colors" style="font-size: 12px;"></i>
+      <div class="flex-1 min-w-0">
+        <h3 class="font-semibold text-slate-700 text-sm">${epicName}</h3>
+      </div>
+      <div class="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity text-xs text-slate-500">
+        <span title="Completadas/Total"><i class="fas fa-check text-green-600"></i> ${doneCount}/${taskCount}</span>
+        <span class="h-4 border-l border-slate-300"></span>
+        <span title="Puntos completados/Total"><i class="fas fa-coins text-yellow-600"></i> ${donePoints}/${points}</span>
+      </div>
+    `;
+
+    groupWrapper.appendChild(header);
+
+    // Contenedor de tareas (colapsable)
+    const tasksContainer = document.createElement("div");
+    tasksContainer.className = `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pl-4 pr-0 transition-all duration-200 ${isCollapsed ? "hidden" : ""}`;
+    tasksContainer.dataset.epicTasksContainer = epicId;
+
+    tasks.forEach((task) => {
+      const element = createTaskElement(task, "backlog", state);
+      tasksContainer.appendChild(element);
+    });
+
+    groupWrapper.appendChild(tasksContainer);
+    dom.backlogTasksContainer.appendChild(groupWrapper);
+  });
 }
 
 function renderBacklogMatrix(state) {
@@ -484,22 +576,134 @@ function renderEpics(state) {
     return;
   }
 
-  const sortedEpics = [...state.epics].sort(
-    (a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)
-  );
+  // ===== CONTROLES DE FILTRO (NUEVO) =====
+  const controlsDiv = document.createElement("div");
+  controlsDiv.className =
+    "mb-6 flex flex-wrap gap-4 items-end bg-white p-4 rounded-xl shadow-sm border border-gray-100";
+  controlsDiv.innerHTML = `
+    <div class="flex-1 min-w-64 relative">
+      <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+      <input type="text" id="epics-search" placeholder="Buscar epics por nombre..." 
+        class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+        value="${state.epicsSearch}">
+    </div>
 
-  // GRID PRINCIPAL
-  container.className = "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start";
+    <select id="epics-status-filter" class="p-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+      <option value="">Todos los Estados</option>
+      <option value="Por Empezar" ${state.epicsStatusFilter === "Por Empezar" ? "selected" : ""}>🚀 Por Empezar</option>
+      <option value="En Progreso" ${state.epicsStatusFilter === "En Progreso" ? "selected" : ""}>⚡ En Progreso</option>
+      <option value="Completado" ${state.epicsStatusFilter === "Completado" ? "selected" : ""}>✅ Completado</option>
+    </select>
 
-  sortedEpics.forEach((epic) => {
+    <select id="epics-sort" class="p-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+      <option value="recent" ${state.epicsSortMode === "recent" ? "selected" : ""}>Recientes primero</option>
+      <option value="progress_asc" ${state.epicsSortMode === "progress_asc" ? "selected" : ""}>Progreso (menor %)</option>
+      <option value="progress_desc" ${state.epicsSortMode === "progress_desc" ? "selected" : ""}>Progreso (mayor %)</option>
+      <option value="points_asc" ${state.epicsSortMode === "points_asc" ? "selected" : ""}>Puntos (menor)</option>
+      <option value="points_desc" ${state.epicsSortMode === "points_desc" ? "selected" : ""}>Puntos (mayor)</option>
+    </select>
+  `;
+  container.appendChild(controlsDiv);
+
+  // Attach listeners (se llama a actions, no manipula DOM directamente)
+  const searchInput = document.getElementById("epics-search");
+  const statusSelect = document.getElementById("epics-status-filter");
+  const sortSelect = document.getElementById("epics-sort");
+
+  if (searchInput && typeof appActions !== "undefined") {
+    searchInput.addEventListener("input", (e) => appActions.setEpicsSearch(e.target.value));
+  }
+  if (statusSelect && typeof appActions !== "undefined") {
+    statusSelect.addEventListener("change", (e) => appActions.setEpicsStatusFilter(e.target.value));
+  }
+  if (sortSelect && typeof appActions !== "undefined") {
+    sortSelect.addEventListener("change", (e) => appActions.setEpicsSortMode(e.target.value));
+  }
+
+  // Aplicar filtros desde state
+  const applyFilters = () => {
+    const searchVal = state.epicsSearch.toLowerCase();
+    const statusFilter = state.epicsStatusFilter;
+    const sortMode = state.epicsSortMode;
+
+    // Filtrado
+    let filtered = state.epics.filter((epic) => {
+      const matchesSearch =
+        epic.title.toLowerCase().includes(searchVal) ||
+        (epic.description || "").toLowerCase().includes(searchVal);
+      const matchesStatus = !statusFilter || epic.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+
+    // Ordenamiento
+    filtered.sort((a, b) => {
+      const getProgress = (e) => {
+        const epicTasks = state.tasks.filter((t) => t.epicId === e.id);
+        const totalPoints = epicTasks.reduce((sum, t) => sum + (t.points || 0), 0);
+        const completedPoints = epicTasks
+          .filter((t) => t.status === "completed" || t.kanbanStatus === "done")
+          .reduce((sum, t) => sum + (t.points || 0), 0);
+        return totalPoints > 0 ? completedPoints / totalPoints : 0;
+      };
+
+      const getTotalPoints = (e) => {
+        const epicTasks = state.tasks.filter((t) => t.epicId === e.id);
+        return epicTasks.reduce((sum, t) => sum + (t.points || 0), 0);
+      };
+
+      switch (sortMode) {
+        case "progress_asc":
+          return getProgress(a) - getProgress(b);
+        case "progress_desc":
+          return getProgress(b) - getProgress(a);
+        case "points_asc":
+          return getTotalPoints(a) - getTotalPoints(b);
+        case "points_desc":
+          return getTotalPoints(b) - getTotalPoints(a);
+        case "recent":
+        default:
+          return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
+      }
+    });
+
+    // Renderizar tarjetas
+    renderEpicCards(filtered, state);
+  };
+
+  // Llamar filtros al renderizar
+  applyFilters();
+}
+
+function renderEpicCards(epics, state) {
+  const container = document.getElementById("epics-container");
+
+  // Encontrar o crear contenedor de tarjetas
+  let cardsContainer = container.querySelector("#epics-cards-wrapper");
+  if (!cardsContainer) {
+    cardsContainer = document.createElement("div");
+    cardsContainer.id = "epics-cards-wrapper";
+    container.appendChild(cardsContainer);
+  }
+
+  cardsContainer.className = "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start";
+  cardsContainer.innerHTML = ""; // Limpiar
+
+  if (epics.length === 0) {
+    cardsContainer.innerHTML = `<div class="col-span-full text-center py-8 text-gray-500">No se encontraron epics.</div>`;
+    return;
+  }
+
+  epics.forEach((epic) => {
     // --- CÁLCULOS ---
     const epicTasks = state.tasks.filter((t) => t.epicId === epic.id);
     const totalPoints = epicTasks.reduce((sum, t) => sum + (t.points || 0), 0);
     const completedPoints = epicTasks
       .filter((t) => t.status === "completed" || t.kanbanStatus === "done")
       .reduce((sum, t) => sum + (t.points || 0), 0);
+    const progressPercent = totalPoints > 0 ? (completedPoints / totalPoints) * 100 : 0;
 
     let timeLabel = "Sin fecha";
+    let daysRemaining = 0;
     if (epic.startDate && epic.endDate) {
       const start = epic.startDate.toDate ? epic.startDate.toDate() : new Date(epic.startDate);
       const end = epic.endDate.toDate ? epic.endDate.toDate() : new Date(epic.endDate);
@@ -512,10 +716,46 @@ function renderEpics(state) {
       const elapsed = today - start;
       const totalDays = Math.ceil(totalDuration / (1000 * 60 * 60 * 24));
       const daysPassed = Math.ceil(elapsed / (1000 * 60 * 60 * 24));
+      daysRemaining = totalDays - daysPassed;
 
       if (daysPassed < 0) timeLabel = `En ${Math.abs(daysPassed)} días`;
       else if (daysPassed > totalDays) timeLabel = `Fin hace ${daysPassed - totalDays}d`;
       else timeLabel = `Día ${daysPassed}/${totalDays}`;
+    }
+
+    // --- HEALTH INDICATOR (NUEVO) ---
+    let healthIcon = "🟢";
+    let healthLabel = "On Track";
+    let healthColor = "text-green-600";
+    // --- TIME-BASED PROGRESS ---
+    let percentTimeElapsed = null;
+    let deltaPercent = null;
+    if (epic.startDate && epic.endDate) {
+      const start = epic.startDate.toDate ? epic.startDate.toDate() : new Date(epic.startDate);
+      const end = epic.endDate.toDate ? epic.endDate.toDate() : new Date(epic.endDate);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const totalDuration = end - start;
+      const rawElapsed = today - start;
+      const elapsedMs = Math.max(0, Math.min(rawElapsed, totalDuration));
+      percentTimeElapsed = totalDuration > 0 ? (elapsedMs / totalDuration) * 100 : 0;
+      deltaPercent = progressPercent - percentTimeElapsed;
+    }
+
+    if (totalPoints > 0) {
+      const expectedProgress = percentTimeElapsed != null ? percentTimeElapsed : 100;
+      if (progressPercent < expectedProgress * 0.7) {
+        healthIcon = "🔴";
+        healthLabel = "Behind";
+        healthColor = "text-red-600";
+      } else if (progressPercent < expectedProgress) {
+        healthIcon = "🟡";
+        healthLabel = "At Risk";
+        healthColor = "text-yellow-600";
+      }
     }
 
     const definedKRs = epic.keyResults || [];
@@ -558,6 +798,21 @@ function renderEpics(state) {
     const statusStyle = statusConfig[epic.status] || statusConfig["Por Empezar"];
     const epicColor = epic.color || "#3b82f6";
 
+    // Progress bar color gradient (rojo -> amarillo -> verde)
+    let barColor = "#ef4444"; // rojo
+    if (progressPercent > 50) barColor = "#eab308"; // amarillo
+    if (progressPercent > 75) barColor = "#22c55e"; // verde
+
+    // Delta badge color based on how far ahead/behind the epic is relative to time
+    let deltaColorClass = "text-gray-600";
+    if (deltaPercent != null) {
+      if (deltaPercent >= 10) deltaColorClass = "text-green-600";
+      else if (deltaPercent <= -10) deltaColorClass = "text-red-600";
+      else deltaColorClass = "text-yellow-600";
+    }
+    const deltaSign =
+      deltaPercent == null ? "" : deltaPercent > 0 ? "+" : deltaPercent < 0 ? "-" : "";
+
     // --- RENDERIZADO ---
     const epicCard = document.createElement("div");
     epicCard.className =
@@ -570,9 +825,12 @@ function renderEpics(state) {
       <div class="p-6">
         
         <div class="flex justify-between items-start mb-4">
-            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border border-transparent ${statusStyle.class}">
-                <i class="fa-solid ${statusStyle.icon}"></i> ${epic.status}
-            </span>
+            <div class="flex items-center gap-2">
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border border-transparent ${statusStyle.class}">
+                  <i class="fa-solid ${statusStyle.icon}"></i> ${epic.status}
+              </span>
+              <span class="text-lg ${healthColor}" title="${healthLabel}">${healthIcon}</span>
+            </div>
             <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button data-action="edit-epic" class="text-gray-400 hover:text-blue-600 transition-colors"><i class="fas fa-pencil"></i></button>
                 <button data-action="delete-epic" class="text-gray-400 hover:text-red-600 transition-colors"><i class="fas fa-trash-can"></i></button>
@@ -582,6 +840,36 @@ function renderEpics(state) {
         <div class="mb-6">
             <h3 class="text-lg font-bold text-slate-900 leading-snug mb-2" title="${epic.title}">${epic.title}</h3>
             <p class="text-sm text-slate-500 line-clamp-2 leading-relaxed">${epic.description || "Sin descripción."}</p>
+        </div>
+
+        <!-- PROGRESS BAR VISUAL (NUEVO) -->
+        <div class="mb-4">
+          <div class="flex justify-between items-center mb-2 text-xs text-gray-500">
+            <span>Puntos:</span>
+            <span class="text-gray-800 font-bold">${completedPoints}/${totalPoints} pts</span>
+          </div>
+          <div class="w-full h-3 bg-gray-200 rounded-full overflow-hidden relative">
+            <div 
+              class="h-full transition-all duration-500 ease-out rounded-full"
+              style="width: ${Math.min(progressPercent, 100)}%; background-color: ${barColor};"
+            ></div>
+            ${percentTimeElapsed != null ? `<div class="absolute top-0" style="left: ${Math.min(percentTimeElapsed, 100)}%; height:100%; width:2px; transform: translateX(-1px); background-color: rgba(0,0,0,0.25)"></div>` : ``}
+          </div>
+
+          <div class="mt-3 text-xs text-gray-600 space-y-1">
+            <div class="flex justify-between items-center">
+              <span class="text-gray-500">Progreso:</span>
+              <span class="text-gray-800 font-bold">${Math.round(progressPercent)}%</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-gray-500">Tiempo transcurrido:</span>
+              <span class="text-gray-800 font-bold">${percentTimeElapsed != null ? Math.round(percentTimeElapsed) + "%" : "—"}</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-gray-500">Desfase:</span>
+              <span class="${deltaColorClass} font-bold">${deltaPercent != null ? deltaSign + Math.abs(Math.round(deltaPercent)) + "%" : "—"}</span>
+            </div>
+          </div>
         </div>
 
         <div class="flex w-full items-center py-4 border-t border-gray-100 mt-4 divide-x divide-gray-100">
@@ -594,11 +882,6 @@ function renderEpics(state) {
             <div class="flex-1 flex flex-col items-center justify-center px-1">
                 <span class="text-xl font-bold text-slate-800 leading-none mb-1">${validCompletedCount}/${totalDefined}</span>
                 <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wide">KRs</span>
-            </div>
-
-            <div class="flex-1 flex flex-col items-center justify-center px-1">
-                <span class="text-xl font-bold text-slate-800 leading-none mb-1">${completedPoints}/${totalPoints}</span>
-                <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wide">Pts</span>
             </div>
 
             <div class="flex-1 flex flex-col items-center justify-center px-1">
@@ -619,7 +902,7 @@ function renderEpics(state) {
       </div>
     `;
 
-    container.appendChild(epicCard);
+    cardsContainer.appendChild(epicCard);
   });
 }
 
@@ -2365,6 +2648,13 @@ function handleAppClick(e) {
           .querySelectorAll(".selected")
           .forEach((el) => el.classList.remove("selected"));
         return;
+      case "toggle-backlog-epic": {
+        const epicId = actionTarget.dataset.epicId;
+        if (typeof appActions !== "undefined" && appActions.toggleBacklogEpic) {
+          appActions.toggleBacklogEpic(epicId);
+        }
+        return;
+      }
       case "plan-sprint": {
         const selectedTaskIds = Array.from(
           document.querySelectorAll(

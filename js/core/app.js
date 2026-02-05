@@ -63,9 +63,13 @@ const state = {
   hasInitializedPersonViews: false, // Para evitar resetear la vista en cada update
   collapsedColumns: new Set(), // Almacena los IDs ('todo', 'inprogress', 'done')
   expandedEpicIds: new Set(),
+  collapsedBacklogEpics: new Set(), // Épicas colapsadas en vista backlog
   handbookEntries: [],
   triageConfig: null,
   sprintsSummaryFilter: "active",
+  epicsSearch: "",
+  epicsStatusFilter: "",
+  epicsSortMode: "recent",
 };
 
 // ------------------ Render throttle ------------------
@@ -119,6 +123,31 @@ const actions = {
     }
     requestRender();
   },
+
+  toggleBacklogEpic(epicId) {
+    if (state.collapsedBacklogEpics.has(epicId)) {
+      state.collapsedBacklogEpics.delete(epicId);
+    } else {
+      state.collapsedBacklogEpics.add(epicId);
+    }
+    requestRender();
+  },
+
+  setEpicsSearch(value) {
+    state.epicsSearch = value;
+    requestRender();
+  },
+
+  setEpicsStatusFilter(value) {
+    state.epicsStatusFilter = value;
+    requestRender();
+  },
+
+  setEpicsSortMode(value) {
+    state.epicsSortMode = value;
+    requestRender();
+  },
+
   expandAllPersonViews() {
     if (state.allUsers.length > 0) {
       state.allUsers.forEach((u) => state.expandedPersonViews.add(u.email));
