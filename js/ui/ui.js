@@ -1918,11 +1918,64 @@ function renderTimeline(state) {
   const ganttView = document.getElementById("gantt-view");
   const monthYear = document.getElementById("timeline-month-year");
   if (!ganttView || !monthYear) return;
+  // Zoom mode (week | month | quarter) persisted in localStorage
+  const storedZoom =
+    (typeof localStorage !== "undefined" && localStorage.getItem("timelineZoom")) || "month";
+  const zoomMode = state.timelineZoom || storedZoom || "month";
 
   monthYear.textContent = state.timelineDate.toLocaleDateString("es-ES", {
     month: "long",
     year: "numeric",
   });
+
+  // Render controls: add zoom selector and minimap next to the existing month/year header
+  const controlsHtml = `
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-2">
+        <label class="text-xs text-gray-500">Vista:</label>
+        <select id="timeline-zoom-select" class="text-xs border border-gray-200 rounded px-2 py-1 bg-white">
+          <option value="week" ${zoomMode === "week" ? "selected" : ""}>Semana</option>
+          <option value="month" ${zoomMode === "month" ? "selected" : ""}>Mes</option>
+          <option value="quarter" ${zoomMode === "quarter" ? "selected" : ""}>Trimestre</option>
+          <option value="year" ${zoomMode === "year" ? "selected" : ""}>Año</option>
+        </select>
+      </div>
+      <div id="timeline-minimap" class="text-xs text-gray-500"></div>
+    </div>
+  `;
+  // try to attach controls next to the existing month/year header in index.html
+  ganttView.querySelector(".timeline-controls")?.remove();
+  const controlsWrapper = document.createElement("div");
+  controlsWrapper.className = "timeline-controls ml-auto";
+  controlsWrapper.innerHTML = controlsHtml;
+  const headerDateContainer = document.getElementById("timeline-month-year")?.parentElement;
+  if (headerDateContainer) {
+    // remove any existing controls in the header to avoid duplicates on re-render
+    const existing = headerDateContainer.querySelector(".timeline-controls");
+    if (existing) existing.remove();
+    // append to the header row so controls appear at the top right
+    headerDateContainer.appendChild(controlsWrapper);
+  } else {
+    ganttView.insertBefore(controlsWrapper, ganttView.firstElementChild);
+  }
+
+  // Attach listener for zoom select (use assignment to avoid duplicate handlers)
+  const zoomSelect = document.getElementById("timeline-zoom-select");
+  if (zoomSelect) {
+    zoomSelect.onchange = (e) => {
+      const val = e.target.value;
+      try {
+        localStorage.setItem("timelineZoom", val);
+      } catch (err) {}
+      if (typeof appActions !== "undefined" && appActions.setTimelineZoom) {
+        appActions.setTimelineZoom(val);
+      } else {
+        state.timelineZoom = val;
+        renderTimeline(state);
+      }
+    };
+  }
+
   const container = document.getElementById("timeline-container");
   const grid = document.getElementById("timeline-grid");
   if (!container || !grid) return;
@@ -1931,16 +1984,90 @@ function renderTimeline(state) {
   grid.innerHTML = "";
   container.style.position = "relative";
   const date = state.timelineDate;
-  const firstDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
-  const lastDayOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-  const daysInMonth = lastDayOfMonth.getDate();
+  const msPerDay = 24 * 60 * 60 * 1000;
+
+  // Determine visible range according to zoomMode
+  let viewStart, viewEnd;
+  if (zoomMode === "week") {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday as start
+    viewStart = new Date(d.setDate(diff));
+    viewStart.setHours(0, 0, 0, 0);
+    viewEnd = new Date(viewStart.getTime() + 6 * msPerDay);
+    viewEnd.setHours(23, 59, 59, 999);
+  } else if (zoomMode === "quarter") {
+    const startMonth = Math.floor(date.getMonth() / 3) * 3;
+    viewStart = new Date(date.getFullYear(), startMonth, 1);
+    viewStart.setHours(0, 0, 0, 0);
+    viewEnd = new Date(date.getFullYear(), startMonth + 3, 0);
+    viewEnd.setHours(23, 59, 59, 999);
+  } else if (zoomMode === "year") {
+    viewStart = new Date(date.getFullYear(), 0, 1);
+    viewStart.setHours(0, 0, 0, 0);
+    viewEnd = new Date(date.getFullYear(), 11, 31);
+    viewEnd.setHours(23, 59, 59, 999);
+  } else {
+    // month
+    viewStart = new Date(date.getFullYear(), date.getMonth(), 1);
+    viewStart.setHours(0, 0, 0, 0);
+    viewEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+    viewEnd.setHours(23, 59, 59, 999);
+  }
+
+  const daysCount = Math.ceil((viewEnd.getTime() - viewStart.getTime() + 1) / msPerDay);
+  const totalRangeMs = viewEnd.getTime() - viewStart.getTime() + msPerDay;
 
   grid.className = "relative flex h-full border-t border-l";
-  grid.innerHTML = Array.from({ length: daysInMonth }, (_, i) => {
-    const dayDate = new Date(date.getFullYear(), date.getMonth(), i + 1);
-    const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6;
-    return `<div class="text-center text-xs text-gray-500 border-r h-full ${isWeekend ? "bg-gray-50" : ""}" style="width: ${100 / daysInMonth}%"><div class="border-b pb-1">${i + 1}</div></div>`;
-  }).join("");
+  if (zoomMode === "year") {
+    // Render 12 month columns for year view
+    const months = Array.from({ length: 12 }, (_, m) => {
+      const monthDate = new Date(viewStart.getFullYear(), m, 1);
+      const label = monthDate.toLocaleDateString("es-ES", { month: "short" });
+      return `<div class="text-center text-xs text-gray-500 border-r h-full" style="width: ${100 / 12}%"><div class="border-b pb-1">${label}</div></div>`;
+    });
+    grid.innerHTML = months.join("");
+  } else if (zoomMode === "quarter") {
+    const getISOWeek = (d) => {
+      const date = new Date(d.getTime());
+      date.setHours(0, 0, 0, 0);
+      // Thursday in current week decides the year.
+      date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
+      const week1 = new Date(date.getFullYear(), 0, 4);
+      return (
+        1 +
+        Math.round(
+          ((date.getTime() - week1.getTime()) / msPerDay - 3 + ((week1.getDay() + 6) % 7)) / 7
+        )
+      );
+    };
+    const weeksCount = Math.ceil(daysCount / 7);
+    grid.innerHTML = Array.from({ length: weeksCount }, (_, i) => {
+      const weekStart = new Date(
+        viewStart.getFullYear(),
+        viewStart.getMonth(),
+        viewStart.getDate() + i * 7
+      );
+      const weekNumber = getISOWeek(weekStart);
+      return `<div class="text-center text-xs text-gray-500 border-r h-full" style="width: ${
+        100 / weeksCount
+      }%"><div class="border-b pb-1">Sem ${weekNumber}</div></div>`;
+    }).join("");
+  } else {
+    grid.innerHTML = Array.from({ length: daysCount }, (_, i) => {
+      const dayDate = new Date(
+        viewStart.getFullYear(),
+        viewStart.getMonth(),
+        viewStart.getDate() + i
+      );
+      const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6;
+      const dayLabel =
+        zoomMode === "week"
+          ? dayDate.toLocaleDateString("es-ES", { weekday: "short", day: "numeric" })
+          : dayDate.getDate();
+      return `<div class="text-center text-xs text-gray-500 border-r h-full ${isWeekend ? "bg-gray-50" : ""}" style="width: ${100 / daysCount}%"><div class="border-b pb-1">${dayLabel}</div></div>`;
+    }).join("");
+  }
 
   // ▼▼ FILTRO CORREGIDO Y MÁS ROBUSTO ▼▼
   const sprints = state.taskLists.filter(
@@ -1952,27 +2079,35 @@ function renderTimeline(state) {
       typeof l.endDate.toDate === "function"
   );
 
-  container.style.height = `${sprints.length * 3.5}rem`;
-  sprints.forEach((sprint, i) => {
+  // Sólo los sprints que se solapan con el rango visible
+  const visibleSprints = sprints.filter((sprint) => {
+    const sprintStart = sprint.startDate.toDate();
+    const sprintEnd = sprint.endDate.toDate();
+    return !(sprintEnd < viewStart || sprintStart > viewEnd);
+  });
+
+  // Reducir el espaciado vertical para evitar grandes áreas en blanco
+  const rowHeightRem = 2.5;
+  container.style.height = `${Math.max(visibleSprints.length, 1) * rowHeightRem}rem`;
+  visibleSprints.forEach((sprint, i) => {
     const sprintStart = sprint.startDate.toDate();
     const sprintEnd = sprint.endDate.toDate();
 
-    if (sprintEnd < firstDayOfMonth || sprintStart > lastDayOfMonth) return;
+    if (sprintEnd < viewStart || sprintStart > viewEnd) return;
 
     // --- NUEVA LÓGICA DE CÁLCULO PRECISO ---
     const msPerDay = 24 * 60 * 60 * 1000;
 
-    // Ajustamos las fechas al rango visible del mes actual
-    const viewStart = new Date(Math.max(sprintStart, firstDayOfMonth));
-    const viewEnd = new Date(Math.min(sprintEnd, lastDayOfMonth));
+    // Ajustamos las fechas al rango visible
+    const visibleStart = new Date(Math.max(sprintStart.getTime(), viewStart.getTime()));
+    const visibleEnd = new Date(Math.min(sprintEnd.getTime(), viewEnd.getTime()));
 
     // Calculamos la posición inicial (left)
-    const startOffsetMs = viewStart.getTime() - firstDayOfMonth.getTime();
-    let left = (startOffsetMs / (daysInMonth * msPerDay)) * 100;
-
-    // Calculamos la duración visible (width)
-    const durationMs = viewEnd.getTime() - viewStart.getTime() + msPerDay;
-    let width = (durationMs / (daysInMonth * msPerDay)) * 100;
+    const startOffsetMs = visibleStart.getTime() - viewStart.getTime();
+    const durationMs = visibleEnd.getTime() - visibleStart.getTime() + msPerDay;
+    // Use el rango total en ms para calcular porcentajes (más robusto para month/year/quarter)
+    const left = Math.max(0, (startOffsetMs / totalRangeMs) * 100);
+    let width = Math.max(0, (durationMs / totalRangeMs) * 100);
 
     // Ajustes de seguridad
     if (left < 0) left = 0;
@@ -2002,12 +2137,66 @@ function renderTimeline(state) {
     Object.assign(barDiv.style, {
       left: `${left}%`,
       width: `${width}%`,
-      top: `${i * 3}rem`,
+      top: `${i * rowHeightRem}rem`,
     });
     barDiv.title = tooltip;
     barDiv.innerHTML = `<div class="bar-points-content">${completedPoints}/${totalPoints} Pts</div><div class="progress-fill" style="width: ${progress}%; background-color: ${sprintColor};"></div><div class="bar-title-overlay"><span class="font-bold truncate min-w-0">${statusIcon}${sprint.title}</span></div>`;
     container.appendChild(barDiv);
   });
+
+  // Mini-map: muestra el rango visible dentro del mes (indicador simple)
+  const minimapContainer = document.getElementById("timeline-minimap");
+  if (minimapContainer) {
+    try {
+      let mapStart, mapEnd, mapDays;
+      if (zoomMode === "year") {
+        mapStart = new Date(viewStart.getFullYear(), 0, 1);
+        mapEnd = new Date(viewStart.getFullYear(), 11, 31);
+      } else {
+        mapStart = new Date(viewStart.getFullYear(), viewStart.getMonth(), 1);
+        mapEnd = new Date(viewStart.getFullYear(), viewStart.getMonth() + 1, 0);
+      }
+      mapDays = Math.ceil((mapEnd.getTime() - mapStart.getTime() + 1) / msPerDay);
+      const leftPercent = Math.max(
+        0,
+        ((viewStart.getTime() - mapStart.getTime()) / (mapDays * msPerDay)) * 100
+      );
+      const widthPercent = Math.max(
+        0,
+        ((viewEnd.getTime() - viewStart.getTime() + msPerDay) / (mapDays * msPerDay)) * 100
+      );
+      minimapContainer.innerHTML = `<div class="w-40 h-2 rounded bg-gray-200 relative overflow-hidden">
+          <div style="position:absolute; left:${leftPercent}%; width:${widthPercent}%; height:100%; background: rgba(59,130,246,0.55);"></div>
+        </div><div class="text-xs text-gray-400 mt-1">${viewStart.toLocaleDateString()} — ${viewEnd.toLocaleDateString()}</div>`;
+      // Make minimap clickable to jump to selected position
+      const minimapBar = minimapContainer.querySelector(".w-40");
+      if (minimapBar) {
+        minimapBar.style.cursor = "pointer";
+        minimapBar.onclick = (e) => {
+          const rect = minimapBar.getBoundingClientRect();
+          const clickPercent = (e.clientX - rect.left) / rect.width;
+          let mapStart, mapEnd;
+          if (zoomMode === "year") {
+            mapStart = new Date(state.timelineDate.getFullYear(), 0, 1);
+            mapEnd = new Date(state.timelineDate.getFullYear(), 11, 31);
+          } else {
+            mapStart = new Date(state.timelineDate.getFullYear(), state.timelineDate.getMonth(), 1);
+            mapEnd = new Date(
+              state.timelineDate.getFullYear(),
+              state.timelineDate.getMonth() + 1,
+              0
+            );
+          }
+          const mapDuration = mapEnd.getTime() - mapStart.getTime();
+          const clickedDate = new Date(mapStart.getTime() + clickPercent * mapDuration);
+          state.timelineDate = clickedDate;
+          renderTimeline(state);
+        };
+      }
+    } catch (e) {
+      minimapContainer.textContent = "";
+    }
+  }
 }
 
 function renderComments(task, state) {

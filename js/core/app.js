@@ -50,6 +50,7 @@ const state = {
   currentSprintId: null,
   unsubscribe: [],
   timelineDate: new Date(),
+  timelineZoom: null,
   draggedTaskId: null,
   sprintifyCalendarId: null,
   googleAccessToken: null,
@@ -623,8 +624,27 @@ const actions = {
   setDraggedTaskId: (id) => {
     state.draggedTaskId = id;
   },
+  setTimelineZoom: (zoom) => {
+    state.timelineZoom = zoom;
+    requestRender();
+  },
   setTimelineDate: (inc) => {
-    state.timelineDate.setMonth(state.timelineDate.getMonth() + inc);
+    const storedZoom =
+      (typeof localStorage !== "undefined" && localStorage.getItem("timelineZoom")) || null;
+    const zoomMode = state.timelineZoom || storedZoom || "month";
+    const nextDate = new Date(state.timelineDate);
+
+    if (zoomMode === "week") {
+      nextDate.setDate(nextDate.getDate() + inc * 7);
+    } else if (zoomMode === "quarter") {
+      nextDate.setMonth(nextDate.getMonth() + inc * 3);
+    } else if (zoomMode === "year") {
+      nextDate.setFullYear(nextDate.getFullYear() + inc);
+    } else {
+      nextDate.setMonth(nextDate.getMonth() + inc);
+    }
+
+    state.timelineDate = nextDate;
     requestRender();
   },
   setCurrentSprintId: (id) => {
