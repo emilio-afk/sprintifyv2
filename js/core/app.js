@@ -1091,11 +1091,10 @@ function setupUpdateNotifier() {
   const refreshButton = document.getElementById("update-banner-refresh");
   if (!banner || !refreshButton) return;
 
-  const targetPath = "/index.html";
+  const targets = ["/index.html", "/js/core/app.js", "/js/ui/ui.js", "/styles/output.css"];
   const pollIntervalMs = 5 * 60 * 1000;
-  let currentLastModified = null;
-  let currentEtag = null;
   let bannerShown = false;
+  const baseline = new Map();
 
   const parseTime = (value) => {
     if (!value) return null;
@@ -1109,10 +1108,10 @@ function setupUpdateNotifier() {
     banner.classList.remove("hidden");
   };
 
-  const fetchVersion = async (useHead) => {
+  const fetchVersion = async (path, useHead) => {
     const options = { cache: "no-store" };
     if (useHead) options.method = "HEAD";
-    const response = await fetch(targetPath, options);
+    const response = await fetch(path, options);
     if (!response.ok) throw new Error("No version response");
     return {
       lastModified: response.headers.get("last-modified"),
@@ -1120,12 +1119,12 @@ function setupUpdateNotifier() {
     };
   };
 
-  const fetchRemoteVersion = async () => {
+  const fetchRemoteVersion = async (path) => {
     try {
-      return await fetchVersion(true);
+      return await fetchVersion(path, true);
     } catch (err) {
       try {
-        return await fetchVersion(false);
+        return await fetchVersion(path, false);
       } catch (innerErr) {
         return null;
       }
@@ -1133,34 +1132,50 @@ function setupUpdateNotifier() {
   };
 
   const bootstrapVersion = async () => {
-    const remote = await fetchRemoteVersion();
-    if (remote?.etag) currentEtag = remote.etag;
-    const remoteTime = parseTime(remote?.lastModified);
-    if (remoteTime) currentLastModified = remoteTime;
-    if (!currentLastModified) {
-      const localTime = parseTime(document.lastModified);
-      if (localTime) currentLastModified = localTime;
-    }
+    const results = await Promise.all(targets.map((path) => fetchRemoteVersion(path)));
+    results.forEach((remote, index) => {
+      const path = targets[index];
+      const record = {
+        etag: remote?.etag || null,
+        lastModified: parseTime(remote?.lastModified),
+      };
+      if (!record.lastModified && path === "/index.html") {
+        record.lastModified = parseTime(document.lastModified);
+      }
+      baseline.set(path, record);
+    });
   };
 
   const checkForUpdate = async () => {
     if (bannerShown || (navigator?.onLine === false)) return;
-    const remote = await fetchRemoteVersion();
-    if (!remote) return;
-    if (remote.etag) {
-      if (!currentEtag) {
-        currentEtag = remote.etag;
-        return;
+    const results = await Promise.all(targets.map((path) => fetchRemoteVersion(path)));
+    results.forEach((remote, index) => {
+      if (bannerShown || !remote) return;
+      const path = targets[index];
+      const previous = baseline.get(path) || { etag: null, lastModified: null };
+
+      if (remote.etag) {
+        if (previous.etag && remote.etag !== previous.etag) {
+          showBanner();
+          return;
+        }
+        if (!previous.etag) {
+          previous.etag = remote.etag;
+          baseline.set(path, previous);
+          return;
+        }
       }
-      if (remote.etag !== currentEtag) {
+
+      const remoteTime = parseTime(remote.lastModified);
+      if (remoteTime && previous.lastModified && remoteTime > previous.lastModified + 1000) {
         showBanner();
         return;
       }
-    }
-    const remoteTime = parseTime(remote.lastModified);
-    if (remoteTime && currentLastModified && remoteTime > currentLastModified + 1000) {
-      showBanner();
-    }
+      if (remoteTime && !previous.lastModified) {
+        previous.lastModified = remoteTime;
+        baseline.set(path, previous);
+      }
+    });
   };
 
   refreshButton.addEventListener("click", () => {
