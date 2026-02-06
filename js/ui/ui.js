@@ -211,14 +211,49 @@ function createCommentElement(comment, index, state) {
 
 // Compact task element for list views (Mi trabajo)
 function createCompactTaskElement(task, state) {
-  const { allUsers, taskLists } = state;
+  const { taskLists, epics } = state;
   const isCompleted = task.status === "completed" || task.kanbanStatus === "done";
-  const user = allUsers.find((u) => u.email === task.assignee);
-  const userPhotoURL = user?.photoURL
-    ? user.photoURL
-    : `https://ui-avatars.com/api/?name=${task.assignee || ""}`;
   const sprint = taskLists.find((l) => l.id === task.listId);
   const sprintColor = sprint?.color || "#3b82f6";
+
+  const statusLabel = isCompleted
+    ? "Hecho"
+    : task.kanbanStatus === "inprogress" || task.status === "inprogress"
+    ? "En progreso"
+    : "Por hacer";
+  const statusClass = isCompleted
+    ? "bg-green-50 text-green-700 border border-green-200"
+    : task.kanbanStatus === "inprogress" || task.status === "inprogress"
+    ? "bg-blue-50 text-blue-700 border border-blue-200"
+    : "bg-gray-100 text-gray-600 border border-gray-200";
+
+  const epic = task.epicId ? epics.find((e) => e.id === task.epicId) : null;
+  const epicLabel = epic?.title || "Sin épica";
+
+  const getDate = (d) => (d && d.toDate ? d.toDate() : d ? new Date(d) : null);
+  const dueDate = getDate(task.dueDate);
+  let dueLabel = "Sin fecha";
+  let dueClass = "text-gray-400";
+  if (dueDate) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const due = new Date(dueDate);
+    due.setHours(0, 0, 0, 0);
+    const diffDays = Math.floor((due - today) / (1000 * 60 * 60 * 24));
+    if (diffDays < 0) {
+      dueLabel = `Vencida · ${due.toLocaleDateString()}`;
+      dueClass = "text-red-600";
+    } else if (diffDays === 0) {
+      dueLabel = "Hoy";
+      dueClass = "text-amber-600";
+    } else if (diffDays === 1) {
+      dueLabel = "Mañana";
+      dueClass = "text-amber-600";
+    } else {
+      dueLabel = due.toLocaleDateString();
+      dueClass = "text-gray-500";
+    }
+  }
 
   const compact = document.createElement("div");
   compact.className = `compact-task flex items-center justify-between gap-3 bg-white p-3 rounded-lg border border-gray-200 hover:shadow-sm transition-colors ${isCompleted ? "opacity-60" : ""}`;
@@ -234,7 +269,14 @@ function createCompactTaskElement(task, state) {
 
   const title = document.createElement("div");
   title.className = "min-w-0 flex-1";
-  title.innerHTML = `<div class="text-sm font-medium text-slate-800 truncate">${task.title}</div><div class="text-xs text-gray-400 truncate mt-0.5">${task.description ? (task.description.length > 80 ? task.description.slice(0, 80) + "…" : task.description) : ""}</div>`;
+  title.innerHTML = `
+    <div class="text-sm font-semibold text-slate-900 truncate">${task.title}</div>
+    <div class="flex flex-wrap items-center gap-2 mt-1 text-xs">
+      <span class="px-2 py-0.5 rounded-full ${statusClass}">${statusLabel}</span>
+      <span class="px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 text-gray-600 truncate" style="max-width: 180px;">${epicLabel}</span>
+      ${(task.points || 0) > 0 ? `<span class="px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 text-gray-600">${task.points} pts</span>` : ""}
+    </div>
+  `;
 
   left.appendChild(checkbox);
   left.appendChild(title);
@@ -242,25 +284,17 @@ function createCompactTaskElement(task, state) {
   const right = document.createElement("div");
   right.className = "flex items-center gap-3 ml-2 shrink-0";
 
-  const points = document.createElement("div");
-  points.className = "text-xs text-gray-600 font-semibold";
-  points.innerText = (task.points || 0) > 0 ? `${task.points} pts` : "";
-
   const due = document.createElement("div");
-  due.className = "text-xs text-gray-400";
-  if (task.dueDate) {
-    const d = task.dueDate.toDate ? task.dueDate.toDate() : new Date(task.dueDate);
-    due.innerText = d.toLocaleDateString();
-  }
+  due.className = `text-xs font-semibold ${dueClass}`;
+  due.innerText = dueLabel;
 
-  const assignee = document.createElement("img");
-  assignee.src = userPhotoURL;
-  assignee.className = "w-6 h-6 rounded-full object-cover border";
-  assignee.title = task.assignee || "Sin asignar";
+  const sprintDot = document.createElement("div");
+  sprintDot.className = "w-2.5 h-2.5 rounded-full border border-white shadow-sm";
+  sprintDot.style.backgroundColor = sprintColor;
+  sprintDot.title = sprint?.title || "Sprint";
 
-  right.appendChild(points);
   right.appendChild(due);
-  right.appendChild(assignee);
+  right.appendChild(sprintDot);
 
   compact.appendChild(left);
   compact.appendChild(right);
@@ -365,7 +399,7 @@ function renderBacklog(state) {
     // Header colapsable
     const header = document.createElement("div");
     header.className =
-      "flex items-center gap-3 p-3 bg-gradient-to-r from-slate-50 to-slate-100 rounded-lg border border-slate-200 cursor-pointer hover:from-slate-100 hover:to-slate-150 transition-all mb-2 group";
+      "flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50 transition-all mb-2";
     header.dataset.action = "toggle-backlog-epic";
     header.dataset.epicId = epicId;
 
@@ -382,14 +416,12 @@ function renderBacklog(state) {
 
     header.innerHTML = `
       <div style="flex-shrink: 0; width: 4px; height: 24px; background-color: ${epicColor}; border-radius: 2px;"></div>
-      <i class="fas ${chevron} text-slate-400 group-hover:text-slate-600 transition-colors" style="font-size: 12px;"></i>
+      <i class="fas ${chevron} text-slate-400" style="font-size: 12px;"></i>
       <div class="flex-1 min-w-0">
-        <h3 class="font-semibold text-slate-700 text-sm">${epicName}</h3>
+        <h3 class="font-semibold text-slate-800 text-sm truncate">${epicName}</h3>
       </div>
-      <div class="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity text-xs text-slate-500">
-        <span title="Completadas/Total"><i class="fas fa-check text-green-600"></i> ${doneCount}/${taskCount}</span>
-        <span class="h-4 border-l border-slate-300"></span>
-        <span title="Puntos completados/Total"><i class="fas fa-coins text-yellow-600"></i> ${donePoints}/${points}</span>
+      <div class="flex items-center gap-2 text-xs text-slate-500">
+        <span class="px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200">Tareas: ${taskCount}</span>
       </div>
     `;
 
@@ -397,7 +429,7 @@ function renderBacklog(state) {
 
     // Contenedor de tareas (colapsable)
     const tasksContainer = document.createElement("div");
-    tasksContainer.className = `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pl-4 pr-0 transition-all duration-200 ${isCollapsed ? "hidden" : ""}`;
+    tasksContainer.className = `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 pl-0 pr-0 transition-all duration-200 ${isCollapsed ? "hidden" : ""}`;
     tasksContainer.dataset.epicTasksContainer = epicId;
 
     tasks.forEach((task) => {
@@ -428,12 +460,62 @@ function renderBacklogMatrix(state) {
     return "maybe";
   };
 
-  dom.backlogMatrixContainer.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div class="rounded-lg border p-3 bg-white min-h-[200px] flex flex-col"><div class="text-xs font-semibold text-emerald-700 mb-2">Quick Wins (Alto impacto / Bajo esfuerzo)</div><div class="space-y-2 flex-grow" data-quad-list="quick"></div></div><div class="rounded-lg border p-3 bg-white min-h-[200px] flex flex-col"><div class="text-xs font-semibold text-blue-700 mb-2">Major Projects (Alto impacto / Alto esfuerzo)</div><div class="space-y-2 flex-grow" data-quad-list="major"></div></div><div class="rounded-lg border p-3 bg-white min-h-[200px] flex flex-col"><div class="text-xs font-semibold text-gray-700 mb-2">Fillers (Bajo impacto / Bajo esfuerzo)</div><div class="space-y-2 flex-grow" data-quad-list="filler"></div></div><div class="rounded-lg border p-3 bg-white min-h-[200px] flex flex-col"><div class="text-xs font-semibold text-amber-700 mb-2">Maybe later (Bajo impacto / Alto esfuerzo)</div><div class="space-y-2 flex-grow" data-quad-list="maybe"></div></div></div>`;
+  const counts = { quick: 0, major: 0, filler: 0, maybe: 0 };
+  tasks.forEach((t) => {
+    const quad = getQuad(t);
+    if (counts[quad] !== undefined) counts[quad] += 1;
+  });
+  const total = tasks.length;
+  const quickPct = total ? Math.round((counts.quick / total) * 100) : 0;
+  const highEffort = counts.major + counts.maybe;
+  const highEffortPct = total ? Math.round((highEffort / total) * 100) : 0;
+
+  dom.backlogMatrixContainer.innerHTML = `
+    <div class="flex items-center flex-wrap gap-2 mb-3">
+      <span class="text-xs text-gray-500">Total: <strong class="text-gray-900">${total}</strong></span>
+      <span class="text-xs text-gray-500">Quick Wins: <strong class="text-emerald-700">${counts.quick}</strong> (${quickPct}%)</span>
+      <span class="text-xs text-gray-500">Alto esfuerzo: <strong class="text-amber-700">${highEffort}</strong> (${highEffortPct}%)</span>
+    </div>
+    <div class="backlog-matrix">
+      <div class="matrix-axis-label matrix-axis-y">Impacto</div>
+      <div class="matrix-axis-label matrix-axis-x">Esfuerzo</div>
+      <div class="backlog-matrix-grid">
+        <div class="matrix-quad quick" data-quad-list="quick">
+          <div class="matrix-quad-header">
+            <div class="matrix-quad-title"><span class="matrix-dot quick"></span>Quick Wins</div>
+            <div class="matrix-quad-count">${counts.quick}</div>
+          </div>
+          <div class="space-y-2 flex-grow" data-quad-content="quick"></div>
+        </div>
+        <div class="matrix-quad major" data-quad-list="major">
+          <div class="matrix-quad-header">
+            <div class="matrix-quad-title"><span class="matrix-dot major"></span>Major Projects</div>
+            <div class="matrix-quad-count">${counts.major}</div>
+          </div>
+          <div class="space-y-2 flex-grow" data-quad-content="major"></div>
+        </div>
+        <div class="matrix-quad filler" data-quad-list="filler">
+          <div class="matrix-quad-header">
+            <div class="matrix-quad-title"><span class="matrix-dot filler"></span>Fillers</div>
+            <div class="matrix-quad-count">${counts.filler}</div>
+          </div>
+          <div class="space-y-2 flex-grow" data-quad-content="filler"></div>
+        </div>
+        <div class="matrix-quad maybe" data-quad-list="maybe">
+          <div class="matrix-quad-header">
+            <div class="matrix-quad-title"><span class="matrix-dot maybe"></span>Maybe later</div>
+            <div class="matrix-quad-count">${counts.maybe}</div>
+          </div>
+          <div class="space-y-2 flex-grow" data-quad-content="maybe"></div>
+        </div>
+      </div>
+    </div>
+  `;
   const lists = {
-    quick: dom.backlogMatrixContainer.querySelector('[data-quad-list="quick"]'),
-    major: dom.backlogMatrixContainer.querySelector('[data-quad-list="major"]'),
-    filler: dom.backlogMatrixContainer.querySelector('[data-quad-list="filler"]'),
-    maybe: dom.backlogMatrixContainer.querySelector('[data-quad-list="maybe"]'),
+    quick: dom.backlogMatrixContainer.querySelector('[data-quad-content="quick"]'),
+    major: dom.backlogMatrixContainer.querySelector('[data-quad-content="major"]'),
+    filler: dom.backlogMatrixContainer.querySelector('[data-quad-content="filler"]'),
+    maybe: dom.backlogMatrixContainer.querySelector('[data-quad-content="maybe"]'),
   };
   tasks.forEach((t) => {
     const where = getQuad(t);
@@ -967,62 +1049,67 @@ function renderMyTasks(state) {
   // 1. ESTRUCTURA (Solo la creamos si no existe para no perder el foco al escribir)
   if (!document.getElementById("mytasks-controls-wrapper")) {
     container.innerHTML = `
-      <div id="mytasks-controls-wrapper" class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col md:flex-row gap-4 justify-between items-end md:items-center">
-          
-            <div class="w-full md:w-1/3 relative">
-              <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-              <input type="text" id="mytasks-search" placeholder="Buscar en mis tareas..." 
-                class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+      <div id="mytasks-controls-wrapper" class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 space-y-3">
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="relative flex-1" style="min-width: 220px;">
+            <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+            <input type="text" id="mytasks-search" placeholder="Buscar en mis tareas..." 
+              class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+          </div>
+
+          <div id="mytasks-status-chips" class="flex items-center gap-2 flex-wrap">
+            <button data-mytasks-status="all" class="px-3 py-1.5 rounded-full text-xs font-semibold border border-blue-600 bg-blue-600 text-white">Todos</button>
+            <button data-mytasks-status="todo" class="px-3 py-1.5 rounded-full text-xs font-semibold border border-gray-200 bg-white text-gray-600">Por hacer</button>
+            <button data-mytasks-status="inprogress" class="px-3 py-1.5 rounded-full text-xs font-semibold border border-gray-200 bg-white text-gray-600">En progreso</button>
+            <button data-mytasks-status="completed" class="px-3 py-1.5 rounded-full text-xs font-semibold border border-gray-200 bg-white text-gray-600">Hecho</button>
+          </div>
+
+          <label class="flex items-center gap-2 cursor-pointer select-none bg-gray-50 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
+            <input type="checkbox" id="mytasks-hide-completed" class="form-checkbox h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-0 cursor-pointer">
+            <span class="text-xs font-bold text-gray-600 uppercase">Ocultar Hecho</span>
+          </label>
+
+          <button id="mytasks-more-filters" class="px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+            Más filtros
+          </button>
+        </div>
+
+        <div id="mytasks-extra-filters" class="hidden flex flex-wrap items-center gap-3">
+          <div class="relative group">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <i class="fas fa-sort text-gray-400"></i>
             </div>
+            <select id="mytasks-sort" class="pl-10 pr-8 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer hover:bg-gray-50 transition-colors">
+              <option value="recent_desc">📅 Más recientes</option>
+              <option value="recent_asc">📅 Más antiguos</option>
+              <option value="due_asc">⏰ Vencimiento próximo</option>
+              <option value="due_desc">⏰ Vencimiento lejano</option>
+              <option value="points_desc">🔢 Puntos (mayor primero)</option>
+              <option value="points_asc">🔢 Puntos (menor primero)</option>
+            </select>
+          </div>
 
-            <div class="flex items-center gap-3 w-full md:w-auto flex-wrap">
-              <div class="relative group">
-                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <i class="fas fa-sort text-gray-400"></i>
-                </div>
-                <select id="mytasks-sort" class="pl-10 pr-8 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer hover:bg-gray-50 transition-colors">
-                  <option value="recent_desc">📅 Más recientes</option>
-                  <option value="recent_asc">📅 Más antiguos</option>
-                  <option value="due_asc">⏰ Vencimiento próximo</option>
-                  <option value="due_desc">⏰ Vencimiento lejano</option>
-                  <option value="points_desc">🔢 Puntos (mayor primero)</option>
-                  <option value="points_asc">🔢 Puntos (menor primero)</option>
-                </select>
-              </div>
+          <div>
+            <select id="mytasks-sprint-filter" class="py-2 pr-6 pl-3 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none hover:bg-gray-50">
+              <option value="all">Todos los Sprints</option>
+              ${state.taskLists
+                .filter((l) => !l.isBacklog && !l.isArchived)
+                .map((s) => `<option value="${s.id}">${s.title}</option>`)
+                .join("")}
+            </select>
+          </div>
 
-              <div>
-              <select id="mytasks-sprint-filter" class="py-2 pr-6 pl-3 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none hover:bg-gray-50">
-                <option value="all">Todos los Sprints</option>
-                ${state.taskLists
-                  .filter((l) => !l.isBacklog && !l.isArchived)
-                  .map((s) => `<option value="${s.id}">${s.title}</option>`)
-                  .join("")}
-              </select>
-              </div>
+          <div>
+            <select id="mytasks-priority-filter" class="py-2 pr-6 pl-3 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none hover:bg-gray-50">
+              <option value="all">Prioridad: Todas</option>
+              <option value="high">Alta</option>
+              <option value="medium">Media</option>
+              <option value="low">Baja</option>
+            </select>
+          </div>
+        </div>
 
-              <div>
-              <select id="mytasks-status-filter" class="py-2 pr-6 pl-3 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none hover:bg-gray-50">
-                <option value="all">Estado: Todos</option>
-                <option value="todo">Por Empezar</option>
-                <option value="inprogress">En Progreso</option>
-                <option value="completed">Completado</option>
-              </select>
-              </div>
-
-              <div>
-              <select id="mytasks-priority-filter" class="py-2 pr-6 pl-3 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none hover:bg-gray-50">
-                <option value="all">Prioridad: Todas</option>
-                <option value="high">Alta</option>
-                <option value="medium">Media</option>
-                <option value="low">Baja</option>
-              </select>
-              </div>
-
-              <label class="flex items-center gap-2 cursor-pointer select-none bg-gray-50 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
-                <input type="checkbox" id="mytasks-hide-completed" class="form-checkbox h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-0 cursor-pointer">
-                <span class="text-xs font-bold text-gray-600 uppercase">Ocultar Hecho</span>
-              </label>
-            </div>
+        <input type="hidden" id="mytasks-status-filter" value="all" />
       </div>
 
       <div id="mytasks-list-area" class="space-y-3 pb-10"></div>
@@ -1034,8 +1121,11 @@ function renderMyTasks(state) {
     const hideCheck = document.getElementById("mytasks-hide-completed");
 
     const sprintSelect = document.getElementById("mytasks-sprint-filter");
-    const statusSelect = document.getElementById("mytasks-status-filter");
     const prioritySelect = document.getElementById("mytasks-priority-filter");
+    const statusInput = document.getElementById("mytasks-status-filter");
+    const statusChips = document.querySelectorAll("[data-mytasks-status]");
+    const moreFiltersBtn = document.getElementById("mytasks-more-filters");
+    const extraFilters = document.getElementById("mytasks-extra-filters");
 
     const refresh = () => renderMyTasksListArea(state); // Función auxiliar definida abajo
 
@@ -1043,8 +1133,37 @@ function renderMyTasks(state) {
     sortSelect.addEventListener("change", refresh);
     hideCheck.addEventListener("change", refresh);
     sprintSelect.addEventListener("change", refresh);
-    statusSelect.addEventListener("change", refresh);
     prioritySelect.addEventListener("change", refresh);
+
+    if (moreFiltersBtn && extraFilters) {
+      moreFiltersBtn.addEventListener("click", () => {
+        extraFilters.classList.toggle("hidden");
+        moreFiltersBtn.textContent = extraFilters.classList.contains("hidden")
+          ? "Más filtros"
+          : "Menos filtros";
+      });
+    }
+
+    const setActiveChip = (value) => {
+      statusChips.forEach((chip) => {
+        const active = chip.dataset.mytasksStatus === value;
+        chip.classList.toggle("bg-blue-600", active);
+        chip.classList.toggle("text-white", active);
+        chip.classList.toggle("border-blue-600", active);
+        chip.classList.toggle("bg-white", !active);
+        chip.classList.toggle("text-gray-600", !active);
+        chip.classList.toggle("border-gray-200", !active);
+      });
+    };
+
+    statusChips.forEach((chip) => {
+      chip.addEventListener("click", () => {
+        const value = chip.dataset.mytasksStatus || "all";
+        statusInput.value = value;
+        setActiveChip(value);
+        refresh();
+      });
+    });
   }
 
   // 2. ACTUALIZAR LISTA (Llamamos a la lógica de renderizado)
@@ -1141,17 +1260,51 @@ function renderMyTasksListArea(state) {
   listContainer.innerHTML = "";
 
   if (myTasks.length > 0) {
-    // Agrupación visual opcional: Separar "Vencido/Hoy" si estamos en modo urgencia
-    // Por simplicidad, renderizamos la lista plana pero ordenada
+    const getDate = (d) => (d && d.toDate ? d.toDate() : d ? new Date(d) : null);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const buckets = {
+      today: { title: "Hoy / Vencidas", items: [] },
+      week: { title: "Esta semana", items: [] },
+      later: { title: "Después", items: [] },
+      nodate: { title: "Sin fecha", items: [] },
+    };
+
     myTasks.forEach((t) => {
-      listContainer.appendChild(createCompactTaskElement(t, state));
+      const due = getDate(t.dueDate);
+      if (!due) {
+        buckets.nodate.items.push(t);
+        return;
+      }
+      const dueDate = new Date(due);
+      dueDate.setHours(0, 0, 0, 0);
+      const diffDays = Math.floor((dueDate - today) / (1000 * 60 * 60 * 24));
+      if (diffDays <= 0) buckets.today.items.push(t);
+      else if (diffDays <= 7) buckets.week.items.push(t);
+      else buckets.later.items.push(t);
     });
 
-    // Contador de resultados
-    const countLabel = document.createElement("div");
-    countLabel.className = "text-xs text-gray-400 text-right mt-2 italic";
-    countLabel.innerText = `Mostrando ${myTasks.length} tarea(s)`;
-    listContainer.appendChild(countLabel);
+    const renderSection = (section) => {
+      if (!section.items.length) return;
+      const wrapper = document.createElement("div");
+      wrapper.className = "space-y-2";
+      wrapper.innerHTML = `
+        <div class="flex items-center justify-between text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          <span>${section.title}</span>
+          <span class="text-gray-400">${section.items.length}</span>
+        </div>
+      `;
+      const list = document.createElement("div");
+      list.className = "space-y-2";
+      section.items.forEach((t) => list.appendChild(createCompactTaskElement(t, state)));
+      wrapper.appendChild(list);
+      listContainer.appendChild(wrapper);
+    };
+
+    renderSection(buckets.today);
+    renderSection(buckets.week);
+    renderSection(buckets.later);
+    renderSection(buckets.nodate);
   } else {
     // Estado Vacío
     listContainer.innerHTML = `
@@ -1184,7 +1337,7 @@ function renderPersonView(state) {
   // 2. CONTROLES DE FILTROS
   const controlsDiv = document.createElement("div");
   controlsDiv.className =
-    "mb-6 flex flex-wrap gap-4 items-end bg-white p-4 rounded-xl shadow-sm border border-gray-100";
+    "mb-4 flex flex-wrap gap-3 items-center bg-white p-3 rounded-xl shadow-sm border border-gray-200";
 
   let sprintOptions = `<option value="all">Todos los Sprints Activos</option>`;
 
@@ -1209,32 +1362,30 @@ function renderPersonView(state) {
   });
 
   controlsDiv.innerHTML = `
-      <div class="flex flex-col gap-1">
-          <label class="text-xs font-bold text-gray-500 uppercase">Período</label>
+      <div class="flex items-center gap-2 flex-wrap">
+          <label class="text-xs font-semibold text-gray-500 uppercase">Período</label>
           <select id="person-view-filter" class="p-2 pr-8 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white">
               ${sprintOptions}
           </select>
       </div>
-      <div class="flex flex-col gap-1">
-          <label class="text-xs font-bold text-gray-500 uppercase">Persona</label>
+      <div class="flex items-center gap-2 flex-wrap">
+          <label class="text-xs font-semibold text-gray-500 uppercase">Persona</label>
           <select id="person-view-people-filter" class="p-2 pr-8 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white">
               ${peopleOptions}
           </select>
       </div>
 
-      <div class="flex flex-col justify-end">
-         <button id="btn-show-velocity" class="h-[38px] px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg border border-gray-300 transition-colors flex items-center gap-2 text-sm font-semibold" title="Ver tabla de puntos por semana">
-            <i class="fas fa-table"></i> Histórico
-         </button>
-      </div>
+      <button id="btn-show-velocity" class="h-[38px] px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg border border-gray-300 transition-colors flex items-center gap-2 text-sm font-semibold" title="Ver tabla de puntos por semana">
+        <i class="fas fa-table"></i> Histórico
+      </button>
       
-      <div class="w-full md:w-auto md:ml-auto flex items-center gap-4 text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg border border-gray-100 mt-2 md:mt-0">
+      <div class="ml-auto flex items-center gap-2 text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg border border-gray-100">
           <div class="flex items-center gap-1.5" title="Puntos terminados desde el lunes">
-              <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:#22c55e; border:1px solid #16a34a;"></span>
+              <span style="display:inline-block; width:9px; height:9px; border-radius:50%; background-color:#22c55e; border:1px solid #16a34a;"></span>
               <span class="font-medium">Hecho (Semana)</span>
           </div>
           <div class="flex items-center gap-1.5" title="Puntos actualmente en la columna 'En Progreso'">
-              <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:#2563eb; border:1px solid #1d4ed8;"></span>
+              <span style="display:inline-block; width:9px; height:9px; border-radius:50%; background-color:#2563eb; border:1px solid #1d4ed8;"></span>
               <span class="font-medium">Carga Viva</span>
           </div>
       </div>
@@ -1364,19 +1515,26 @@ function renderPersonView(state) {
 
     if (emailKey === "unassigned") {
       headerHTML = `
-        <div class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors" data-person-toggle="${emailKey}">
-           <div class="flex items-center gap-3">
-               <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-400"><i class="fas fa-question"></i></div>
-               <div>
-                   <h3 class="text-base font-bold text-gray-700 italic">Sin Asignar</h3>
-                   <p class="text-xs text-gray-500">${tasks.length} tareas</p>
-               </div>
-           </div>
-           <div class="pl-2">
-                   <i class="fas fa-chevron-right chevron-icon transition-transform duration-300 text-gray-400" 
-              style="transform: ${isExpanded ? "rotate(90deg)" : "rotate(0deg)"}">
-           </i>
-               </div>
+        <div class="p-3 cursor-pointer hover:bg-gray-50 transition-colors" data-person-toggle="${emailKey}">
+          <div style="display:grid; grid-template-columns: 240px 1fr 140px; align-items:center; gap:12px;">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="rounded-full bg-gray-100 flex items-center justify-center text-gray-400" style="width: 34px; height: 34px;"><i class="fas fa-question"></i></div>
+                <div class="min-w-0">
+                    <h3 class="text-sm font-bold text-gray-700 italic truncate">Sin Asignar</h3>
+                    <p class="text-xs text-gray-500">${tasks.length} tareas</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2" style="min-height: 26px; flex-wrap: nowrap;">
+              <span class="px-2 py-0.5 rounded-full text-xs bg-green-50 text-green-700 border border-green-200 inline-flex items-center justify-center" style="min-width: 140px;">Hecho ${ptsDoneThisWeek} pts</span>
+              <span class="px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-200 inline-flex items-center justify-center" style="min-width: 140px;">Progreso ${ptsInProgress} pts</span>
+              <span class="px-2 py-0.5 rounded-full text-xs bg-gray-50 text-gray-600 border border-gray-200 inline-flex items-center justify-center" style="min-width: 140px;">Por hacer ${ptsTodo} pts</span>
+            </div>
+            <div class="flex items-center gap-2 justify-end">
+                <span class="text-sm font-bold ${loadColor}">${currentLoad}/${WEEKLY_CAPACITY} pts</span>
+                <i class="fas fa-chevron-right chevron-icon transition-transform duration-300 text-gray-400" 
+                   style="transform: ${isExpanded ? "rotate(90deg)" : "rotate(0deg)"}"></i>
+            </div>
+          </div>
         </div>`;
     } else {
       const avatar =
@@ -1384,39 +1542,28 @@ function renderPersonView(state) {
       const name = userProfile?.displayName || emailKey;
 
       headerHTML = `
-        <div class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors group/header" data-person-toggle="${userProfile ? userProfile.email : emailKey}">
-           
-           <div class="flex items-center gap-3">
-               <img src="${avatar}" class="w-10 h-10 rounded-full border border-gray-100 shadow-sm object-cover">
-               <div>
-                   <div class="flex items-center gap-2">
-                       <h3 class="text-base font-bold text-gray-800">${name}</h3>
-                       <button data-action="delete-user-profile" data-email="${emailKey}" class="opacity-0 group-hover/header:opacity-100 text-gray-300 hover:text-red-500 transition-opacity p-1" title="Borrar perfil">
-                           <i class="fas fa-trash-can text-xs"></i>
-                       </button>
-                   </div>
-               </div>
-           </div>
+        <div class="p-3 cursor-pointer hover:bg-gray-50 transition-colors group/header" data-person-toggle="${userProfile ? userProfile.email : emailKey}">
+          <div style="display:grid; grid-template-columns: 240px 1fr 140px; align-items:center; gap:12px;">
+            <div class="flex items-center gap-3 min-w-0">
+                <img src="${avatar}" class="rounded-full border border-gray-100 shadow-sm object-cover" style="width: 34px; height: 34px;">
+                <div class="min-w-0">
+                    <h3 class="text-sm font-bold text-gray-800 truncate">${name}</h3>
+                    <p class="text-xs text-gray-500">${tasks.length} tareas</p>
+                </div>
+            </div>
 
-           <div class="flex items-center gap-6">
-               
-               <div style="width: 140px; height: 12px; background-color: #f3f4f6; border-radius: 9999px; overflow: hidden; display: flex; border: 1px solid #e5e7eb; position: relative;">
-                   <div style="width: ${pctDone}%; background-color: #22c55e; height: 100%;" title="Hecho esta semana: ${ptsDoneThisWeek}"></div>
-                   <div style="width: ${pctProg}%; background-color: #2563eb; height: 100%;" title="En curso: ${ptsInProgress}"></div>
-                   <div style="width: ${pctTodo}%; background-color: #9ca3af; height: 100%; opacity: 0.5;" title="Por Hacer: ${ptsTodo}"></div>
-                   
-                   ${isOverloaded ? `<div style="position: absolute; right: 0; top: 0; bottom: 0; width: 4px; background-color: #dc2626;"></div>` : ""}
-               </div>
+            <div class="flex items-center gap-2" style="min-height: 26px; flex-wrap: nowrap;">
+              <span class="px-2 py-0.5 rounded-full text-xs bg-green-50 text-green-700 border border-green-200 inline-flex items-center justify-center" style="min-width: 140px;">Hecho ${ptsDoneThisWeek} pts</span>
+              <span class="px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-200 inline-flex items-center justify-center" style="min-width: 140px;">Progreso ${ptsInProgress} pts</span>
+              <span class="px-2 py-0.5 rounded-full text-xs bg-gray-50 text-gray-600 border border-gray-200 inline-flex items-center justify-center" style="min-width: 140px;">Por hacer ${ptsTodo} pts</span>
+            </div>
 
-               <div class="text-right min-w-[80px]">
-                   <span class="block text-sm font-bold ${loadColor}">${currentLoad} / ${WEEKLY_CAPACITY} pts</span>
-               </div>
-               <div class="pl-2">
-                   <i class="fas fa-chevron-right chevron-icon text-gray-400" 
-                      style="transform: ${isExpanded ? "rotate(90deg)" : "rotate(0deg)"}">
-                   </i>
-               </div>
-           </div>
+            <div class="flex items-center gap-2 justify-end">
+                <span class="text-sm font-bold ${loadColor}">${currentLoad}/${WEEKLY_CAPACITY} pts</span>
+                <i class="fas fa-chevron-right chevron-icon text-gray-400" 
+                   style="transform: ${isExpanded ? "rotate(90deg)" : "rotate(0deg)"}"></i>
+            </div>
+          </div>
         </div>`;
     }
 
@@ -1441,6 +1588,13 @@ function renderPersonView(state) {
       colDiv.dataset.swimlaneStatus = statusKey;
       colDiv.dataset.assignee = emailKey;
 
+      // 1. Filtrado General
+      let colTasks = tasks.filter((t) => {
+        if (statusKey === "todo")
+          return t.kanbanStatus === "todo" || !["inprogress", "done"].includes(t.kanbanStatus);
+        return t.kanbanStatus === statusKey;
+      });
+
       let headerActionHTML = "";
 
       if (statusKey === "todo") {
@@ -1450,23 +1604,17 @@ function renderPersonView(state) {
             </button>`;
       }
 
-      // CAMBIO 2: Agregamos 'flex-grow' y 'min-h-[50px]' a la swimlane-drop-zone
-      // Esto asegura que la zona de soltar tenga cuerpo aunque esté vacía.
       colDiv.innerHTML = `
         <div class="flex items-center justify-between mb-2 sticky top-0 bg-opacity-90 z-10 px-1 py-1 shrink-0">
-            <h4 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">${cols[statusKey].title}</h4>
+            <div class="flex items-center gap-2">
+              <h4 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">${cols[statusKey].title}</h4>
+              <span class="text-[10px] text-gray-400">${colTasks.length}</span>
+            </div>
             ${headerActionHTML} 
         </div>
         <div class="space-y-2 swimlane-drop-zone flex-grow min-h-[100px] w-full pb-4"></div>`;
 
       const dropZone = colDiv.querySelector(".swimlane-drop-zone");
-
-      // 1. Filtrado General
-      let colTasks = tasks.filter((t) => {
-        if (statusKey === "todo")
-          return t.kanbanStatus === "todo" || !["inprogress", "done"].includes(t.kanbanStatus);
-        return t.kanbanStatus === statusKey;
-      });
 
       // 2. Ordenamiento (Más reciente arriba)
       colTasks.sort((a, b) => {
@@ -2397,6 +2545,10 @@ export function handleRouteChange(state) {
   if (headerControls) {
     const isControlView = ["#backlog", "#sprint"].includes(hash);
     headerControls.style.visibility = isControlView ? "visible" : "hidden";
+  }
+  const backlogHeaderActions = document.getElementById("backlog-header-actions");
+  if (backlogHeaderActions) {
+    backlogHeaderActions.style.display = hash === "#backlog" ? "flex" : "none";
   }
 
   if (views[hash]) {
@@ -3634,7 +3786,7 @@ export function initializeEventListeners(state, actions) {
     const dropQuad = e.target.closest("[data-quad-list]");
     if (dropQuad) {
       e.preventDefault();
-      dropQuad.style.backgroundColor = "rgba(59, 130, 246, 0.1)";
+      dropQuad.classList.add("is-drop-target");
     }
   });
 
@@ -3646,7 +3798,7 @@ export function initializeEventListeners(state, actions) {
     }
     const dropQuad = e.target.closest("[data-quad-list]");
     if (dropQuad) {
-      dropQuad.style.backgroundColor = "";
+      dropQuad.classList.remove("is-drop-target");
     }
   });
 
@@ -3684,13 +3836,20 @@ export function initializeEventListeners(state, actions) {
     const dropQuad = e.target.closest("[data-quad-list]");
     if (dropQuad) {
       e.preventDefault();
-      dropQuad.style.backgroundColor = "";
+      dropQuad.classList.remove("is-drop-target");
       const targetQuad = dropQuad.dataset.quadList;
+      const impactThreshold = appState.triageConfig?.matrixThresholds?.impact || 3;
+      const effortThreshold = appState.triageConfig?.matrixThresholds?.effort || 3;
+      const highImpact = Math.max(impactThreshold, 1);
+      const lowImpact = Math.max(impactThreshold - 1, 0);
+      const highEffort = Math.max(effortThreshold, 1);
+      const lowEffort = Math.max(effortThreshold - 1, 0);
+
       const scoreMap = {
-        quick: { impact: 3, effort: 2 },
-        major: { impact: 3, effort: 3 },
-        filler: { impact: 2, effort: 2 },
-        maybe: { impact: 2, effort: 3 },
+        quick: { impact: highImpact, effort: lowEffort },
+        major: { impact: highImpact, effort: highEffort },
+        filler: { impact: lowImpact, effort: lowEffort },
+        maybe: { impact: lowImpact, effort: highEffort },
       };
       if (scoreMap[targetQuad]) {
         appActions.updateTask(taskId, scoreMap[targetQuad]);
@@ -4383,17 +4542,49 @@ function showVelocityReport(state) {
   });
 
   // 4. Ordenar semanas (Columnas)
-  const sortedWeeks = Array.from(allWeeks).sort().slice(-8); // ÚLTIMAS 8 SEMANAS para que quepa
+  const weeksToShow = 8;
+  const sortedWeeks = Array.from(allWeeks).sort().slice(-weeksToShow);
 
-  // 5. Construir Tabla HTML
+  // 5. Métricas globales
+  const allPoints = [];
+  Object.keys(reportData).forEach((email) => {
+    sortedWeeks.forEach((w) => allPoints.push(reportData[email][w] || 0));
+  });
+  const maxPoint = Math.max(1, ...allPoints);
+  const totalPointsGlobal = allPoints.reduce((sum, p) => sum + p, 0);
+  const avgWeeklyGlobal = (totalPointsGlobal / (sortedWeeks.length || 1)).toFixed(1);
+
+  const weekRangeLabel =
+    sortedWeeks.length > 1
+      ? `${sortedWeeks[0].replace("-", " ")} → ${sortedWeeks[sortedWeeks.length - 1].replace(
+          "-",
+          " "
+        )}`
+      : sortedWeeks[0]?.replace("-", " ") || "—";
+
+  // 6. Construir Tabla HTML
   let tableHTML = `
+    <div class="flex flex-wrap items-center gap-2 mb-3 text-xs text-gray-500">
+      <span class="px-2 py-1 rounded-full bg-gray-50 border border-gray-200">Periodo: ${weekRangeLabel}</span>
+      <span class="px-2 py-1 rounded-full bg-gray-50 border border-gray-200">Total: <strong class="text-gray-900">${totalPointsGlobal}</strong> pts</span>
+      <span class="px-2 py-1 rounded-full bg-gray-50 border border-gray-200">Promedio semanal: <strong class="text-gray-900">${avgWeeklyGlobal}</strong></span>
+    </div>
     <div class="overflow-x-auto">
         <table class="min-w-full text-sm text-left text-gray-500 border-collapse">
             <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b">
                 <tr>
                     <th class="px-4 py-3 border-r">Miembro</th>
-                    ${sortedWeeks.map((w) => `<th class="px-4 py-3 text-center border-r">${w.replace("-", " ")}</th>`).join("")}
-                    <th class="px-4 py-3 text-center bg-gray-100">Promedio</th>
+                    ${sortedWeeks
+                      .map(
+                        (w) =>
+                          `<th class="px-3 py-3 text-center border-r" style="min-width: 70px;">${w.replace(
+                            "-",
+                            " "
+                          )}</th>`
+                      )
+                      .join("")}
+                    <th class="px-3 py-3 text-center bg-gray-100">Total</th>
+                    <th class="px-3 py-3 text-center bg-gray-100">Prom</th>
                 </tr>
             </thead>
             <tbody class="bg-white">
@@ -4403,17 +4594,11 @@ function showVelocityReport(state) {
   Object.keys(reportData)
     .sort()
     .forEach((email) => {
-      // Solo mostrar usuarios que tengan al menos 1 punto en el periodo o sean activos
       const pointsInPeriod = sortedWeeks.map((w) => reportData[email][w] || 0);
       const totalPoints = pointsInPeriod.reduce((a, b) => a + b, 0);
-
-      // Ocultar filas vacías de gente inactiva (opcional, aquí las mostramos todas si son del equipo)
-      // Si quieres ocultar vacíos: if (totalPoints === 0 && email !== 'unassigned') return;
-
-      const avg = (totalPoints / sortedWeeks.length).toFixed(1);
+      const avg = (totalPoints / (sortedWeeks.length || 1)).toFixed(1);
       const name = userNames[email] || email;
 
-      // Estilo condicional para el promedio
       let avgColor = "text-gray-600";
       if (avg >= 20) avgColor = "text-green-600 font-bold";
       else if (avg < 10) avgColor = "text-amber-600";
@@ -4422,21 +4607,27 @@ function showVelocityReport(state) {
             <tr class="border-b hover:bg-gray-50 transition-colors">
                 <td class="px-4 py-3 font-medium text-gray-900 border-r whitespace-nowrap">${name}</td>
                 ${pointsInPeriod
-                  .map(
-                    (pts) => `
-                    <td class="px-4 py-3 text-center border-r ${pts > 0 ? "text-blue-600 font-semibold" : "text-gray-300"}">
-                        ${pts > 0 ? pts : "-"}
-                    </td>
-                `
-                  )
+                  .map((pts) => {
+                    const intensity = pts > 0 ? Math.min(1, pts / maxPoint) : 0;
+                    const bg = pts > 0 ? `rgba(37, 99, 235, ${0.08 + intensity * 0.35})` : "transparent";
+                    const color = pts > 0 ? "#1d4ed8" : "#cbd5e1";
+                    return `
+                      <td class="px-2 py-2 text-center border-r">
+                        <div style="min-width:64px; height:26px; line-height:26px; border-radius:8px; background:${bg}; color:${color}; font-weight:${pts > 0 ? 600 : 400};">
+                          ${pts > 0 ? pts : "—"}
+                        </div>
+                      </td>
+                    `;
+                  })
                   .join("")}
-                <td class="px-4 py-3 text-center bg-gray-50 font-bold ${avgColor}">${avg}</td>
+                <td class="px-3 py-3 text-center bg-gray-50 font-semibold text-gray-900">${totalPoints}</td>
+                <td class="px-3 py-3 text-center bg-gray-50 font-bold ${avgColor}">${avg}</td>
             </tr>
         `;
     });
 
   tableHTML += `</tbody></table></div>
-    <p class="text-xs text-gray-400 mt-2 text-right">* Se muestran las últimas 8 semanas con actividad.</p>
+    <p class="text-xs text-gray-400 mt-2 text-right">* Se muestran las últimas ${weeksToShow} semanas con actividad.</p>
     `;
 
   // 6. Mostrar Modal

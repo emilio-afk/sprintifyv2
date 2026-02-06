@@ -255,6 +255,101 @@
       #update-banner .update-banner-action:hover {
         background: #1d4ed8;
       }
+      .backlog-matrix {
+        position: relative;
+        padding: 8px 8px 28px 32px;
+      }
+      .backlog-matrix-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .matrix-axis-label {
+        font-size: 0.65rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #94a3b8;
+        font-weight: 600;
+      }
+      .matrix-axis-y {
+        position: absolute;
+        left: 4px;
+        top: 50%;
+        transform: translateY(-50%) rotate(180deg);
+        writing-mode: vertical-rl;
+      }
+      .matrix-axis-x {
+        position: absolute;
+        bottom: 6px;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      .matrix-quad {
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        background: #ffffff;
+        padding: 12px;
+        min-height: 180px;
+        box-shadow: 0 8px 16px rgba(15, 23, 42, 0.06);
+        display: flex;
+        flex-direction: column;
+      }
+      .matrix-quad.is-drop-target {
+        outline: 2px solid rgba(59, 130, 246, 0.6);
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2), 0 12px 18px rgba(15, 23, 42, 0.08);
+      }
+      .matrix-quad-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+      .matrix-quad-title {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #0f172a;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .matrix-quad-count {
+        font-size: 0.7rem;
+        color: #64748b;
+      }
+      .matrix-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        display: inline-block;
+      }
+      .matrix-quad.quick {
+        border-color: #a7f3d0;
+        background: linear-gradient(135deg, #ecfdf5 0%, #ffffff 55%);
+      }
+      .matrix-quad.major {
+        border-color: #bfdbfe;
+        background: linear-gradient(135deg, #eff6ff 0%, #ffffff 55%);
+      }
+      .matrix-quad.filler {
+        border-color: #e2e8f0;
+        background: linear-gradient(135deg, #f8fafc 0%, #ffffff 60%);
+      }
+      .matrix-quad.maybe {
+        border-color: #fed7aa;
+        background: linear-gradient(135deg, #fff7ed 0%, #ffffff 55%);
+      }
+      .matrix-dot.quick {
+        background: #10b981;
+      }
+      .matrix-dot.major {
+        background: #3b82f6;
+      }
+      .matrix-dot.filler {
+        background: #94a3b8;
+      }
+      .matrix-dot.maybe {
+        background: #f97316;
+      }
       @media (max-width: 640px) {
         #update-banner {
           left: 16px;
@@ -704,14 +799,40 @@
                       class="flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 cursor-pointer"
                       ><i class="fas fa-trash-can w-5"></i><span>Borrar Sprint</span></a
                     >
-                  </div>
                 </div>
               </div>
+            </div>
 
-              <div class="flex items-center gap-2 hidden">
-                <label for="sprint-capacity-input" class="text-sm font-medium text-gray-500"
-                  >Capacidad:</label
-                >
+            <div id="backlog-header-actions" class="hidden items-center gap-2 flex-wrap">
+              <button
+                id="toggle-backlog-view"
+                class="bg-gray-100 hover:bg-gray-200 text-sm py-2 px-3 rounded-lg flex items-center gap-2 transition-colors duration-150 border border-gray-200"
+              >
+                <i class="fas fa-table-cells"></i> Vista Matriz
+              </button>
+              <label
+                for="select-all-backlog-tasks"
+                class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-600"
+              >
+                <input
+                  id="select-all-backlog-tasks"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                Seleccionar todo
+              </label>
+              <button
+                data-action="plan-sprint"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 shadow-sm"
+              >
+                <i class="fas fa-arrow-right-to-bracket"></i> Mover al Sprint
+              </button>
+            </div>
+
+            <div class="flex items-center gap-2 hidden">
+              <label for="sprint-capacity-input" class="text-sm font-medium text-gray-500"
+                >Capacidad:</label
+              >
                 <input
                   type="number"
                   id="sprint-capacity-input"
@@ -724,35 +845,9 @@
         </header>
 
         <section id="view-backlog" class="hidden">
-          <div id="backlog-controls" class="flex flex-wrap justify-between items-center mb-4 gap-4">
-            <div class="flex items-center gap-4">
-              <p class="text-gray-600">
-                Planifica tu próximo sprint desde la fuente única de trabajo.
-              </p>
-              <button
-                id="toggle-backlog-view"
-                class="bg-gray-200 hover:bg-gray-300 text-sm py-1 px-3 rounded-lg flex items-center gap-2 transition-colors duration-150"
-              >
-                <i class="fas fa-table-cells"></i> Vista Matriz
-              </button>
-            </div>
-            <div class="flex items-center gap-4">
-              <div class="flex items-center">
-                <input
-                  id="select-all-backlog-tasks"
-                  type="checkbox"
-                  class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <label for="select-all-backlog-tasks" class="ml-2 block text-sm text-gray-900"
-                  >Seleccionar todo</label
-                >
-              </div>
-              <button
-                data-action="plan-sprint"
-                class="bg-blue-500 hover:bg-blue-900 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-opacity"
-              >
-                <i class="fas fa-arrow-right-to-bracket"></i> Mover al Sprint
-              </button>
+          <div id="backlog-controls" class="mb-4">
+            <div class="text-xs text-gray-500">
+              Planifica tu próximo sprint desde la fuente única de trabajo.
             </div>
           </div>
           <div id="backlog-tasks-container" class="space-y-4"></div>
