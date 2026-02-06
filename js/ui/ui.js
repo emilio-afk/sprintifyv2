@@ -648,6 +648,44 @@ function renderEpics(state) {
   if (!container) return;
   container.innerHTML = "";
 
+  const toolbar = document.getElementById("epics-toolbar");
+  if (toolbar) {
+    toolbar.innerHTML = `
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+        <div class="flex items-center gap-3">
+          <input type="text" id="epics-search" placeholder="Buscar epics por nombre..." 
+            class="px-4 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+            style="width: 260px; height: 40px;"
+            value="${state.epicsSearch}">
+
+          <select id="epics-status-filter" class="py-2 px-3 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none" style="height: 40px;">
+            <option value="">Todos los Estados</option>
+            <option value="Por Empezar" ${state.epicsStatusFilter === "Por Empezar" ? "selected" : ""}>🚀 Por Empezar</option>
+            <option value="En Progreso" ${state.epicsStatusFilter === "En Progreso" ? "selected" : ""}>⚡ En Progreso</option>
+            <option value="Completado" ${state.epicsStatusFilter === "Completado" ? "selected" : ""}>✅ Completado</option>
+          </select>
+
+          <select id="epics-sort" class="py-2 px-3 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none" style="height: 40px;">
+            <option value="recent" ${state.epicsSortMode === "recent" ? "selected" : ""}>Recientes primero</option>
+            <option value="progress_asc" ${state.epicsSortMode === "progress_asc" ? "selected" : ""}>Progreso (menor %)</option>
+            <option value="progress_desc" ${state.epicsSortMode === "progress_desc" ? "selected" : ""}>Progreso (mayor %)</option>
+            <option value="points_asc" ${state.epicsSortMode === "points_asc" ? "selected" : ""}>Puntos (menor)</option>
+            <option value="points_desc" ${state.epicsSortMode === "points_desc" ? "selected" : ""}>Puntos (mayor)</option>
+          </select>
+
+          <button
+            data-action="new-epic"
+            class="bg-blue-500 hover:bg-blue-900 text-white font-semibold py-2 px-3 rounded-md flex items-center gap-2 transition-opacity"
+            style="height: 40px;"
+          >
+            <i class="fa-solid fa-plus fa-fw inline-block w-4 h-4 text-current"></i>
+            Nuevo Epic
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
   if (state.epics.length === 0) {
     container.innerHTML = `<div class="col-span-full text-center py-12 bg-white rounded-xl border-2 border-dashed border-gray-300">
       <div class="text-gray-300 mb-3"><i class="fas fa-book-atlas text-5xl"></i></div>
@@ -655,35 +693,6 @@ function renderEpics(state) {
     </div>`;
     return;
   }
-
-  // ===== CONTROLES DE FILTRO (NUEVO) =====
-  const controlsDiv = document.createElement("div");
-  controlsDiv.className =
-    "mb-6 flex flex-wrap gap-4 items-end bg-white p-4 rounded-xl shadow-sm border border-gray-100";
-  controlsDiv.innerHTML = `
-    <div class="flex-1 min-w-64 relative">
-      <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-      <input type="text" id="epics-search" placeholder="Buscar epics por nombre..." 
-        class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-        value="${state.epicsSearch}">
-    </div>
-
-    <select id="epics-status-filter" class="p-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
-      <option value="">Todos los Estados</option>
-      <option value="Por Empezar" ${state.epicsStatusFilter === "Por Empezar" ? "selected" : ""}>🚀 Por Empezar</option>
-      <option value="En Progreso" ${state.epicsStatusFilter === "En Progreso" ? "selected" : ""}>⚡ En Progreso</option>
-      <option value="Completado" ${state.epicsStatusFilter === "Completado" ? "selected" : ""}>✅ Completado</option>
-    </select>
-
-    <select id="epics-sort" class="p-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
-      <option value="recent" ${state.epicsSortMode === "recent" ? "selected" : ""}>Recientes primero</option>
-      <option value="progress_asc" ${state.epicsSortMode === "progress_asc" ? "selected" : ""}>Progreso (menor %)</option>
-      <option value="progress_desc" ${state.epicsSortMode === "progress_desc" ? "selected" : ""}>Progreso (mayor %)</option>
-      <option value="points_asc" ${state.epicsSortMode === "points_asc" ? "selected" : ""}>Puntos (menor)</option>
-      <option value="points_desc" ${state.epicsSortMode === "points_desc" ? "selected" : ""}>Puntos (mayor)</option>
-    </select>
-  `;
-  container.appendChild(controlsDiv);
 
   // Attach listeners (se llama a actions, no manipula DOM directamente)
   const searchInput = document.getElementById("epics-search");
@@ -804,9 +813,9 @@ function renderEpicCards(epics, state) {
     }
 
     // --- HEALTH INDICATOR (NUEVO) ---
-    let healthIcon = "🟢";
+    let healthIcon = "●";
     let healthLabel = "On Track";
-    let healthColor = "text-green-600";
+    let healthColor = "text-green-700";
     // --- TIME-BASED PROGRESS ---
     let percentTimeElapsed = null;
     let deltaPercent = null;
@@ -828,13 +837,11 @@ function renderEpicCards(epics, state) {
     if (totalPoints > 0) {
       const expectedProgress = percentTimeElapsed != null ? percentTimeElapsed : 100;
       if (progressPercent < expectedProgress * 0.7) {
-        healthIcon = "🔴";
         healthLabel = "Behind";
         healthColor = "text-red-600";
       } else if (progressPercent < expectedProgress) {
-        healthIcon = "🟡";
         healthLabel = "At Risk";
-        healthColor = "text-yellow-600";
+        healthColor = "text-amber-700";
       }
     }
 
@@ -850,7 +857,7 @@ function renderEpicCards(epics, state) {
       .map((kr, index) => {
         const isChecked = completedIndices.includes(index);
         return `
-        <div class="flex items-start gap-3 text-xs p-3 rounded-lg border transition-colors bg-white ${isChecked ? "border-green-200 bg-green-50/40" : "border-gray-200"}">
+        <div class="flex items-start gap-2 text-xs p-2 rounded-md border transition-colors bg-white ${isChecked ? "border-green-200" : "border-gray-200"}">
           <input type="checkbox" 
                  class="epic-kr-checkbox mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer flex-shrink-0"
                  data-epic-id="${epic.id}"
@@ -863,15 +870,15 @@ function renderEpicCards(epics, state) {
 
     const statusConfig = {
       "Por Empezar": {
-        class: "bg-gray-100 text-gray-600",
+        class: "bg-gray-100 text-gray-700 border border-gray-200",
         icon: "fa-hourglass-start",
       },
       "En Progreso": {
-        class: "bg-blue-50 text-blue-700",
+        class: "bg-blue-50 text-blue-700 border border-gray-200",
         icon: "fa-person-running",
       },
       Completado: {
-        class: "bg-emerald-50 text-emerald-700",
+        class: "bg-gray-100 text-green-700 border border-green-200",
         icon: "fa-check-circle",
       },
     };
@@ -886,9 +893,9 @@ function renderEpicCards(epics, state) {
     // Delta badge color based on how far ahead/behind the epic is relative to time
     let deltaColorClass = "text-gray-600";
     if (deltaPercent != null) {
-      if (deltaPercent >= 10) deltaColorClass = "text-green-600";
+      if (deltaPercent >= 10) deltaColorClass = "text-green-700";
       else if (deltaPercent <= -10) deltaColorClass = "text-red-600";
-      else deltaColorClass = "text-yellow-600";
+      else deltaColorClass = "text-amber-700";
     }
     const deltaSign =
       deltaPercent == null ? "" : deltaPercent > 0 ? "+" : deltaPercent < 0 ? "-" : "";
@@ -896,20 +903,19 @@ function renderEpicCards(epics, state) {
     // --- RENDERIZADO ---
     const epicCard = document.createElement("div");
     epicCard.className =
-      "epic-card bg-white rounded-xl shadow-sm hover:shadow-lg border border-gray-200 flex flex-col transition-all duration-200 relative overflow-hidden group h-fit";
+      "epic-card bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col transition-all duration-200 relative overflow-hidden group h-fit";
     epicCard.dataset.id = epic.id;
 
     epicCard.innerHTML = `
-      <div class="h-1.5 w-full absolute top-0 left-0" style="background-color: ${epicColor}"></div>
+      <div class="h-1 w-full absolute top-0 left-0" style="background-color: ${epicColor}"></div>
 
-      <div class="p-6">
-        
-        <div class="flex justify-between items-start mb-4">
+      <div class="p-4">
+        <div class="flex justify-between items-center mb-2">
             <div class="flex items-center gap-2">
-              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border border-transparent ${statusStyle.class}">
-                  <i class="fa-solid ${statusStyle.icon}"></i> ${epic.status}
+              <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold uppercase tracking-wider ${statusStyle.class}" style="font-size: 10px;">
+                  <i class="fa-solid ${statusStyle.icon}" style="font-size: 10px;"></i> ${epic.status}
               </span>
-              <span class="text-lg ${healthColor}" title="${healthLabel}">${healthIcon}</span>
+              <span class="${healthColor}" title="${healthLabel}">${healthIcon}</span>
             </div>
             <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button data-action="edit-epic" class="text-gray-400 hover:text-blue-600 transition-colors"><i class="fas fa-pencil"></i></button>
@@ -917,67 +923,33 @@ function renderEpicCards(epics, state) {
             </div>
         </div>
 
-        <div class="mb-6">
-            <h3 class="text-lg font-bold text-slate-900 leading-snug mb-2" title="${epic.title}">${epic.title}</h3>
-            <p class="text-sm text-slate-500 line-clamp-2 leading-relaxed">${epic.description || "Sin descripción."}</p>
+        <div class="mb-2">
+            <h3 class="font-semibold text-gray-900 truncate" style="font-size: 16px;" title="${epic.title}">${epic.title}</h3>
+            <p class="text-xs text-gray-500 truncate">${epic.description || "Sin descripción."}</p>
         </div>
 
-        <!-- PROGRESS BAR VISUAL (NUEVO) -->
-        <div class="mb-4">
-          <div class="flex justify-between items-center mb-2 text-xs text-gray-500">
-            <span>Puntos:</span>
-            <span class="text-gray-800 font-bold">${completedPoints}/${totalPoints} pts</span>
-          </div>
-          <div class="w-full h-3 bg-gray-200 rounded-full overflow-hidden relative">
-            <div 
-              class="h-full transition-all duration-500 ease-out rounded-full"
-              style="width: ${Math.min(progressPercent, 100)}%; background-color: ${barColor};"
-            ></div>
-            ${percentTimeElapsed != null ? `<div class="absolute top-0" style="left: ${Math.min(percentTimeElapsed, 100)}%; height:100%; width:2px; transform: translateX(-1px); background-color: rgba(0,0,0,0.25)"></div>` : ``}
-          </div>
-
-          <div class="mt-3 text-xs text-gray-600 space-y-1">
-            <div class="flex justify-between items-center">
-              <span class="text-gray-500">Progreso:</span>
-              <span class="text-gray-800 font-bold">${Math.round(progressPercent)}%</span>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-gray-500">Tiempo transcurrido:</span>
-              <span class="text-gray-800 font-bold">${percentTimeElapsed != null ? Math.round(percentTimeElapsed) + "%" : "—"}</span>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-gray-500">Desfase:</span>
-              <span class="${deltaColorClass} font-bold">${deltaPercent != null ? deltaSign + Math.abs(Math.round(deltaPercent)) + "%" : "—"}</span>
-            </div>
-          </div>
+        <div class="flex items-center justify-between text-xs text-gray-600">
+          <span><span class="text-gray-500">Pts</span> <span class="font-semibold text-gray-900">${completedPoints}/${totalPoints}</span></span>
+          <span><span class="text-gray-500">Prog</span> <span class="font-semibold text-gray-900">${Math.round(progressPercent)}%</span></span>
+          <span><span class="text-gray-500">Tiempo</span> <span class="font-semibold text-gray-900">${timeLabel}</span></span>
+          <span class="${deltaColorClass} font-semibold">${deltaPercent != null ? deltaSign + Math.abs(Math.round(deltaPercent)) + "%" : "—"}</span>
         </div>
 
-        <div class="flex w-full items-center py-4 border-t border-gray-100 mt-4 divide-x divide-gray-100">
-            
-            <div class="flex-1 flex flex-col items-center justify-center px-1">
-                 <span class="text-xl font-bold text-slate-800 leading-none mb-1">${Math.round(krProgress)}%</span>
-                 <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wide">Progreso</span>
-            </div>
-
-            <div class="flex-1 flex flex-col items-center justify-center px-1">
-                <span class="text-xl font-bold text-slate-800 leading-none mb-1">${validCompletedCount}/${totalDefined}</span>
-                <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wide">KRs</span>
-            </div>
-
-            <div class="flex-1 flex flex-col items-center justify-center px-1">
-                <span class="text-sm font-bold text-slate-800 leading-none mb-1 truncate max-w-full" title="${timeLabel}">${timeLabel}</span>
-                <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wide">Tiempo</span>
-            </div>
+        <div class="mt-2 w-full bg-gray-200 rounded-full overflow-hidden relative" style="height: 8px;">
+          <div 
+            class="h-full transition-all duration-500 ease-out rounded-full"
+            style="width: ${Math.min(progressPercent, 100)}%; background-color: ${barColor};"
+          ></div>
+          ${percentTimeElapsed != null ? `<div class="absolute top-0" style="left: ${Math.min(percentTimeElapsed, 100)}%; height:100%; width:2px; transform: translateX(-1px); background-color: rgba(0,0,0,0.25)"></div>` : ``}
         </div>
-
       </div>
 
-      <button data-action="toggle-details" class="w-full py-3 bg-gray-50 hover:bg-gray-100 border-t border-gray-100 text-xs font-bold text-gray-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-2 group-open">
-          <span>${isExpanded ? "Ocultar Objetivos" : "Ver Objetivos"}</span>
+      <button data-action="toggle-details" class="w-full py-2 border-t border-gray-200 text-xs font-semibold text-gray-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-2">
+          <span>${isExpanded ? "Ocultar objetivos" : "Ver objetivos"}</span>
           <i class="fas fa-chevron-down transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}"></i>
       </button>
 
-      <div class="bg-gray-50 px-6 pb-6 pt-1 space-y-2 animate-fade-in ${isExpanded ? "" : "hidden"}">
+      <div class="bg-gray-50 px-4 pb-4 pt-2 space-y-2 animate-fade-in ${isExpanded ? "" : "hidden"}">
          ${krsListHTML || '<p class="text-xs text-gray-400 italic text-center py-2">Sin KRs definidos.</p>'}
       </div>
     `;

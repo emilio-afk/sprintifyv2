@@ -197,6 +197,10 @@
         border-color: var(--brand-700);
         box-shadow: 0 0 0 2px white;
       }
+      .epic-color-compact .color-swatch {
+        width: 18px;
+        height: 18px;
+      }
 
       .online-indicator {
         position: absolute;
@@ -755,16 +759,7 @@
         </section>
 
         <section id="view-epics" class="hidden">
-          <div class="flex justify-between items-center mb-4">
-            <p class="text-gray-600">Agrupa tus sprints en proyectos estratégicos de alto nivel.</p>
-            <button
-              data-action="new-epic"
-              class="bg-blue-500 hover:bg-blue-900 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-opacity"
-            >
-              <i class="fa-solid fa-plus fa-fw inline-block w-5 h-5 text-current"></i>
-              Nuevo Epic
-            </button>
-          </div>
+          <div id="epics-toolbar" class="mb-4"></div>
           <div id="epics-container" class="space-y-4"></div>
         </section>
 
@@ -1138,57 +1133,64 @@
             </div>
           </div>
 
-          <div id="modal-epic-inputs" class="hidden space-y-4">
+          <div id="modal-epic-inputs" class="hidden space-y-2">
             <input type="hidden" id="modal-epic-id" />
 
-            <div class="flex flex-col md:flex-row gap-4">
-              <div class="flex-1">
+            <div class="flex flex-wrap gap-3 items-end">
+              <div style="flex: 2 1 280px; min-width: 220px;">
+                <label class="text-xs font-bold text-gray-500 uppercase block mb-1">Título</label>
                 <input
                   type="text"
                   id="modal-epic-title"
                   placeholder="Título del Epic"
-                  class="w-full p-2 border rounded"
+                  class="w-full p-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-              <div class="w-full md:w-1/3">
-                <select id="modal-epic-status" class="w-full p-2 border rounded bg-gray-50">
+              <div style="flex: 1 1 180px; min-width: 160px;">
+                <label class="text-xs font-bold text-gray-500 uppercase block mb-1">Estado</label>
+                <select
+                  id="modal-epic-status"
+                  class="w-full p-2 border border-gray-300 rounded-md bg-gray-50 text-sm focus:ring-2 focus:ring-blue-500"
+                >
                   <option value="Por Empezar">Por Empezar</option>
                   <option value="En Progreso">En Progreso</option>
                   <option value="Completado">Completado</option>
                 </select>
               </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label class="text-xs font-bold text-gray-500 uppercase">Inicio</label>
+              <div style="flex: 1 1 160px; min-width: 150px;">
+                <label class="text-xs font-bold text-gray-500 uppercase block mb-1">Inicio</label>
                 <input
                   type="date"
                   id="modal-epic-start-date"
-                  class="w-full p-2 border rounded text-sm"
+                  class="w-full p-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-              <div>
-                <label class="text-xs font-bold text-gray-500 uppercase">Fin</label>
+              <div style="flex: 1 1 160px; min-width: 150px;">
+                <label class="text-xs font-bold text-gray-500 uppercase block mb-1">Fin</label>
                 <input
                   type="date"
                   id="modal-epic-end-date"
-                  class="w-full p-2 border rounded text-sm"
+                  class="w-full p-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
 
-            <textarea
-              id="modal-epic-description"
-              placeholder="Descripción"
-              class="w-full p-2 border rounded"
-            ></textarea>
+            <div>
+              <label class="text-xs font-bold text-gray-500 uppercase block mb-1">Descripción</label>
+              <textarea
+                id="modal-epic-description"
+                placeholder="Describe el objetivo del epic…"
+                class="w-full p-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
+                rows="2"
+              ></textarea>
+            </div>
 
             <div>
-              <label class="text-xs font-bold text-gray-500 uppercase mb-2 block">Color:</label>
+              <label class="text-xs font-bold text-gray-500 uppercase mb-1 block">Color:</label>
               <div
                 id="epic-color-palette"
-                class="flex flex-wrap gap-3 p-2 border rounded bg-gray-50"
+                class="flex flex-wrap p-2 border border-gray-200 rounded-md bg-gray-50 epic-color-compact"
+                style="gap: 6px;"
               >
                 <div
                   class="color-swatch"
@@ -1287,37 +1289,39 @@
             </div>
 
             <div id="kr-inputs-container" class="space-y-2">
-              <p class="text-xs font-bold text-gray-500 uppercase">Key Results (Max 5):</p>
-              <input
-                type="text"
-                id="modal-epic-kr-0"
-                class="kr-input w-full p-2 border rounded text-sm"
-                placeholder="KR 1"
-              />
-              <input
-                type="text"
-                id="modal-epic-kr-1"
-                class="kr-input w-full p-2 border rounded text-sm"
-                placeholder="KR 2"
-              />
-              <input
-                type="text"
-                id="modal-epic-kr-2"
-                class="kr-input w-full p-2 border rounded text-sm"
-                placeholder="KR 3"
-              />
-              <input
-                type="text"
-                id="modal-epic-kr-3"
-                class="kr-input w-full p-2 border rounded text-sm"
-                placeholder="KR 4"
-              />
-              <input
-                type="text"
-                id="modal-epic-kr-4"
-                class="kr-input w-full p-2 border rounded text-sm"
-                placeholder="KR 5"
-              />
+              <p class="text-xs font-bold text-gray-500 uppercase">Key Results (max 5):</p>
+              <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;">
+                <input
+                  type="text"
+                  id="modal-epic-kr-0"
+                  class="kr-input w-full p-2 border border-gray-300 rounded-md text-sm"
+                  placeholder="KR 1"
+                />
+                <input
+                  type="text"
+                  id="modal-epic-kr-1"
+                  class="kr-input w-full p-2 border border-gray-300 rounded-md text-sm"
+                  placeholder="KR 2"
+                />
+                <input
+                  type="text"
+                  id="modal-epic-kr-2"
+                  class="kr-input w-full p-2 border border-gray-300 rounded-md text-sm"
+                  placeholder="KR 3"
+                />
+                <input
+                  type="text"
+                  id="modal-epic-kr-3"
+                  class="kr-input w-full p-2 border border-gray-300 rounded-md text-sm"
+                  placeholder="KR 4"
+                />
+                <input
+                  type="text"
+                  id="modal-epic-kr-4"
+                  class="kr-input w-full p-2 border border-gray-300 rounded-md text-sm"
+                  placeholder="KR 5"
+                />
+              </div>
             </div>
           </div>
 
