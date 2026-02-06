@@ -68,6 +68,7 @@ const state = {
   handbookEntries: [],
   triageConfig: null,
   sprintsSummaryFilter: "active",
+  activityFilter: "unread",
   epicsSearch: "",
   epicsStatusFilter: "",
   epicsSortMode: "recent",
@@ -85,6 +86,7 @@ function requestRender() {
       ui.renderOnlineUsers(state.onlineUsers);
       ui.renderActiveSprintTitle(state);
       ui.updateSprintCapacityInput(state);
+      checkUnreadActivity();
     }
   });
 }
@@ -92,6 +94,24 @@ function requestRender() {
 // ------------------ Pequeños helpers ------------------
 const getTaskById = (id) => state.tasks.find((t) => t.id === id);
 const assertUserOr = (fallback) => (state.user ? true : (fallback?.(), false));
+const normalizeTimelineDate = (date, zoomMode) => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  if (zoomMode === "week") {
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday as start
+    d.setDate(diff);
+  } else if (zoomMode === "quarter") {
+    const startMonth = Math.floor(d.getMonth() / 3) * 3;
+    d.setMonth(startMonth, 1);
+  } else if (zoomMode === "year") {
+    d.setMonth(0, 1);
+  } else {
+    d.setDate(1);
+  }
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
 
 // ------------------ Acciones ------------------
 const actions = {
@@ -191,6 +211,10 @@ const actions = {
   },
   setSprintsSummaryFilter: (filter) => {
     state.sprintsSummaryFilter = filter;
+    requestRender();
+  },
+  setActivityFilter: (filter) => {
+    state.activityFilter = filter;
     requestRender();
   },
   async updateTask(taskId, updates) {
@@ -626,13 +650,15 @@ const actions = {
   },
   setTimelineZoom: (zoom) => {
     state.timelineZoom = zoom;
+    state.timelineDate = normalizeTimelineDate(state.timelineDate, zoom);
     requestRender();
   },
   setTimelineDate: (inc) => {
     const storedZoom =
       (typeof localStorage !== "undefined" && localStorage.getItem("timelineZoom")) || null;
     const zoomMode = state.timelineZoom || storedZoom || "month";
-    const nextDate = new Date(state.timelineDate);
+    const baseDate = normalizeTimelineDate(state.timelineDate, zoomMode);
+    const nextDate = new Date(baseDate);
 
     if (zoomMode === "week") {
       nextDate.setDate(nextDate.getDate() + inc * 7);
@@ -644,7 +670,7 @@ const actions = {
       nextDate.setMonth(nextDate.getMonth() + inc);
     }
 
-    state.timelineDate = nextDate;
+    state.timelineDate = normalizeTimelineDate(nextDate, zoomMode);
     requestRender();
   },
   setCurrentSprintId: (id) => {

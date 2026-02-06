@@ -60,14 +60,14 @@
         position: relative;
         display: flex;
         flex-direction: column;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        box-shadow: var(--shadow-md);
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
         padding-left: 10px;
       }
       .task-card:hover {
-        transform: translateY(-3px);
-        box-shadow: var(--shadow-lg);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
       }
 
       .timeline-bar {
@@ -208,11 +208,83 @@
         border-radius: 50%;
         border: 2px solid var(--surface);
       }
+      /* Oculto por ahora: botón de Calendar (se puede reactivar removiendo esta regla) */
+      #calendar-connection-ui {
+        display: none;
+      }
 
       #modal-content {
         max-height: 85vh;
         display: flex;
         flex-direction: column;
+      }
+      #main-content > header {
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      #view-title {
+        padding: 0 !important;
+        margin: 0;
+        flex: 1 1 auto;
+        min-width: 0;
+        line-height: 1.1;
+      }
+      #view-title .view-title-stats {
+        display: block;
+        font-size: 0.95rem;
+        color: var(--muted);
+        font-weight: 500;
+        margin-top: 4px;
+      }
+      #header-controls {
+        align-items: center;
+        gap: 12px;
+      }
+      #header-controls > * {
+        display: flex;
+        align-items: center;
+      }
+      #header-controls button,
+      #header-controls select {
+        height: 40px;
+      }
+      #header-controls button {
+        display: inline-flex;
+        align-items: center;
+      }
+      #header-controls .sprint-menu-button {
+        width: 40px;
+        padding: 0;
+        justify-content: center;
+      }
+      .sprint-control {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 6px 8px;
+        box-shadow: var(--shadow-sm);
+      }
+      .sprint-control .sprint-label {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-left: 6px;
+      }
+      .sprint-control .sprint-divider {
+        width: 1px;
+        height: 28px;
+        background: #e5e7eb;
+      }
+      .sprint-control .sprint-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding-right: 2px;
       }
       #modal-body {
         flex: 1 1 auto;
@@ -455,7 +527,7 @@
                 class="sidebar-link text-sm flex items-center gap-3 -ml-3 px-3 py-2 rounded-lg relative transition-colors duration-150"
               >
                 <i class="fas fa-bell w-5"></i>
-                <span>Actividad</span>
+                <span>Notificaciones</span>
                 <span
                   id="activity-unread-indicator"
                   class="hidden absolute right-0 w-2.5 h-2.5 bg-red-500 rounded-full"
@@ -531,27 +603,58 @@
       </aside>
 
       <main id="main-content" class="flex-1 p-8 overflow-y-auto hidden">
-        <header class="flex flex-wrap justify-between items-center mb-6 gap-4">
+        <header class="flex flex-wrap justify-between items-center gap-3">
           <h2 id="view-title" class="text-3xl rounded-lg font-semibold mt--10 px-3 pt-2 pb-2">
             Backlog
           </h2>
 
-          <div id="header-controls" class="flex items-center gap-6 ml-auto">
+          <div id="header-controls" class="flex items-center gap-4 ml-auto">
             <div id="calendar-connection-ui"></div>
 
-            <div
-              class="flex items-center gap-4 bg-white p-2 rounded-lg shadow-sm border border-gray-200"
-            >
-              <div class="flex items-center gap-2">
-                <label for="sprint-list-select" class="text-sm font-medium text-gray-500 pl-2"
-                  >Sprint:</label
+            <div class="sprint-control">
+              <span class="sprint-label">Sprint</span>
+              <select
+                id="sprint-list-select"
+                class="p-1 border-none rounded-md bg-gray-50 text-sm focus:ring-2 focus:ring-blue-500"
+              ></select>
+              <span class="sprint-divider"></span>
+              <div class="sprint-actions">
+                <button
+                  data-action="new-sprint"
+                  class="bg-blue-500 hover:bg-blue-900 text-white font-semibold py-2 px-3 rounded-md transition-colors flex items-center gap-2"
+                  title="Nuevo Sprint"
                 >
-                <select
-                  id="sprint-list-select"
-                  class="p-1 border-none rounded-md bg-gray-50 focus:ring-2 focus:ring-blue-500"
-                ></select>
+                  <i class="fas fa-plus"></i>
+                </button>
+
+                <div id="sprint-menu-container" class="sprint-menu-container">
+                  <button
+                    data-action="toggle-sprint-menu"
+                    class="sprint-menu-button bg-white border border-gray-200 text-gray-600 font-semibold py-2 px-3 rounded-md transition-colors shadow-sm"
+                    title="Más acciones"
+                  >
+                    <i class="fas fa-ellipsis-v"></i>
+                  </button>
+                  <div class="sprint-menu-content py-1">
+                    <a
+                      data-action="edit-sprint"
+                      class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
+                      ><i class="fas fa-pencil w-5 text-gray-500"></i><span>Editar Sprint</span></a
+                    >
+                    <a
+                      data-action="archive-sprint"
+                      class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
+                      ><i class="fas fa-archive w-5 text-gray-500"></i><span>Archivar Sprint</span></a
+                    >
+                    <a
+                      data-action="delete-sprint"
+                      class="flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 cursor-pointer"
+                      ><i class="fas fa-trash-can w-5"></i><span>Borrar Sprint</span></a
+                    >
+                  </div>
+                </div>
               </div>
-              <div class="h-6 border-l border-gray-200"></div>
+
               <div class="flex items-center gap-2 hidden">
                 <label for="sprint-capacity-input" class="text-sm font-medium text-gray-500"
                   >Capacidad:</label
@@ -562,42 +665,6 @@
                   class="p-1 border-none rounded-md bg-gray-50 w-20 focus:ring-2 focus:ring-blue-500"
                   placeholder="Pts"
                 />
-              </div>
-            </div>
-
-            <div class="flex items-center gap-2">
-              <button
-                data-action="new-sprint"
-                class="bg-blue-500 hover:bg-blue-900 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
-              >
-                <i class="fas fa-plus"></i>
-                <span>Nuevo Sprint</span>
-              </button>
-
-              <div id="sprint-menu-container" class="sprint-menu-container">
-                <button
-                  data-action="toggle-sprint-menu"
-                  class="sprint-menu-button bg-blue-500 hover:bg-blue-900 text-gray-200 font-bold py-2 px-3 rounded-lg transition-colors"
-                >
-                  <i class="fas fa-ellipsis-v"></i>
-                </button>
-                <div class="sprint-menu-content py-1">
-                  <a
-                    data-action="edit-sprint"
-                    class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
-                    ><i class="fas fa-pencil w-5 text-gray-500"></i><span>Editar Sprint</span></a
-                  >
-                  <a
-                    data-action="archive-sprint"
-                    class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
-                    ><i class="fas fa-archive w-5 text-gray-500"></i><span>Archivar Sprint</span></a
-                  >
-                  <a
-                    data-action="delete-sprint"
-                    class="flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 cursor-pointer"
-                    ><i class="fas fa-trash-can w-5"></i><span>Borrar Sprint</span></a
-                  >
-                </div>
               </div>
             </div>
           </div>
@@ -647,7 +714,7 @@
         </section>
 
         <section id="view-sprint" class="hidden">
-          <div class="flex gap-6 h-full overflow-x-auto items-start" id="kanban-grid">
+          <div class="flex gap-4 h-full overflow-x-auto items-start" id="kanban-grid">
             <div
               id="col-todo-wrapper"
               class="flex-1 bg-gray-50 rounded-xl p-4 flex flex-col transition-all duration-300 ease-in-out"
@@ -889,26 +956,34 @@
           />
 
           <div id="modal-task-details" class="hidden space-y-6">
-            <div class="border-b border-gray-100 pb-4">
-              <div class="flex justify-between items-center gap-4">
+            <div class="pb-4">
+              <div class="flex justify-between items-start gap-4">
                 <div class="w-full">
-                  <span
-                    class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block"
-                    >Tarea</span
-                  >
                   <h4
                     id="modal-task-title"
-                    class="text-xl md:text-2xl font-bold text-slate-900 leading-tight"
+                    class="text-xl md:text-2xl font-bold text-gray-900 leading-tight"
                   ></h4>
                 </div>
                 <div id="modal-task-status" class="shrink-0"></div>
               </div>
 
-              <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="flex flex-col gap-1 bg-gray-50 p-3 rounded-lg border border-gray-100">
-                  <label class="text-[9px] font-bold text-gray-400 uppercase ml-1"
-                    >Proyecto (Epic)</label
-                  >
+              <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div
+                  id="modal-task-epic-field"
+                  class="flex flex-col gap-1 bg-gray-50 p-2 rounded-lg border border-gray-200 justify-start"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <label class="text-[9px] font-bold text-gray-400 uppercase ml-1"
+                      >Proyecto (Epic)</label
+                    >
+                    <div
+                      id="modal-task-epic-hint"
+                      class="hidden inline-flex items-center bg-red-500 text-white font-semibold uppercase rounded-full"
+                      style="font-size: 9px; line-height: 1.1; padding: 2px 6px;"
+                    >
+                      Falta definir
+                    </div>
+                  </div>
                   <div class="relative">
                     <select
                       id="modal-task-epic-select"
@@ -917,7 +992,9 @@
                   </div>
                 </div>
 
-                <div class="flex flex-col gap-1 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                <div
+                  class="flex flex-col gap-1 bg-gray-50 p-2 rounded-lg border border-gray-200"
+                >
                   <label class="text-[9px] font-bold text-gray-400 uppercase ml-1"
                     >Resultado Clave (KR)</label
                   >
@@ -932,44 +1009,61 @@
             </div>
 
             <div>
-              <h4
-                class="text-[11px] font-bold text-gray-400 uppercase mb-3 flex items-center gap-2"
-              >
-                <i class="fa-solid fa-list-check"></i> Detalle de Tarea
-              </h4>
-              <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                 <div
-                  class="p-3 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col justify-center min-h-[80px]"
+                  class="p-2 bg-gray-50 rounded-lg border border-gray-200 flex flex-col justify-start min-h-[64px]"
                 >
                   <span class="text-[9px] font-bold text-gray-400 uppercase mb-1"
                     >Sprint Actual</span
                   >
                   <span
                     id="modal-task-sprint"
-                    class="text-xs font-bold text-slate-700 leading-tight line-clamp-2"
+                    class="text-xs font-bold text-gray-700 leading-tight line-clamp-2"
                   ></span>
                 </div>
 
                 <div
-                  class="p-3 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col items-center justify-center min-h-[80px]"
+                  id="modal-task-points-field"
+                  class="p-2 bg-gray-50 rounded-lg border border-gray-200 flex flex-col justify-start min-h-[64px]"
                 >
-                  <span class="text-[9px] font-bold text-gray-400 uppercase mb-1">Puntos</span>
-                  <span
-                    id="modal-task-points"
-                    class="text-3xl font-black text-blue-600 leading-none"
-                    >0</span
-                  >
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-[9px] font-bold text-gray-400 uppercase">Puntos</span>
+                    <div
+                      id="modal-task-points-hint"
+                      class="hidden inline-flex items-center bg-red-500 text-white font-semibold uppercase rounded-full"
+                      style="font-size: 9px; line-height: 1.1; padding: 2px 6px;"
+                    >
+                      Falta definir
+                    </div>
+                  </div>
+                  <div class="flex items-center justify-between mt-1">
+                    <span
+                      id="modal-task-points"
+                      class="text-2xl font-black text-blue-600 leading-none ml-auto"
+                      >0</span
+                    >
+                  </div>
                 </div>
 
                 <div
-                  class="p-3 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col justify-center min-h-[80px]"
+                  id="modal-task-assignee-field"
+                  class="p-2 bg-gray-50 rounded-lg border border-gray-200 flex flex-col justify-start min-h-[64px]"
                 >
-                  <span class="text-[9px] font-bold text-gray-400 uppercase mb-2">Asignado</span>
+                  <div class="flex items-center justify-between gap-2 mb-2">
+                    <span class="text-[9px] font-bold text-gray-400 uppercase">Asignado</span>
+                    <div
+                      id="modal-task-assignee-hint"
+                      class="hidden inline-flex items-center bg-red-500 text-white font-semibold uppercase rounded-full"
+                      style="font-size: 9px; line-height: 1.1; padding: 2px 6px;"
+                    >
+                      Falta definir
+                    </div>
+                  </div>
                   <div id="modal-task-assignee" class="flex items-center text-xs truncate"></div>
                 </div>
 
                 <div
-                  class="p-3 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col justify-center min-h-[80px]"
+                  class="p-2 bg-gray-50 rounded-lg border border-gray-200 flex flex-col justify-start min-h-[64px]"
                 >
                   <span class="text-[9px] font-bold text-gray-400 uppercase mb-2"
                     >Dueño (Reporter)</span
@@ -979,14 +1073,12 @@
               </div>
             </div>
 
-            <div class="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+            <div class="hidden border border-gray-200 rounded-xl overflow-hidden shadow-sm">
               <button
                 data-action="toggle-triage-section"
                 class="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer group"
               >
-                <span
-                  class="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-2"
-                >
+                <span class="text-[11px] font-bold text-gray-500 uppercase flex items-center gap-2">
                   <i class="fa-solid fa-sort-amount-up text-amber-500"></i>
                   Matriz de Prioridad
                 </span>
@@ -1027,11 +1119,9 @@
               >
                 <i class="fa-solid fa-comments"></i> Actividad
               </h4>
-              <div id="comments-list" class="space-y-3 max-h-48 overflow-y-auto mb-4 px-1"></div>
+              <div id="comments-list" class="space-y-2 max-h-48 overflow-y-auto mb-3"></div>
 
-              <div
-                class="flex gap-2 items-center bg-gray-50 p-2 rounded-xl border border-gray-200 focus-within:border-blue-300 focus-within:bg-blue-50/20 transition-colors"
-              >
+              <div class="flex gap-2 items-center bg-gray-50 p-2 rounded-xl border border-gray-200">
                 <input
                   type="text"
                   id="comment-input"
@@ -1040,7 +1130,7 @@
                 />
                 <button
                   data-action="post-comment"
-                  class="bg-slate-900 hover:bg-blue-900 text-white px-6 py-2 rounded-lg text-xs font-bold shadow-sm transition-all shrink-0"
+                  class="bg-gray-900 text-white px-4 py-2 rounded-md text-xs font-semibold shadow-sm transition-all shrink-0"
                 >
                   Enviar
                 </button>

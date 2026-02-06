@@ -122,7 +122,7 @@ function createTaskElement(task, context, state) {
     const krText = epic && epic.keyResults ? epic.keyResults[task.krId] : null;
     if (krText) {
       alignmentBadgeHTML = `
-        <div class="mt-1 flex items-center gap-1 px-2 py-0.5 rounded-full border border-blue-100 bg-blue-50 text-blue-700 max-w-full w-fit">
+        <div class="mt-1 flex items-center gap-1 px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 text-blue-700 max-w-full w-fit">
             <i class="fa-solid fa-bullseye shrink-0" style="font-size: 9px;"></i>
             <span class="font-medium truncate" style="font-size: 9px; line-height: 1.1;">${krText}</span>
         </div>`;
@@ -152,33 +152,33 @@ function createTaskElement(task, context, state) {
   // 6. ESTRUCTURA FINAL (Card)
   const taskCard = document.createElement("div");
   taskCard.id = task.id;
-  taskCard.className = `task-card group relative bg-white p-3 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all ${isCompleted ? "opacity-60" : ""}`;
+  taskCard.className = `task-card group relative bg-white p-3 rounded-lg transition-all ${isCompleted ? "opacity-60" : ""}`;
   taskCard.draggable = true;
   taskCard.dataset.context = context;
 
   taskCard.innerHTML = `
     <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background-color: ${sprintColor}; border-top-left-radius: 6px; border-bottom-left-radius: 6px;"></div>
     ${epicTopIconHTML}
-    <div class="pl-2 pr-5 flex flex-col h-full relative">
+    <div class="pl-2 pr-4 flex flex-col h-full relative">
         <div class="flex items-start gap-2"> 
             ${checkboxHTML}
             <div class="flex-1 min-w-0">
-                <span class="text-sm font-medium text-slate-800 leading-snug block break-words ${isCompleted ? "line-through text-slate-400" : ""}">${task.title}</span>
+                <span class="text-sm font-semibold text-gray-900 leading-snug block break-words ${isCompleted ? "line-through text-gray-400" : ""}">${task.title}</span>
                 ${alignmentBadgeHTML}
             </div>
         </div>
         <div class="flex-grow min-h-[8px]"></div>
-        <div class="flex items-center justify-between mt-1 pt-2 border-t border-gray-50 relative">
+        <div class="flex items-center justify-between mt-2 pt-1 relative">
             <div class="flex items-center gap-3">
                  ${(task.comments?.length || 0) > 0 ? `<div class="flex items-center gap-1 text-gray-400" style="font-size: 10px;"><i class="fa-regular fa-comment"></i><span>${task.comments.length}</span></div>` : ""}
                  ${metaInfoHTML} 
             </div>
             <div class="flex items-center gap-2">
                 <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                    <button class="text-gray-300 hover:text-blue-600 p-1 transition-colors" data-action="due-date" title="Fecha"><i class="fa-regular fa-calendar-check" style="font-size: 12px;"></i></button>
-                    <button class="text-gray-300 hover:text-blue-600 p-1 transition-colors" data-action="points" title="Puntos"><i class="fa-solid fa-coins" style="font-size: 12px;"></i></button>
-                    <button class="text-gray-300 hover:text-blue-600 p-1 transition-colors" data-action="edit" title="Editar"><i class="fa-solid fa-pencil" style="font-size: 12px;"></i></button>
-                    <button class="text-gray-300 hover:text-red-600 p-1 transition-colors" data-action="delete" title="Borrar"><i class="fa-solid fa-trash-can" style="font-size: 12px;"></i></button>
+                    <button class="text-gray-400 hover:text-blue-600 p-1 transition-colors" data-action="due-date" title="Fecha"><i class="fa-regular fa-calendar-check" style="font-size: 11px;"></i></button>
+                    <button class="text-gray-400 hover:text-blue-600 p-1 transition-colors" data-action="points" title="Puntos"><i class="fa-solid fa-coins" style="font-size: 11px;"></i></button>
+                    <button class="text-gray-400 hover:text-blue-600 p-1 transition-colors" data-action="edit" title="Editar"><i class="fa-solid fa-pencil" style="font-size: 11px;"></i></button>
+                    <button class="text-gray-400 hover:text-red-600 p-1 transition-colors" data-action="delete" title="Borrar"><i class="fa-solid fa-trash-can" style="font-size: 11px;"></i></button>
                 </div>
                 ${pointsHTML}
                 <div class="cursor-pointer shrink-0" data-action="assign" title="Asignar Responsable">
@@ -205,7 +205,7 @@ function createCommentElement(comment, index, state) {
   const commentEl = document.createElement("div");
   commentEl.className = "flex items-start gap-3";
   commentEl.id = `comment-${index}`;
-  commentEl.innerHTML = `<img src="${authorAvatar}" class="w-8 h-8 rounded-full mt-1"><div class="flex-1 bg-gray-50 p-3 rounded-lg border"><div class="flex justify-between items-center"><span class="font-semibold text-sm">${comment.author || "Anónimo"}</span><span class="text-xs text-gray-400">${date} ${comment.edited ? "(editado)" : ""}</span></div><p class="text-sm text-gray-700 mt-1">${comment.text || ""}</p>${commentActions}</div>`;
+  commentEl.innerHTML = `<img src="${authorAvatar}" class="w-8 h-8 rounded-full mt-1"><div class="flex-1 bg-white p-2 rounded-lg border border-gray-200"><div class="flex justify-between items-center"><span class="font-semibold text-sm">${comment.author || "Anónimo"}</span><span class="text-xs text-gray-400">${date} ${comment.edited ? "(editado)" : ""}</span></div><p class="text-sm text-gray-700 mt-1">${comment.text || ""}</p>${commentActions}</div>`;
   return commentEl;
 }
 
@@ -499,7 +499,7 @@ function renderSprintKanban(state) {
     // --- MODO EXPANDIDO ---
     // Restauramos clases originales
     wrapper.className =
-      "flex-1 min-w-0 bg-gray-50 rounded-xl p-4 flex flex-col transition-all duration-300 ease-in-out border border-transparent";
+      "flex-1 min-w-0 bg-white rounded-xl p-3 flex flex-col transition-all duration-300 ease-in-out border border-gray-200 shadow-sm";
     // Quitamos data-action del wrapper para que no colapse al hacer clic en el fondo
     wrapper.removeAttribute("data-action");
 
@@ -512,8 +512,8 @@ function renderSprintKanban(state) {
         : "";
 
     const headerHTML = `
-      <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-200/50">
-        <h3 class="font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2 text-sm">
+      <div class="flex justify-between items-center mb-3 pb-2 border-b border-gray-200">
+        <h3 class="font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2 text-xs">
           <button data-action="collapse-column" data-col="${col.key}" class="text-gray-400 hover:text-gray-600 transition-colors" title="Colapsar">
             <i class="fa-solid fa-compress"></i>
           </button>
@@ -521,7 +521,7 @@ function renderSprintKanban(state) {
         </h3>
         ${addBtnHTML}
       </div>
-      <div id="kanban-${col.key}" class="min-h-[200px] space-y-3 flex-grow swimlane-drop-zone" data-status="${col.key}"></div>
+      <div id="kanban-${col.key}" class="min-h-[200px] space-y-2 flex-grow swimlane-drop-zone" data-status="${col.key}"></div>
     `;
 
     wrapper.innerHTML = headerHTML;
@@ -1620,30 +1620,85 @@ function renderActivityView(state) {
   const container = document.getElementById("activity-feed-container");
   if (!container || !state.user) return;
   container.innerHTML = "";
-  const myTasks = state.tasks.filter((t) => t.assignee === state.user.email);
-  const tasksWithComments = myTasks
-    .filter((t) => t.comments && t.comments.length > 0)
-    .sort(
-      (a, b) =>
-        (b.comments[b.comments.length - 1].timestamp?.seconds || 0) -
-        (a.comments[a.comments.length - 1].timestamp?.seconds || 0)
-    );
-  if (tasksWithComments.length === 0) {
-    container.innerHTML =
-      '<p class="text-center text-gray-500">No hay comentarios en tus tareas.</p>';
+  const me = state.user.email;
+  const filterMode = state.activityFilter || "unread";
+
+  const myTasks = state.tasks.filter((t) => t.assignee === me);
+  const items = [];
+  myTasks.forEach((task) => {
+    if (!Array.isArray(task.comments)) return;
+    task.comments.forEach((comment, index) => {
+      if (!comment || comment.authorEmail === me) return;
+      const date = comment.timestamp?.toDate
+        ? comment.timestamp.toDate()
+        : comment.timestamp
+        ? new Date(comment.timestamp)
+        : null;
+      const isRead = comment.readBy?.includes(me);
+      items.push({
+        task,
+        comment,
+        index,
+        isRead,
+        ts: date ? date.getTime() : 0,
+      });
+    });
+  });
+
+  items.sort((a, b) => b.ts - a.ts);
+  const visibleItems = filterMode === "all" ? items : items.filter((i) => !i.isRead);
+  const hasUnread = items.some((i) => !i.isRead);
+
+  const filters = [
+    { key: "unread", label: "No leídas" },
+    { key: "all", label: "Todas" },
+  ];
+  container.innerHTML = `
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2">
+        ${filters
+          .map((f) => {
+            const isActive = filterMode === f.key;
+            const classes = isActive
+              ? "bg-[#0b56c6] text-white font-semibold"
+              : "bg-white hover:bg-gray-100 text-gray-700";
+            return `<button data-action="set-activity-filter" data-filter="${f.key}" class="py-1.5 px-3 rounded-lg text-xs shadow-sm border transition-colors ${classes}">${f.label}</button>`;
+          })
+          .join("")}
+      </div>
+      <button data-action="mark-all-as-read" ${
+        hasUnread ? "" : "disabled"
+      } class="text-xs border border-gray-200 rounded px-2 py-1 bg-white shadow-sm ${
+        hasUnread ? "text-gray-600 hover:text-gray-900" : "text-gray-300 cursor-not-allowed"
+      }">Marcar todo como leído</button>
+    </div>
+    <div id="notifications-list" class="space-y-4"></div>
+  `;
+
+  const list = document.getElementById("notifications-list");
+  if (!list) return;
+
+  if (visibleItems.length === 0) {
+    list.innerHTML =
+      filterMode === "all"
+        ? '<p class="text-center text-gray-500">No hay notificaciones.</p>'
+        : '<p class="text-center text-gray-500">No tienes notificaciones nuevas.</p>';
     return;
   }
-  tasksWithComments.forEach((task) => {
+
+  visibleItems.forEach((item) => {
     const taskWrapper = document.createElement("div");
     taskWrapper.className = "bg-white p-4 rounded-xl shadow-md";
-    const commentsContainer = document.createElement("div");
-    commentsContainer.className = "space-y-4";
-    task.comments.forEach((comment, index) => {
-      commentsContainer.appendChild(createActivityCommentElement(comment, index, state, task.id));
-    });
-    taskWrapper.innerHTML = `<h3 class="font-bold text-lg mb-3">En la tarea: <span class="text-blue-600">${task.title}</span></h3>`;
-    taskWrapper.appendChild(commentsContainer);
-    container.appendChild(taskWrapper);
+    taskWrapper.innerHTML = `
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-sm text-gray-500">En la tarea: <span class="font-semibold text-blue-600">${item.task.title}</span></div>
+        <button data-action="open-task-details" data-id="${item.task.id}" class="text-xs text-blue-600 hover:underline">Abrir</button>
+      </div>
+    `;
+    taskWrapper.appendChild(
+      createActivityCommentElement(item.comment, item.index, state, item.task.id)
+    );
+    list.appendChild(taskWrapper);
   });
 }
 
@@ -1923,11 +1978,6 @@ function renderTimeline(state) {
     (typeof localStorage !== "undefined" && localStorage.getItem("timelineZoom")) || "month";
   const zoomMode = state.timelineZoom || storedZoom || "month";
 
-  monthYear.textContent = state.timelineDate.toLocaleDateString("es-ES", {
-    month: "long",
-    year: "numeric",
-  });
-
   // Render controls: add zoom selector and minimap next to the existing month/year header
   const controlsHtml = `
     <div class="flex items-center gap-4">
@@ -1985,6 +2035,20 @@ function renderTimeline(state) {
   container.style.position = "relative";
   const date = state.timelineDate;
   const msPerDay = 24 * 60 * 60 * 1000;
+  const getISOWeekInfo = (d) => {
+    const date = new Date(d.getTime());
+    date.setHours(0, 0, 0, 0);
+    // Thursday in current week decides the year.
+    date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
+    const weekYear = date.getFullYear();
+    const week1 = new Date(weekYear, 0, 4);
+    const week =
+      1 +
+      Math.round(
+        ((date.getTime() - week1.getTime()) / msPerDay - 3 + ((week1.getDay() + 6) % 7)) / 7
+      );
+    return { week, year: weekYear };
+  };
 
   // Determine visible range according to zoomMode
   let viewStart, viewEnd;
@@ -2015,6 +2079,21 @@ function renderTimeline(state) {
     viewEnd.setHours(23, 59, 59, 999);
   }
 
+  if (zoomMode === "week") {
+    const { week, year } = getISOWeekInfo(viewStart);
+    monthYear.textContent = `S${week} ${year}`;
+  } else if (zoomMode === "quarter") {
+    const quarter = Math.floor(viewStart.getMonth() / 3) + 1;
+    monthYear.textContent = `T${quarter} ${viewStart.getFullYear()}`;
+  } else if (zoomMode === "year") {
+    monthYear.textContent = `${viewStart.getFullYear()}`;
+  } else {
+    monthYear.textContent = viewStart.toLocaleDateString("es-ES", {
+      month: "long",
+      year: "numeric",
+    });
+  }
+
   const daysCount = Math.ceil((viewEnd.getTime() - viewStart.getTime() + 1) / msPerDay);
   const totalRangeMs = viewEnd.getTime() - viewStart.getTime() + msPerDay;
 
@@ -2028,19 +2107,6 @@ function renderTimeline(state) {
     });
     grid.innerHTML = months.join("");
   } else if (zoomMode === "quarter") {
-    const getISOWeek = (d) => {
-      const date = new Date(d.getTime());
-      date.setHours(0, 0, 0, 0);
-      // Thursday in current week decides the year.
-      date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
-      const week1 = new Date(date.getFullYear(), 0, 4);
-      return (
-        1 +
-        Math.round(
-          ((date.getTime() - week1.getTime()) / msPerDay - 3 + ((week1.getDay() + 6) % 7)) / 7
-        )
-      );
-    };
     const weeksCount = Math.ceil(daysCount / 7);
     grid.innerHTML = Array.from({ length: weeksCount }, (_, i) => {
       const weekStart = new Date(
@@ -2048,7 +2114,7 @@ function renderTimeline(state) {
         viewStart.getMonth(),
         viewStart.getDate() + i * 7
       );
-      const weekNumber = getISOWeek(weekStart);
+      const { week: weekNumber } = getISOWeekInfo(weekStart);
       return `<div class="text-center text-xs text-gray-500 border-r h-full" style="width: ${
         100 / weeksCount
       }%"><div class="border-b pb-1">Sem ${weekNumber}</div></div>`;
@@ -2448,7 +2514,7 @@ export function renderActiveSprintTitle(state) {
     .filter((t) => t.assignee === state.user.email)
     .reduce((sum, task) => sum + (task.points || 0), 0);
 
-  domViewTitle.innerHTML = `${title} <span class="text-sm font-normal bg-negro-astrolab">(Hechos: ${completedPoints} / Total: ${totalPoints} | Míos: ${myPoints}) Pts</span>`;
+  domViewTitle.innerHTML = `${title}<span class="view-title-stats">Hechos: ${completedPoints} / Total: ${totalPoints} | Míos: ${myPoints} Pts</span>`;
 }
 
 export function renderSprintSelector(state) {
@@ -2475,19 +2541,25 @@ export function renderSprintSelector(state) {
 export function renderCalendarButton(state) {
   const container = document.getElementById("calendar-connection-ui");
   if (!container) return;
+  // Oculto por ahora: para reactivar, cambia a false o elimina este bloque.
+  const hideCalendarButton = true;
+  if (hideCalendarButton) {
+    container.style.display = "none";
+    return;
+  }
   const isVisible = ["#backlog", "#sprint"].includes(window.location.hash);
   container.style.display = isVisible ? "" : "none";
   if (!isVisible) return;
   let buttonHTML = "";
   switch (state.calendarStatus) {
     case "connecting":
-      buttonHTML = `<button class="bg-gray-200 text-gray-500 font-semibold py-2 px-4 rounded-lg border flex items-center gap-2 cursor-wait" disabled><i class="fas fa-spinner fa-spin"></i><span>Conectando...</span></button>`;
+      buttonHTML = `<button class="bg-gray-100 text-gray-500 font-semibold py-2 px-3 rounded-md border border-gray-200 flex items-center gap-2 cursor-wait shadow-sm" disabled><i class="fas fa-spinner fa-spin"></i><span>Conectando...</span></button>`;
       break;
     case "connected":
-      buttonHTML = `<button class="bg-green-100 text-green-700 font-semibold py-2 px-4 rounded-lg border border-green-200 flex items-center gap-2" disabled><i class="fas fa-check"></i><span>Calendario Conectado</span></button>`;
+      buttonHTML = `<button class="bg-green-100 text-green-700 font-semibold py-2 px-3 rounded-md border border-green-200 flex items-center gap-2 shadow-sm" disabled><i class="fas fa-check"></i><span>Calendario Conectado</span></button>`;
       break;
     default:
-      buttonHTML = `<button data-action="connect-calendar" class="bg-white hover:bg-gray-100 text-gray-700 font-semibold py-2 px-4 rounded-lg border border-gray-300 flex items-center gap-2 transition-all shadow-sm"><i class="fab fa-google-drive text-green-500"></i><span>Conectar con Calendar</span></button>`;
+      buttonHTML = `<button data-action="connect-calendar" class="bg-white text-gray-700 font-semibold py-2 px-3 rounded-md border border-gray-200 flex items-center gap-2 transition-all shadow-sm"><i class="fab fa-google-drive text-green-500"></i><span>Conectar con Calendar</span></button>`;
       break;
   }
   container.innerHTML = buttonHTML;
@@ -2828,6 +2900,12 @@ function handleAppClick(e) {
         const filter = actionTarget.dataset.filter;
         if (filter) {
           appActions.setSprintsSummaryFilter(filter);
+        }
+        return;
+      case "set-activity-filter":
+        const activityFilter = actionTarget.dataset.filter;
+        if (activityFilter) {
+          appActions.setActivityFilter(activityFilter);
         }
         return;
       case "open-task-details":
@@ -3484,7 +3562,7 @@ export function openTaskDetailsModal(task) {
   // Guardamos el ID para que app.js sepa qué tarea actualizar
   document.getElementById("modal-content").dataset.activeTaskId = task.id;
   renderTaskDetails(task, appState);
-  showModal({ title: `Detalle de Tarea`, taskDetails: true, okText: "Cerrar" });
+  showModal({ taskDetails: true, okText: "Cerrar" });
 }
 
 function handleAppChange(e) {
@@ -3866,12 +3944,18 @@ export function renderTaskDetails(task, state) {
   const els = {
     title: document.getElementById("modal-task-title"),
     points: document.getElementById("modal-task-points"),
+    pointsField: document.getElementById("modal-task-points-field"),
+    pointsHint: document.getElementById("modal-task-points-hint"),
     assignee: document.getElementById("modal-task-assignee"),
+    assigneeField: document.getElementById("modal-task-assignee-field"),
+    assigneeHint: document.getElementById("modal-task-assignee-hint"),
     sprint: document.getElementById("modal-task-sprint"),
     status: document.getElementById("modal-task-status"),
     creator: document.getElementById("modal-task-creator"),
     history: document.getElementById("history-list"),
     epicSelect: document.getElementById("modal-task-epic-select"),
+    epicField: document.getElementById("modal-task-epic-field"),
+    epicHint: document.getElementById("modal-task-epic-hint"),
     krSelect: document.getElementById("modal-task-kr-select"),
     // CORRECCIÓN 1: Usamos los IDs que coinciden con tu index.html
     impactContainer: document.getElementById("impactContainer"),
@@ -3880,15 +3964,67 @@ export function renderTaskDetails(task, state) {
 
   if (!els.title) return;
 
+  const setRequiredState = (fieldEl, hintEl, isMissing) => {
+    if (!fieldEl) return;
+    fieldEl.classList.toggle("ring-2", isMissing);
+    fieldEl.classList.toggle("ring-rose-300", isMissing);
+    fieldEl.classList.toggle("border-rose-300", isMissing);
+    fieldEl.classList.toggle("bg-rose-50/60", isMissing);
+    if (hintEl) {
+      hintEl.classList.toggle("hidden", !isMissing);
+      hintEl.style.display = isMissing ? "inline-flex" : "none";
+    }
+  };
+
+  const setSelectState = (selectEl, isMissing) => {
+    if (!selectEl) return;
+    selectEl.classList.toggle("border-rose-300", isMissing);
+    selectEl.classList.toggle("text-rose-700", isMissing);
+    selectEl.classList.toggle("text-gray-700", !isMissing);
+  };
+
+  const updateRequiredStates = () => {
+    const pointsRaw = document.getElementById("detail-modal-points")?.value;
+    const pointsVal =
+      pointsRaw !== undefined && pointsRaw !== null && pointsRaw !== ""
+        ? Number(pointsRaw)
+        : Number(task.points ?? 0);
+    const isPointsMissing = pointsVal === 0;
+    setRequiredState(els.pointsField, els.pointsHint, isPointsMissing);
+    const pointsSelectEl = document.getElementById("detail-modal-points");
+    if (pointsSelectEl) {
+      pointsSelectEl.classList.toggle("text-rose-600", isPointsMissing);
+      pointsSelectEl.classList.toggle("text-blue-600", !isPointsMissing);
+    }
+
+    const epicRaw = els.epicSelect?.value;
+    const epicVal = epicRaw !== undefined && epicRaw !== null ? epicRaw : task.epicId ?? "";
+    const isEpicMissing = !epicVal;
+    setRequiredState(els.epicField, els.epicHint, isEpicMissing);
+    setSelectState(els.epicSelect, isEpicMissing);
+
+    const assigneeRaw = document.getElementById("detail-modal-assignee")?.value;
+    const assigneeVal =
+      assigneeRaw !== undefined && assigneeRaw !== null ? assigneeRaw : task.assignee ?? "";
+    const isAssigneeMissing = !assigneeVal;
+    setRequiredState(els.assigneeField, els.assigneeHint, isAssigneeMissing);
+    setSelectState(document.getElementById("detail-modal-assignee"), isAssigneeMissing);
+  };
+
   // --- 1. DATOS BÁSICOS ---
   els.title.textContent = task.title || "Sin título";
   els.points.textContent = task.points || "0";
+  if (els.desc) {
+    const descText = (task.description || "").trim();
+    els.desc.textContent = descText.length ? descText : "Sin descripción";
+    els.desc.classList.toggle("italic", !descText.length);
+  }
 
   // --- 2. RENDERIZADO DE USUARIOS Y PUNTOS (EDITABLES) ---
 
   // A) SELECTOR DE PUNTOS
   const pointOptions = [0, 0.5, 1, 2, 3, 5, 8, 13, 20, 40];
-  let pointsSelectHTML = `<select id="detail-modal-points" class="font-black text-blue-600 bg-transparent border-none focus:ring-0 cursor-pointer text-3xl leading-none appearance-none text-center w-full">`;
+  let pointsSelectHTML = `<select id="detail-modal-points" class="font-black text-blue-600 bg-transparent border-none focus:ring-0 cursor-pointer text-2xl leading-none appearance-none text-right w-16">`;
   pointOptions.forEach((p) => {
     pointsSelectHTML += `<option value="${p}" ${task.points == p ? "selected" : ""}>${p}</option>`;
   });
@@ -3905,6 +4041,7 @@ export function renderTaskDetails(task, state) {
       if (typeof appActions !== "undefined") {
         appActions.updateTask(task.id, { points: Number(e.target.value) });
       }
+      updateRequiredStates();
     });
   }
 
@@ -3932,6 +4069,7 @@ export function renderTaskDetails(task, state) {
       if (typeof appActions !== "undefined") {
         appActions.updateTask(task.id, { assignee: e.target.value || null });
       }
+      updateRequiredStates();
     });
   }
 
@@ -3941,21 +4079,72 @@ export function renderTaskDetails(task, state) {
 
   const statusConfig = {
     todo: {
-      text: "Por Hacer",
-      class: "bg-gray-100 text-gray-600 ring-1 ring-gray-200",
+      text: "Por hacer",
+      class: "bg-gray-100 text-gray-700 border border-gray-200",
+      icon: "fa-regular fa-circle text-gray-500",
     },
     inprogress: {
-      text: "En Progreso",
-      class: "bg-blue-50 text-blue-700 ring-1 ring-blue-200",
+      text: "En progreso",
+      class: "bg-blue-50 text-blue-700 border border-gray-200",
+      icon: "fa-solid fa-circle-dot text-blue-600",
     },
     done: {
       text: "Hecho",
-      class: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
+      class: "bg-gray-50 text-green-700 border border-green-200",
+      icon: "fa-solid fa-check text-green-700",
     },
   };
-  const currentStatus = statusConfig[task.kanbanStatus] || statusConfig.todo;
-  els.status.textContent = currentStatus.text;
-  els.status.className = `inline-flex items-center justify-center px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest border whitespace-nowrap ${currentStatus.class}`;
+  const getStatusValue = () =>
+    task.kanbanStatus && statusConfig[task.kanbanStatus] ? task.kanbanStatus : "todo";
+  const currentStatus = statusConfig[getStatusValue()];
+  els.status.className = "shrink-0";
+  els.status.innerHTML = `
+    <div id="detail-modal-status-wrapper" class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold uppercase tracking-wider ${currentStatus.class}">
+      <i id="detail-modal-status-icon" class="${currentStatus.icon}" style="font-size: 10px;"></i>
+      <select id="detail-modal-status" class="bg-transparent border-none text-xs font-semibold uppercase tracking-wider focus:ring-0 outline-none cursor-pointer" style="color: inherit;">
+        <option value="todo">Por hacer</option>
+        <option value="inprogress">En progreso</option>
+        <option value="done">Hecho</option>
+      </select>
+    </div>
+  `;
+
+  const applyStatusUpdate = (newStatus) => {
+    const updates = { kanbanStatus: newStatus };
+    if (newStatus === "inprogress") {
+      if (task.kanbanStatus !== "inprogress") {
+        updates.startedAt = Timestamp.now();
+        updates.status = "needsAction";
+        updates.completedAt = null;
+      }
+    } else if (newStatus === "done") {
+      updates.status = "completed";
+      updates.completedAt = Timestamp.now();
+      if (window.confetti) confetti({ particleCount: 50, spread: 50, origin: { y: 0.7 } });
+    } else {
+      updates.status = "needsAction";
+      updates.completedAt = null;
+      updates.startedAt = null;
+    }
+    task.kanbanStatus = newStatus;
+    appActions.updateTask(task.id, updates);
+  };
+
+  const statusSelect = document.getElementById("detail-modal-status");
+  const statusWrapper = document.getElementById("detail-modal-status-wrapper");
+  const statusIcon = document.getElementById("detail-modal-status-icon");
+  if (statusSelect) {
+    statusSelect.value = getStatusValue();
+    statusSelect.onchange = (e) => {
+      const newStatus = e.target.value;
+      const cfg = statusConfig[newStatus] || statusConfig.todo;
+      if (statusWrapper) {
+        statusWrapper.className = `inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold uppercase tracking-wider ${cfg.class}`;
+      }
+      if (statusIcon) statusIcon.className = cfg.icon;
+      applyStatusUpdate(newStatus);
+    };
+  }
 
   // --- 4. ALINEACIÓN ESTRATÉGICA (EPIC/KR) ---
   if (els.epicSelect && els.krSelect) {
@@ -3979,12 +4168,15 @@ export function renderTaskDetails(task, state) {
       updateKRDropdown(newEpicId, null);
       if (typeof appActions !== "undefined")
         appActions.updateTask(task.id, { epicId: newEpicId, krId: null });
+      updateRequiredStates();
     };
     els.krSelect.onchange = (e) => {
       if (typeof appActions !== "undefined")
         appActions.updateTask(task.id, { krId: e.target.value });
     };
   }
+
+  updateRequiredStates();
 
   // --- 5. TRIAGE (IMPACTO / ESFUERZO) - CORREGIDO ---
   const triageConfig = state.triageConfig;
