@@ -1086,6 +1086,99 @@ function checkUnreadActivity() {
   indicator.classList.toggle("hidden", !hasUnread);
 }
 
+function setupUpdateNotifier() {
+  const banner = document.getElementById("update-banner");
+  const refreshButton = document.getElementById("update-banner-refresh");
+  if (!banner || !refreshButton) return;
+
+  const targetPath = "/index.html";
+  const pollIntervalMs = 5 * 60 * 1000;
+  let currentLastModified = null;
+  let currentEtag = null;
+  let bannerShown = false;
+
+  const parseTime = (value) => {
+    if (!value) return null;
+    const time = Date.parse(value);
+    return Number.isNaN(time) ? null : time;
+  };
+
+  const showBanner = () => {
+    if (bannerShown) return;
+    bannerShown = true;
+    banner.classList.remove("hidden");
+  };
+
+  const fetchVersion = async (useHead) => {
+    const options = { cache: "no-store" };
+    if (useHead) options.method = "HEAD";
+    const response = await fetch(targetPath, options);
+    if (!response.ok) throw new Error("No version response");
+    return {
+      lastModified: response.headers.get("last-modified"),
+      etag: response.headers.get("etag"),
+    };
+  };
+
+  const fetchRemoteVersion = async () => {
+    try {
+      return await fetchVersion(true);
+    } catch (err) {
+      try {
+        return await fetchVersion(false);
+      } catch (innerErr) {
+        return null;
+      }
+    }
+  };
+
+  const bootstrapVersion = async () => {
+    const remote = await fetchRemoteVersion();
+    if (remote?.etag) currentEtag = remote.etag;
+    const remoteTime = parseTime(remote?.lastModified);
+    if (remoteTime) currentLastModified = remoteTime;
+    if (!currentLastModified) {
+      const localTime = parseTime(document.lastModified);
+      if (localTime) currentLastModified = localTime;
+    }
+  };
+
+  const checkForUpdate = async () => {
+    if (bannerShown || (navigator?.onLine === false)) return;
+    const remote = await fetchRemoteVersion();
+    if (!remote) return;
+    if (remote.etag) {
+      if (!currentEtag) {
+        currentEtag = remote.etag;
+        return;
+      }
+      if (remote.etag !== currentEtag) {
+        showBanner();
+        return;
+      }
+    }
+    const remoteTime = parseTime(remote.lastModified);
+    if (remoteTime && currentLastModified && remoteTime > currentLastModified + 1000) {
+      showBanner();
+    }
+  };
+
+  refreshButton.addEventListener("click", () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("v", Date.now().toString());
+    window.location.href = url.toString();
+  });
+
+  bootstrapVersion().then(() => {
+    setTimeout(checkForUpdate, 15000);
+    setInterval(checkForUpdate, pollIntervalMs);
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") checkForUpdate();
+  });
+}
+
 const style = document.createElement("style");
 style.textContent = `
 #online-users-container{min-height:48px;max-width:100vw;overflow-x:auto;overflow-y:visible;display:flex;flex-wrap:nowrap;align-items:center;background:transparent}
@@ -1097,5 +1190,6 @@ window.addEventListener("load", () => {
   ui.initializeEventListeners(state, actions);
   ui.initializeAuthButtons(actions);
   handleAuth(state, onLogin, onLogout);
+  setupUpdateNotifier();
   console.log("App iniciada.");
 });

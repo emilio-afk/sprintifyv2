@@ -216,6 +216,55 @@
       #calendar-connection-ui {
         display: none;
       }
+      #update-banner {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        z-index: 90;
+      }
+      #update-banner .update-banner-card {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.15);
+      }
+      #update-banner .update-banner-title {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #0f172a;
+      }
+      #update-banner .update-banner-subtitle {
+        font-size: 0.75rem;
+        color: #64748b;
+      }
+      #update-banner .update-banner-action {
+        background: #2563eb;
+        color: #ffffff;
+        border: none;
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      #update-banner .update-banner-action:hover {
+        background: #1d4ed8;
+      }
+      @media (max-width: 640px) {
+        #update-banner {
+          left: 16px;
+          right: 16px;
+        }
+        #update-banner .update-banner-card {
+          width: 100%;
+          justify-content: space-between;
+        }
+      }
 
       #modal-content {
         max-height: 85vh;
@@ -1423,6 +1472,16 @@
             ACEPTAR
           </button>
         </div>
+      </div>
+    </div>
+
+    <div id="update-banner" class="hidden">
+      <div class="update-banner-card">
+        <div>
+          <div class="update-banner-title">Nueva versión disponible</div>
+          <div class="update-banner-subtitle">Actualiza para ver los cambios.</div>
+        </div>
+        <button id="update-banner-refresh" class="update-banner-action">Actualizar</button>
       </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
