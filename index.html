@@ -536,26 +536,73 @@
       }
 
       #sidebar {
-        background-color: theme("colors.primary-dark");
-        border-right-color: f4f4f4; /* Un borde ligeramente más claro (slate-800) */
+        background: linear-gradient(180deg, #0f172a 0%, #0b1120 100%);
+        border-right-color: rgba(148, 163, 184, 0.2);
       }
-      #sidebar h1 {
-        color: theme("colors.text-light");
+      .sidebar-brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 4px 6px 8px;
+        margin-bottom: 8px;
+      }
+      .sidebar-brand .brand-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+        background: #1d4ed8;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 10px 20px rgba(37, 99, 235, 0.35);
+      }
+      .sidebar-brand h1 {
+        color: #f8fafc;
+        font-size: 1.35rem;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+      }
+      .nav-group-button {
+        padding: 6px 8px;
+        border-radius: 10px;
+      }
+      .nav-group-button:hover {
+        background-color: rgba(255, 255, 255, 0.06);
+      }
+      .nav-group-content {
+        padding-left: 10px;
+        margin-left: 6px;
+        border-left: 1px solid rgba(148, 163, 184, 0.2);
       }
       .sidebar-link {
-        color: #f4f4f4; /* Texto de enlaces inactivos (slate-400) */
+        color: #e2e8f0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        border: 1px solid transparent;
+        margin-left: 0 !important;
       }
       .sidebar-link:hover {
-        background-color: theme(primary); /* Fondo al pasar el mouse (slate-800) */
-        color: #d5eafd;
+        background-color: rgba(255, 255, 255, 0.06);
+        color: #f8fafc;
       }
       .sidebar-link.active {
-        background-color: #2563eb; /* Este es el azul de "Nuevo Sprint" (blue-600) */
-        color: white;
+        background-color: rgba(37, 99, 235, 0.18);
+        border-color: rgba(59, 130, 246, 0.5);
+        color: #ffffff;
         font-weight: 600;
+        box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.25);
       }
-      y #sidebar footer {
-        border-top-color: #b9cee5; /* Borde superior del footer (slate-800) */
+      .sidebar-footer-actions {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+      }
+      #sidebar footer {
+        border-top-color: rgba(148, 163, 184, 0.2);
       }
       #sidebar footer h3 {
         /* Títulos como "EN LÍNEA" */
@@ -567,17 +614,47 @@
       #user-email {
         color: #f4f4f4;
       }
+      #user-info {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        min-width: 0;
+      }
+      #user-avatar {
+        display: none;
+      }
+      #user-email {
+        display: none;
+      }
+      #user-name {
+        white-space: nowrap;
+      }
       #auth-button {
-        background-color: #f4f4f4;
-        color: #0b56c6;
+        background-color: rgba(255, 255, 255, 0.1);
+        color: #e2e8f0;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        padding: 8px 10px;
+        font-size: 0.75rem;
+        white-space: nowrap;
+        flex-shrink: 0;
+        justify-content: center;
+        align-items: center;
+        gap: 6px;
+      }
+      #auth-button i {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+      }
+      #auth-button-text {
+        font-size: 0.75rem;
       }
       #auth-button:hover {
-        background-color: #334155;
+        background-color: rgba(37, 99, 235, 0.2);
         color: white;
       }
       #sidebar nav h3 {
-        /* Hacemos la regla más específica */
-        color: #d5eafd !important; /* Este es el color que puedes cambiar */
+        color: #94a3b8 !important;
       }
       .nav-group-button .chevron-icon {
         transition: transform 0.2s ease-in-out;
@@ -587,7 +664,7 @@
         transform: rotate(0deg); /* Flecha apunta hacia abajo cuando está abierto */
       }
       .nav-group-button .chevron-icon {
-        color: #d5eafd !important; /* Este es el color que puedes cambiar */
+        color: #94a3b8 !important;
       }
     </style>
   </head>
@@ -597,11 +674,11 @@
         id="sidebar"
         class="w-64 bg-slate-900 border-r border-slate-800 flex-shrink-0 flex flex-col p-4 hidden"
       >
-        <div class="flex items-center gap-2 mb-8">
-          <div class="bg-blue-700 p-2 pb-5 rounded-lg flex items-center justify-between">
-            <i class="fas fa-rocket text-slate-100 text-3xl"></i>
+        <div class="sidebar-brand">
+          <div class="brand-icon">
+            <i class="fas fa-rocket text-slate-100 text-xl"></i>
           </div>
-          <h1 class="text-3xl font-bold text-white">Sprintify</h1>
+          <h1>Sprintify</h1>
         </div>
 
         <nav class="flex flex-col gap-2">
@@ -734,19 +811,23 @@
             </h3>
             <div id="online-users-container" class="flex flex-wrap gap-2"></div>
           </div>
-          <div id="user-info" class="flex items-center gap-3 p-2 rounded-lg">
-            <img id="user-avatar" class="w-10 h-10 rounded-full" src="" alt="Avatar de Usuario" />
-            <div class="text-sm overflow-hidden">
-              <p id="user-name" class="font-semibold truncate text-slate-100"></p>
-              <p id="user-email" class="truncate text-slate-400"></p>
+          <div class="sidebar-footer-actions">
+            <div id="user-info" class="flex items-center gap-3 p-2 rounded-lg min-w-0">
+              <img id="user-avatar" class="w-9 h-9 rounded-full" src="" alt="Avatar de Usuario" />
+              <div class="text-sm overflow-hidden">
+                <p id="user-name" class="font-semibold truncate text-slate-100"></p>
+                <p id="user-email" class="truncate text-slate-400"></p>
+              </div>
             </div>
+            <button
+              id="auth-button"
+              class="font-semibold rounded-lg flex items-center justify-center gap-2 transition-all"
+              title="Cerrar Sesión"
+            >
+              <i class="fas fa-right-from-bracket"></i>
+              <span id="auth-button-text">Cerrar Sesión</span>
+            </button>
           </div>
-          <button
-            id="auth-button"
-            class="mt-2 w-full font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-all bg-primary text-white hover:bg-blue-700"
-          >
-            <span id="auth-button-text">Cerrar Sesión</span>
-          </button>
         </footer>
       </aside>
 
