@@ -6,16 +6,6 @@ let modalCallback = null;
 let appState = {};
 let appActions = {};
 let quillInstance = null;
-const MODAL_TEXT_BASE_CLASS = "m-4 text-gray-600 hidden";
-const MODAL_MODE_CLASSES = [
-  "is-task-modal",
-  "is-task-action-modal",
-  "is-sprint-form-modal",
-  "is-epic-form-modal",
-  "is-theme-form-modal",
-  "is-handbook-form-modal",
-  "is-simple-modal",
-];
 
 const dom = {
   viewTitle: document.getElementById("view-title"),
@@ -34,165 +24,13 @@ function getTaskContext(task, state) {
   return "sprint";
 }
 
-const KANBAN_WIP_LIMITS = Object.freeze({
-  todo: 12,
-  inprogress: 5,
-  done: 999,
-});
-
-const KANBAN_COLUMN_META = Object.freeze({
-  todo: { title: "Por Hacer", accent: "slate" },
-  inprogress: { title: "En Progreso", accent: "blue" },
-  done: { title: "Hecho", accent: "green" },
-});
-
-let activeDropIndicator = null;
-let activeDropZone = null;
-let activeDropMatrixQuad = null;
-
-function toDate(value) {
-  if (!value) return null;
-  if (value.toDate) return value.toDate();
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function isTaskDone(task) {
-  return task.status === "completed" || task.kanbanStatus === "done";
-}
-
-function resolveKanbanStatus(task) {
-  if (isTaskDone(task)) return "done";
-  if (task.kanbanStatus === "inprogress" || task.status === "inprogress") return "inprogress";
-  return "todo";
-}
-
-function getTaskAgeDays(task, now = new Date()) {
-  const completedAt = toDate(task.completedAt);
-  const startedAt = toDate(task.startedAt);
-  const createdAt = toDate(task.createdAt) || now;
-  const isDone = isTaskDone(task);
-  const status = resolveKanbanStatus(task);
-  const anchor = status === "inprogress" && startedAt ? startedAt : createdAt;
-  const end = isDone && completedAt ? completedAt : now;
-  const diffMs = end.getTime() - anchor.getTime();
-  return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
-}
-
-function getTaskAgingState(task, now = new Date()) {
-  if (isTaskDone(task)) return { key: "none", days: 0, label: "" };
-  const ageDays = getTaskAgeDays(task, now);
-  if (ageDays >= 14) return { key: "danger", days: ageDays, label: `${ageDays}d sin mover` };
-  if (ageDays >= 7) return { key: "warn", days: ageDays, label: `${ageDays}d sin mover` };
-  return { key: "none", days: ageDays, label: "" };
-}
-
-function getColumnPoints(tasks) {
-  return tasks.reduce((sum, t) => sum + (Number(t.points) || 0), 0);
-}
-
-function getWipState(statusKey, count) {
-  const limit = KANBAN_WIP_LIMITS[statusKey] ?? 999;
-  const overBy = Math.max(0, count - limit);
-  return { limit, overBy, isOverLimit: overBy > 0 };
-}
-
-function isDateToday(value) {
-  const d = toDate(value);
-  if (!d) return false;
-  const today = new Date();
-  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
-  return d >= start && d < end;
-}
-
-function buildKanbanHeader({
-  statusKey,
-  count,
-  points,
-  includeAdd = false,
-  includeCollapse = false,
-  collapseColumnKey = "",
-  dense = false,
-}) {
-  const meta = KANBAN_COLUMN_META[statusKey] || { title: statusKey, accent: "slate" };
-  const wip = getWipState(statusKey, count);
-  const countClass = wip.isOverLimit
-    ? "kanban-column-count kanban-column-count--alert"
-    : "kanban-column-count";
-  const wrapClass = dense ? "kanban-column-head kanban-column-head--dense" : "kanban-column-head";
-  const wipText =
-    statusKey === "inprogress"
-      ? `<span class="kanban-column-meta ${
-          wip.isOverLimit ? "kanban-column-meta--alert" : ""
-        }">WIP ${count}/${wip.limit}${wip.isOverLimit ? ` (+${wip.overBy})` : ""}</span>`
-      : `<span class="kanban-column-meta">${points} pts</span>`;
-  const collapseBtn = includeCollapse
-    ? `<button data-action="collapse-column" data-col="${collapseColumnKey}" class="kanban-column-action" title="Colapsar columna">
-          <i class="fa-solid fa-compress"></i>
-       </button>`
-    : "";
-  const addBtn = includeAdd
-    ? `<button data-action="add-task-sprint" class="kanban-column-action kanban-column-action--primary" title="Añadir tarea">
-          <i class="fa-solid fa-plus"></i>
-       </button>`
-    : "";
-  return `
-    <div class="${wrapClass}">
-      <div class="kanban-column-title-wrap">
-        ${collapseBtn}
-        <h3 class="kanban-column-title">
-          <span>${meta.title}</span>
-          <span class="${countClass}">${count}</span>
-        </h3>
-        ${wipText}
-      </div>
-      <div class="kanban-column-actions">${addBtn}</div>
-    </div>
-  `;
-}
-
-function clearDropIndicators() {
-  if (activeDropIndicator?.parentElement) activeDropIndicator.parentElement.removeChild(activeDropIndicator);
-  if (activeDropZone) activeDropZone.classList.remove("is-drop-target");
-  if (activeDropMatrixQuad) activeDropMatrixQuad.classList.remove("is-drop-target");
-  activeDropIndicator = null;
-  activeDropZone = null;
-  activeDropMatrixQuad = null;
-}
-
-function ensureDropIndicator(dropZone) {
-  if (activeDropZone !== dropZone) {
-    clearDropIndicators();
-    activeDropZone = dropZone;
-    activeDropIndicator = document.createElement("div");
-    activeDropIndicator.className = "kanban-drop-indicator";
-    dropZone.classList.add("is-drop-target");
-  }
-  return activeDropIndicator;
-}
-
-function updateDropIndicator(dropZone, clientY) {
-  const indicator = ensureDropIndicator(dropZone);
-  const cards = Array.from(dropZone.querySelectorAll(".task-card:not(.dragging)"));
-  const nextCard = cards.find((card) => {
-    const rect = card.getBoundingClientRect();
-    return clientY < rect.top + rect.height / 2;
-  });
-  if (nextCard) {
-    dropZone.insertBefore(indicator, nextCard);
-  } else {
-    dropZone.appendChild(indicator);
-  }
-}
-
 // EN ui.js - Reemplaza la función createTaskElement completa o actualiza su lógica interna
 
 function createTaskElement(task, context, state) {
-  const { allUsers, taskLists } = state;
-  const isCompleted = isTaskDone(task);
+  const { allUsers, taskLists, epics } = state;
+  const isCompleted = task.status === "completed";
 
+  // --- 1. HELPERS DE FECHA AVANZADOS ---
   const now = new Date();
   const getDate = (ts) => (ts && ts.toDate ? ts.toDate() : ts ? new Date(ts) : null);
 
@@ -205,15 +43,43 @@ function createTaskElement(task, context, state) {
   const endCalcDate = isCompleted && completedAt ? completedAt : now;
   const daysOpen = Math.round((endCalcDate - createdAt) / (1000 * 60 * 60 * 24));
 
-  let timeInProgressLabel = "";
+  // Lógica de Tiempo en Progreso (Time in Progress)
+  let timeInProgressHTML = "";
+
+  // Solo mostramos contador si tiene fecha de inicio Y (está en progreso O ya se completó)
+  // Si se movió a "Por Hacer", startedAt debería ser null, así que esto no se ejecuta.
   if (startedAt && (task.kanbanStatus === "inprogress" || task.status === "completed")) {
     const progressEndDate = isCompleted && completedAt ? completedAt : now;
+
+    // Diferencia en milisegundos
     const diffMs = progressEndDate - startedAt;
+    // Convertir a horas
     const hoursInProgress = Math.floor(diffMs / (1000 * 60 * 60));
     const daysInProgress = Math.floor(hoursInProgress / 24);
-    timeInProgressLabel = daysInProgress > 0 ? `${daysInProgress}d` : `${Math.max(1, hoursInProgress)}h`;
+
+    let timeString = "";
+    if (daysInProgress > 0) {
+      timeString = `${daysInProgress}d`;
+    } else if (hoursInProgress > 0) {
+      timeString = `${hoursInProgress}h`;
+    } else {
+      timeString = "1h"; // Mínimo visual para indicar que acaba de iniciar
+    }
+
+    const icon = isCompleted ? "fa-flag-checkered" : "fa-stopwatch"; // Icono distinto si terminó
+    // Si está completado gris, si está vivo azul animado (pulso opcional)
+    const colorClass = isCompleted ? "text-gray-400" : "text-blue-600 font-bold";
+    const animClass = !isCompleted ? "fa-beat-fade" : ""; // Animación suave si está corriendo
+
+    timeInProgressHTML = `
+        <div class="flex items-center gap-1 ${colorClass} ml-1 px-1.5 py-0.5 rounded bg-blue-50 border border-blue-100" style="font-size: 9px;" title="Tiempo invertido">
+            <i class="fa-solid ${icon} ${animClass}" style="--fa-animation-duration: 2s;"></i>
+            <span>${timeString}</span>
+        </div>
+      `;
   }
 
+  // --- LÓGICA DE HERENCIA ---
   const todayForCalc = new Date();
   const currentDay = todayForCalc.getDay();
   const diff = todayForCalc.getDate() - currentDay + (currentDay === 0 ? -6 : 1);
@@ -221,6 +87,49 @@ function createTaskElement(task, context, state) {
   startOfWeek.setHours(0, 0, 0, 0);
   const isInherited = createdAt < startOfWeek;
 
+  const inheritedBadge =
+    isInherited && !isCompleted // Solo mostrar herencia si no está completada para reducir ruido visual
+      ? `<div class="flex items-center justify-center w-4 h-4 rounded-full bg-amber-50 text-amber-600 border border-amber-100" title="Tarea heredada">
+         <i class="fa-solid fa-clock-rotate-left" style="font-size: 9px;"></i>
+       </div>`
+      : ``;
+
+  // HTML FINAL DE TIEMPOS
+  const metaInfoHTML = `
+    <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1 ${isCompleted ? "text-gray-400" : "text-gray-500"}" style="font-size: 10px;" title="Antigüedad total">
+            <i class="fa-regular fa-calendar"></i><span>${daysOpen}d</span>
+        </div>
+        ${timeInProgressHTML}
+        ${inheritedBadge}
+    </div>`;
+
+  // ... (Resto de lógica de Epics, KRs, Asignee igual que antes) ...
+  // 3. ICONO EPIC (Igual)
+  let epicTopIconHTML = "";
+  if (task.epicId) {
+    const epic = epics.find((e) => e.id === task.epicId);
+    if (epic) {
+      const epicColor = epic.color || "#94a3b8";
+      epicTopIconHTML = `<div style="position: absolute; top: 8px; right: 8px; font-size: 12px; color: ${epicColor}; opacity: 0.7; z-index: 10;" title="Epic: ${epic.title}"><i class="fa-solid fa-book-atlas"></i></div>`;
+    }
+  }
+
+  // 4. PÍLDORA KR (Igual)
+  let alignmentBadgeHTML = "";
+  if (task.epicId && task.krId !== null && task.krId !== undefined) {
+    const epic = epics.find((e) => e.id === task.epicId);
+    const krText = epic && epic.keyResults ? epic.keyResults[task.krId] : null;
+    if (krText) {
+      alignmentBadgeHTML = `
+        <div class="mt-1 flex items-center gap-1 px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 text-blue-700 max-w-full w-fit">
+            <i class="fa-solid fa-bullseye shrink-0" style="font-size: 9px;"></i>
+            <span class="font-medium truncate" style="font-size: 9px; line-height: 1.1;">${krText}</span>
+        </div>`;
+    }
+  }
+
+  // 5. ESTÁNDARES (Igual)
   const user = allUsers.find((u) => u.email === task.assignee);
   const userPhotoURL = user?.photoURL
     ? user.photoURL
@@ -230,72 +139,51 @@ function createTaskElement(task, context, state) {
     ? `<img src="${userPhotoURL}" class="w-6 h-6 rounded-full border border-white shadow-sm object-cover" title="${task.assignee}">`
     : `<div class="w-6 h-6 rounded-full bg-gray-50 border border-gray-300 border-dashed flex items-center justify-center text-gray-400 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-colors" title="Asignar Responsable"><i class="fa-solid fa-user-plus" style="font-size: 10px;"></i></div>`;
 
-  const pointsValue = Number(task.points ?? 0);
-  const hasMissingPoints = !Number.isFinite(pointsValue) || pointsValue <= 0;
-  const pointsLabel = Number.isFinite(pointsValue) ? pointsValue : 0;
-  const pointsBadgeClass = hasMissingPoints
-    ? "task-points-badge-v3 task-points-badge-v3--missing"
-    : "task-points-badge-v3";
-  const pointsHTML = `<span class="${pointsBadgeClass}" title="${hasMissingPoints ? "Falta estimar puntos" : "Puntos estimados"}">${pointsLabel} pts</span>`;
+  const pointsHTML =
+    (task.points || 0) > 0
+      ? `<span class="font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded" style="font-size: 10px;">${task.points}</span>`
+      : ``;
 
   const checkboxHTML = `<input type="checkbox" class="form-checkbox h-3.5 w-3.5 text-blue-600 rounded border-gray-300 focus:ring-0 cursor-pointer mt-0.5 shrink-0" ${isCompleted ? "checked" : ""} ${context.includes("backlog") ? 'data-select-task="true"' : ""}>`;
 
   const sprint = taskLists.find((l) => l.id === task.listId);
   const sprintColor = sprint?.color || "#3b82f6";
 
-  const commentsCount = task.comments?.length || 0;
-  const aging = getTaskAgingState(task, now);
-  const agedChipHTML =
-    aging.key === "danger"
-      ? `<div class="task-meta-chip task-meta-chip--danger" title="Tarea envejecida"><i class="fa-regular fa-clock"></i><span>${aging.label}</span></div>`
-      : aging.key === "warn"
-        ? `<div class="task-meta-chip task-meta-chip--warn" title="Revisar avance"><i class="fa-regular fa-clock"></i><span>${aging.label}</span></div>`
-        : "";
-
-  const hiddenSummary = [];
-  if (timeInProgressLabel) hiddenSummary.push(`En progreso: ${timeInProgressLabel}`);
-  if (isInherited && !isCompleted) hiddenSummary.push("Heredada");
-  hiddenSummary.push(`Creada: ${daysOpen}d`);
-  if (commentsCount > 0) hiddenSummary.push(`${commentsCount} comentarios`);
-  const hiddenSummaryTitle = hiddenSummary.join(" • ").replace(/"/g, "&quot;");
-  const taskTitle = task.title || "Sin título";
-  const shouldClampTitle = taskTitle.length > 90;
-
-  const ageClass =
-    aging.key === "danger" ? "task-card-v3--aging-danger" : aging.key === "warn" ? "task-card-v3--aging-warn" : "";
+  // 6. ESTRUCTURA FINAL (Card)
   const taskCard = document.createElement("div");
   taskCard.id = task.id;
-  taskCard.className = `task-card task-card-v3 ${ageClass} group relative bg-white p-3 rounded-lg ${isCompleted ? "opacity-60" : ""}`;
+  taskCard.className = `task-card group relative bg-white p-3 rounded-lg transition-all ${isCompleted ? "opacity-60" : ""}`;
   taskCard.draggable = true;
   taskCard.dataset.context = context;
-  taskCard.style.setProperty("--task-accent", sprintColor);
-  taskCard.title = hiddenSummaryTitle || taskTitle;
 
   taskCard.innerHTML = `
     <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background-color: ${sprintColor}; border-top-left-radius: 6px; border-bottom-left-radius: 6px;"></div>
-    <div class="pl-2 pr-3 flex flex-col h-full relative gap-2">
-        <div class="task-bento-head">
+    ${epicTopIconHTML}
+    <div class="pl-2 pr-4 flex flex-col h-full relative">
+        <div class="flex items-start gap-2"> 
             ${checkboxHTML}
-            <div class="task-bento-title-wrap">
-                <div class="min-w-0">
-                  <span class="task-title-v3 block break-words ${shouldClampTitle ? "is-clamped" : ""} ${isCompleted ? "line-through text-gray-400" : ""}" title="${taskTitle.replace(/"/g, "&quot;")}">${taskTitle}</span>
-                  ${shouldClampTitle ? '<button class="task-title-expand" data-action="open-details" type="button">Ver más</button>' : ""}
-                </div>
-                ${pointsHTML}
-            </div>
-            <div class="cursor-pointer shrink-0" data-action="assign" title="Asignar Responsable">
-                ${assigneeHTML}
+            <div class="flex-1 min-w-0">
+                <span class="text-sm font-semibold text-gray-900 leading-snug block break-words ${isCompleted ? "line-through text-gray-400" : ""}">${task.title}</span>
+                ${alignmentBadgeHTML}
             </div>
         </div>
-        <div class="task-bento-foot">
-            <div class="task-meta-zone">
-                ${agedChipHTML}
+        <div class="flex-grow min-h-[8px]"></div>
+        <div class="flex items-center justify-between mt-2 pt-1 relative">
+            <div class="flex items-center gap-3">
+                 ${(task.comments?.length || 0) > 0 ? `<div class="flex items-center gap-1 text-gray-400" style="font-size: 10px;"><i class="fa-regular fa-comment"></i><span>${task.comments.length}</span></div>` : ""}
+                 ${metaInfoHTML} 
             </div>
-            <div class="task-actions-zone">
-                <button class="task-action-icon" data-action="open-details" title="Editar detalles"><i class="fa-solid fa-pen-to-square"></i></button>
-                <button class="task-action-icon" data-action="due-date" title="Cambiar fecha"><i class="fa-regular fa-calendar-check"></i></button>
-                <button class="task-action-icon" data-action="points" title="Cambiar puntos"><i class="fa-solid fa-coins"></i></button>
-                <button class="task-action-icon task-action-icon--danger" data-action="delete" title="Eliminar tarea"><i class="fa-solid fa-trash-can"></i></button>
+            <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <button class="text-gray-400 hover:text-blue-600 p-1 transition-colors" data-action="due-date" title="Fecha"><i class="fa-regular fa-calendar-check" style="font-size: 11px;"></i></button>
+                    <button class="text-gray-400 hover:text-blue-600 p-1 transition-colors" data-action="points" title="Puntos"><i class="fa-solid fa-coins" style="font-size: 11px;"></i></button>
+                    <button class="text-gray-400 hover:text-blue-600 p-1 transition-colors" data-action="edit" title="Editar"><i class="fa-solid fa-pencil" style="font-size: 11px;"></i></button>
+                    <button class="text-gray-400 hover:text-red-600 p-1 transition-colors" data-action="delete" title="Borrar"><i class="fa-solid fa-trash-can" style="font-size: 11px;"></i></button>
+                </div>
+                ${pointsHTML}
+                <div class="cursor-pointer shrink-0" data-action="assign" title="Asignar Responsable">
+                    ${assigneeHTML}
+                </div>
             </div>
         </div>
     </div>
@@ -331,13 +219,13 @@ function createCompactTaskElement(task, state) {
   const statusLabel = isCompleted
     ? "Hecho"
     : task.kanbanStatus === "inprogress" || task.status === "inprogress"
-      ? "En progreso"
-      : "Por hacer";
+    ? "En progreso"
+    : "Por hacer";
   const statusClass = isCompleted
     ? "bg-green-50 text-green-700 border border-green-200"
     : task.kanbanStatus === "inprogress" || task.status === "inprogress"
-      ? "bg-blue-50 text-blue-700 border border-blue-200"
-      : "bg-gray-100 text-gray-600 border border-gray-200";
+    ? "bg-blue-50 text-blue-700 border border-blue-200"
+    : "bg-gray-100 text-gray-600 border border-gray-200";
 
   const epic = task.epicId ? epics.find((e) => e.id === task.epicId) : null;
   const epicLabel = epic?.title || "Sin épica";
@@ -443,13 +331,10 @@ function createActivityCommentElement(comment, index, state, taskId) {
     : `https://ui-avatars.com/api/?name=${comment.author ? comment.author.split(" ")[0] : "A"}`;
   const date = comment.timestamp ? comment.timestamp.toDate().toLocaleString("es-MX") : "";
   const isRead = comment.readBy?.includes(state.user.email);
-  const commentText = comment.text || "";
-  const shouldClamp = commentText.length > 170;
-  const textId = `activity-comment-text-${taskId}-${index}`;
   const commentEl = document.createElement("div");
   commentEl.className = "flex items-start gap-3";
   commentEl.id = `activity-comment-${taskId}-${index}`;
-  commentEl.innerHTML = `<img src="${authorAvatar}" class="w-8 h-8 rounded-full mt-1 border border-white shadow-sm" alt="${comment.author || "Usuario"}"><div class="flex-1 bg-gray-50 p-3 rounded-lg border border-gray-200"><div class="flex justify-between items-center gap-3"><span class="font-semibold text-sm text-slate-800">${comment.author || "Anónimo"}</span><span class="text-xs text-gray-500">${date} ${comment.edited ? "(editado)" : ""}</span></div><p id="${textId}" class="activity-comment-text text-sm text-slate-700 mt-1">${commentText}</p>${shouldClamp ? `<button data-action="toggle-comment-expand" data-target="${textId}" class="activity-expand-btn mt-1" type="button">Ver más</button>` : ""}<div class="flex items-center gap-2 mt-2"><input type="checkbox" data-activity-read="true" data-task-id="${taskId}" data-comment-idx="${index}" class="h-4 w-4 rounded border-gray-300 cursor-pointer" ${isRead ? "checked" : ""}><span class="text-xs font-medium ${isRead ? "text-slate-500" : "text-slate-700"}">${isRead ? "Leído" : "Pendiente"}</span>${!isRead ? '<span class="activity-unread-dot" title="No leída"></span>' : ""}</div></div>`;
+  commentEl.innerHTML = `<img src="${authorAvatar}" class="w-8 h-8 rounded-full mt-1"><div class="flex-1 bg-gray-50 p-3 rounded-lg border"><div class="flex justify-between items-center"><span class="font-semibold text-sm">${comment.author || "Anónimo"}</span><span class="text-xs text-gray-400">${date} ${comment.edited ? "(editado)" : ""}</span></div><p class="text-sm text-gray-700 mt-1">${comment.text || ""}</p><div class="flex items-center gap-2 mt-2"><input type="checkbox" data-activity-read="true" data-task-id="${taskId}" data-comment-idx="${index}" ${isRead ? "checked" : ""}><span class="text-xs">${isRead ? "Leído" : "Pendiente"}</span></div></div>`;
   return commentEl;
 }
 
@@ -658,137 +543,126 @@ function toggleBacklogView(state) {
 // EN js/ui/ui.js - REEMPLAZA LA FUNCIÓN EXISTENTE renderSprintKanban
 
 function renderSprintKanban(state) {
+  // Definimos las columnas y sus títulos
   const columns = [
-    { key: "todo" },
-    { key: "inprogress" },
-    { key: "done" },
+    { key: "todo", title: "Por Hacer" },
+    { key: "inprogress", title: "En Progreso" },
+    { key: "done", title: "Hecho" },
   ];
-
-  const getColumnTasks = (statusKey) =>
-    state.tasks.filter((t) => t.listId === state.currentSprintId && resolveKanbanStatus(t) === statusKey);
-
-  const sortColumnTasks = (statusKey, tasks) => {
-    const sorted = [...tasks];
-    if (statusKey === "done") {
-      sorted.sort((a, b) => (toDate(b.completedAt)?.getTime() || 0) - (toDate(a.completedAt)?.getTime() || 0));
-      return sorted;
-    }
-    if (statusKey === "inprogress") {
-      sorted.sort((a, b) => getTaskAgeDays(b) - getTaskAgeDays(a));
-      return sorted;
-    }
-    sorted.sort((a, b) => (toDate(a.createdAt)?.getTime() || 0) - (toDate(b.createdAt)?.getTime() || 0));
-    return sorted;
-  };
 
   columns.forEach((col) => {
     const wrapper = document.getElementById(`col-${col.key}-wrapper`);
     if (!wrapper) return;
-    const colTasks = sortColumnTasks(col.key, getColumnTasks(col.key));
-    const wip = getWipState(col.key, colTasks.length);
 
+    // Verificar si está colapsada
     const isCollapsed = state.collapsedColumns.has(col.key);
+
+    // --- MODO COLAPSADO ---
     if (isCollapsed) {
+      // Ajustamos estilos del wrapper para que sea delgado
       wrapper.className =
         "w-12 py-4 bg-gray-100 rounded-xl flex flex-col items-center justify-center transition-all duration-300 cursor-pointer hover:bg-gray-200 border border-gray-200";
       wrapper.dataset.action = "collapse-column";
       wrapper.dataset.col = col.key;
       wrapper.title = "Clic para expandir";
+
+      // HTML Vertical
       wrapper.innerHTML = `
         <div class="h-full flex items-center justify-center pointer-events-none">
            <span class="whitespace-nowrap font-bold text-gray-400 uppercase tracking-widest text-xs" style="writing-mode: vertical-rl; transform: rotate(180deg);">
-              ${KANBAN_COLUMN_META[col.key].title}
+              ${col.title}
            </span>
         </div>
-        <div class="mt-2 text-gray-400 pointer-events-none flex items-center justify-center">
-          <i class="fa-solid fa-expand mr-1"></i>
-          <span class="text-[10px] font-semibold">${colTasks.length}</span>
-        </div>
+        <div class="mt-2 text-gray-400 pointer-events-none"><i class="fa-solid fa-expand"></i></div>
       `;
-      return;
+      return; // Terminamos aquí si está colapsada
     }
 
-    const inProgressAlertClass = col.key === "inprogress" && wip.isOverLimit ? "kanban-column--wip-alert" : "";
+    // --- MODO EXPANDIDO ---
+    // Restauramos clases originales
     wrapper.className =
-      `flex-1 min-w-0 bg-white rounded-xl p-3 flex flex-col transition-all duration-300 ease-in-out border border-gray-200 shadow-sm ${inProgressAlertClass}`;
+      "flex-1 min-w-0 bg-white rounded-xl p-3 flex flex-col transition-all duration-300 ease-in-out border border-gray-200 shadow-sm";
+    // Quitamos data-action del wrapper para que no colapse al hacer clic en el fondo
     wrapper.removeAttribute("data-action");
-    wrapper.innerHTML = `
-      ${buildKanbanHeader({
-        statusKey: col.key,
-        count: colTasks.length,
-        points: getColumnPoints(colTasks),
-        includeAdd: col.key === "todo",
-        includeCollapse: true,
-        collapseColumnKey: col.key,
-      })}
+
+    // 1. Construir Encabezado
+    const addBtnHTML =
+      col.key === "todo"
+        ? `<button data-action="add-task-sprint" class="text-blue-500 hover:text-blue-700 transition-colors" title="Añadir Tarea">
+             <i class="fa-solid fa-circle-plus text-xl"></i>
+           </button>`
+        : "";
+
+    const headerHTML = `
+      <div class="flex justify-between items-center mb-3 pb-2 border-b border-gray-200">
+        <h3 class="font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2 text-xs">
+          <button data-action="collapse-column" data-col="${col.key}" class="text-gray-400 hover:text-gray-600 transition-colors" title="Colapsar">
+            <i class="fa-solid fa-compress"></i>
+          </button>
+          <span>${col.title}</span>
+        </h3>
+        ${addBtnHTML}
+      </div>
       <div id="kanban-${col.key}" class="min-h-[200px] space-y-2 flex-grow swimlane-drop-zone" data-status="${col.key}"></div>
     `;
+
+    wrapper.innerHTML = headerHTML;
+
+    // 2. Filtrar y Ordenar Tareas (Más viejas primero)
     const container = wrapper.querySelector(`#kanban-${col.key}`);
-    if (!container) return;
 
-    if (col.key === "done") {
-      const todayDone = colTasks.filter((task) => isDateToday(task.completedAt));
-      const historyDone = colTasks.filter((task) => !isDateToday(task.completedAt));
+    // Filtramos tareas de este sprint y columna
+    let colTasks = state.tasks.filter(
+      (t) =>
+        t.listId === state.currentSprintId &&
+        (t.kanbanStatus === col.key || (col.key === "todo" && !t.kanbanStatus))
+    );
 
-      const todayHeader = document.createElement("div");
-      todayHeader.className =
-        "text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-md px-2 py-1";
-      todayHeader.textContent = `Hecho hoy · ${todayDone.length}`;
-      container.appendChild(todayHeader);
+    // ORDENAR: Antigüedad (Fecha de creación ASCENDENTE)
+    // Las fechas más pequeñas (viejas) van primero
+    colTasks.sort((a, b) => {
+      const dateA = a.createdAt?.seconds || 0;
+      const dateB = b.createdAt?.seconds || 0;
+      return dateA - dateB;
+    });
 
-      if (todayDone.length === 0) {
-        const emptyToday = document.createElement("div");
-        emptyToday.className = "text-xs text-gray-400 py-1 px-1";
-        emptyToday.textContent = "Sin tareas completadas hoy.";
-        container.appendChild(emptyToday);
-      } else {
-        todayDone.forEach((task) => container.appendChild(createTaskElement(task, "sprint", state)));
-      }
+    // 3. Renderizar (Top 5 + Resto oculto)
+    const visibleTasks = colTasks.slice(0, 5);
+    const hiddenTasks = colTasks.slice(5);
 
-      if (historyDone.length > 0) {
-        const historyToggle = document.createElement("button");
-        historyToggle.className =
-          "w-full mt-2 py-1.5 text-xs font-semibold text-gray-500 bg-white border border-gray-200 rounded hover:bg-gray-50 transition-colors";
-        historyToggle.innerHTML = `<i class="fa-solid fa-history mr-1"></i> Ver historial (${historyDone.length})`;
+    visibleTasks.forEach((task) => {
+      container.appendChild(createTaskElement(task, "sprint", state));
+    });
 
-        const historyContainer = document.createElement("div");
-        historyContainer.className = "hidden space-y-2 pt-2 border-t border-gray-200";
-        historyDone.forEach((task) => historyContainer.appendChild(createTaskElement(task, "sprint", state)));
-
-        historyToggle.onclick = () => {
-          const hidden = historyContainer.classList.contains("hidden");
-          historyContainer.classList.toggle("hidden");
-          historyToggle.innerHTML = hidden
-            ? `<i class="fa-solid fa-chevron-up mr-1"></i> Ocultar historial`
-            : `<i class="fa-solid fa-history mr-1"></i> Ver historial (${historyDone.length})`;
-        };
-        container.appendChild(historyToggle);
-        container.appendChild(historyContainer);
-      }
-      return;
-    }
-
-    const visibleTasks = colTasks.slice(0, 6);
-    const hiddenTasks = colTasks.slice(6);
-    visibleTasks.forEach((task) => container.appendChild(createTaskElement(task, "sprint", state)));
-
+    // Si hay más de 5, creamos el acordeón
     if (hiddenTasks.length > 0) {
-      const hiddenContainer = document.createElement("div");
-      hiddenContainer.className = "hidden space-y-2";
-      hiddenTasks.forEach((task) => {
-        hiddenContainer.appendChild(createTaskElement(task, "sprint", state));
-      });
+      // Separador visual
+      const separator = document.createElement("div");
+      separator.className = "flex items-center gap-2 py-2";
+      separator.innerHTML = `<div class="h-px bg-gray-200 flex-1"></div><span class="text-[10px] text-gray-400 font-medium">Más recientes</span><div class="h-px bg-gray-200 flex-1"></div>`;
+      container.appendChild(separator);
 
+      // Botón "Ver más"
       const toggleBtn = document.createElement("button");
       toggleBtn.className =
         "w-full py-1.5 text-xs font-semibold text-gray-500 bg-white border border-gray-200 rounded hover:bg-gray-50 transition-colors mb-2";
       toggleBtn.innerHTML = `<i class="fa-solid fa-chevron-down mr-1"></i> Ver ${hiddenTasks.length} tareas más`;
+
+      // Contenedor oculto
+      const hiddenContainer = document.createElement("div");
+      hiddenContainer.className = "hidden space-y-3";
+
+      hiddenTasks.forEach((task) => {
+        hiddenContainer.appendChild(createTaskElement(task, "sprint", state));
+      });
+
+      // Acción del botón
       toggleBtn.onclick = () => {
         hiddenContainer.classList.toggle("hidden");
         const isHidden = hiddenContainer.classList.contains("hidden");
         toggleBtn.innerHTML = isHidden
           ? `<i class="fa-solid fa-chevron-down mr-1"></i> Ver ${hiddenTasks.length} tareas más`
-          : `<i class="fa-solid fa-chevron-up mr-1"></i> Ocultar`;
+          : `<i class="fa-solid fa-chevron-up mr-1"></i> Ocultar recientes`;
       };
 
       container.appendChild(toggleBtn);
@@ -1444,159 +1318,35 @@ function renderMyTasksListArea(state) {
 }
 // --- EN ui.js ---
 
-const CYCLE_LENGTH_DAYS = 15;
-const CYCLE_POINTS_TARGET = 40;
-const CYCLE_ANCHOR_DATE = new Date(2026, 2, 2); // 2026-03-02 (mes 0-indexado)
-
-function getCurrentCycleWindow(referenceDate = new Date(), anchorDate = null) {
-  const base = new Date(referenceDate);
-  base.setHours(0, 0, 0, 0);
-
-  const anchor = anchorDate ? new Date(anchorDate) : new Date(CYCLE_ANCHOR_DATE);
-  anchor.setHours(0, 0, 0, 0);
-
-  const msPerDay = 24 * 60 * 60 * 1000;
-  const baseUtcDay = Date.UTC(base.getFullYear(), base.getMonth(), base.getDate()) / msPerDay;
-  const anchorUtcDay =
-    Date.UTC(anchor.getFullYear(), anchor.getMonth(), anchor.getDate()) / msPerDay;
-  const diffDays = Math.floor(baseUtcDay - anchorUtcDay);
-  const cycleIndex = Math.floor(diffDays / CYCLE_LENGTH_DAYS);
-
-  const start = new Date(anchor);
-  start.setDate(anchor.getDate() + cycleIndex * CYCLE_LENGTH_DAYS);
-
-  const endExclusive = new Date(start);
-  endExclusive.setDate(start.getDate() + CYCLE_LENGTH_DAYS);
-
-  return { start, endExclusive };
-}
-
-function formatShortDate(date) {
-  return date.toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
-}
-
-function formatCycleDateDMY(date) {
-  const d = String(date.getDate()).padStart(2, "0");
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const y = date.getFullYear();
-  return `${d}-${m}-${y}`;
-}
-
-function buildPersonCapacityBar(metrics, capacity = CYCLE_POINTS_TARGET) {
-  const normalize = (value) => {
-    const num = Number(value || 0);
-    return Number.isFinite(num) ? Math.max(0, num) : 0;
-  };
-  const fmt = (value) => {
-    const rounded = Math.round(value * 10) / 10;
-    return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
-  };
-
-  const done = normalize(metrics.ptsDoneThisCycle);
-  const inprogress = normalize(metrics.ptsInProgress);
-  const todo = normalize(metrics.ptsTodo);
-  const cap = Math.max(1, Number(capacity) || 40);
-
-  const total = done + inprogress + todo;
-  const overflow = Math.max(0, total - cap);
-
-  const doneIn = Math.min(done, cap);
-  const progressIn = Math.min(inprogress, Math.max(cap - doneIn, 0));
-  const todoIn = Math.min(todo, Math.max(cap - doneIn - progressIn, 0));
-  const emptyIn = Math.max(cap - doneIn - progressIn - todoIn, 0);
-  const pct = (value) => `${((value / cap) * 100).toFixed(2)}%`;
-
-  const overflowBadge =
-    overflow > 0 ? `<span class="person-capacity-overflow">+${fmt(overflow)} sobre capacidad</span>` : "";
-
-  const aria = `Hecho ${fmt(done)} pts, En progreso ${fmt(inprogress)} pts, Por hacer ${fmt(todo)} pts, Total ${fmt(total)} de ${fmt(cap)} puntos`;
-
-  return `
-    <div class="person-capacity-wrap" title="${aria}">
-      <div class="person-capacity-head">
-        <span class="person-capacity-title">Capacidad ciclo</span>
-      </div>
-
-      <div class="person-capacity-bar" role="img" aria-label="${aria}">
-        <span class="person-capacity-segment person-capacity-segment--done" style="width:${pct(doneIn)}" title="Hecho ${fmt(done)} pts"></span>
-        <span class="person-capacity-segment person-capacity-segment--progress" style="width:${pct(progressIn)}" title="En progreso ${fmt(inprogress)} pts"></span>
-        <span class="person-capacity-segment person-capacity-segment--todo" style="width:${pct(todoIn)}" title="Por hacer ${fmt(todo)} pts"></span>
-        <span class="person-capacity-segment person-capacity-segment--empty" style="width:${pct(emptyIn)}" aria-hidden="true"></span>
-      </div>
-
-      <div class="person-capacity-legend">
-        <span class="person-capacity-chip person-capacity-chip--done"><b>H</b>${fmt(done)}</span>
-        <span class="person-capacity-chip person-capacity-chip--progress"><b>P</b>${fmt(inprogress)}</span>
-        <span class="person-capacity-chip person-capacity-chip--todo"><b>PH</b>${fmt(todo)}</span>
-        <span class="person-capacity-chip person-capacity-chip--free"><b>L</b>${fmt(emptyIn)}</span>
-        ${overflowBadge}
-      </div>
-    </div>
-  `;
-}
-
 function renderPersonView(state) {
   const container = document.getElementById("view-by-person");
   if (!container) return;
   container.innerHTML = "";
 
-  const cycleWindow = getCurrentCycleWindow(new Date());
-  const cycleStartLabel = formatCycleDateDMY(cycleWindow.start);
-  const cycleEnd = new Date(cycleWindow.endExclusive);
-  cycleEnd.setDate(cycleEnd.getDate() - 1);
-  const cycleEndLabel = formatCycleDateDMY(cycleEnd);
+  // 1. HELPERS DE FECHA
+  const getStartOfWeek = (d) => {
+    const date = new Date(d);
+    const day = date.getDay();
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(date.setDate(diff));
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  };
+  const currentWeekStart = getStartOfWeek(new Date());
 
-  const normalize = (email) => (email ? email.trim().toLowerCase() : "unassigned");
-  const getDateValue = (value) => (value?.toDate ? value.toDate() : value ? new Date(value) : null);
-  const isDateInCycle = (value) => {
-    const d = getDateValue(value);
-    return Boolean(d && d >= cycleWindow.start && d < cycleWindow.endExclusive);
-  };
-  const sprintMap = new Map(state.taskLists.map((s) => [s.id, s]));
-  const sprintOverlapsCycle = (sprint) => {
-    if (!sprint || sprint.isBacklog || sprint.isArchived) return false;
-    const start = getDateValue(sprint.startDate);
-    const end = getDateValue(sprint.endDate);
-    if (start && end) {
-      const endExclusive = new Date(end);
-      endExclusive.setDate(endExclusive.getDate() + 1);
-      return start < cycleWindow.endExclusive && endExclusive > cycleWindow.start;
-    }
-    if (start) return start < cycleWindow.endExclusive;
-    if (end) {
-      const endExclusive = new Date(end);
-      endExclusive.setDate(endExclusive.getDate() + 1);
-      return endExclusive > cycleWindow.start;
-    }
-    return sprint.id === state.currentSprintId;
-  };
-  const isTodoTask = (task) =>
-    task.kanbanStatus === "todo" || !["inprogress", "done"].includes(task.kanbanStatus);
-  const isTaskInCurrentCycle = (task) => {
-    if (
-      isDateInCycle(task.completedAt) ||
-      isDateInCycle(task.startedAt) ||
-      isDateInCycle(task.createdAt)
-    )
-      return true;
-    if (task.kanbanStatus === "inprogress" || isTodoTask(task)) {
-      return sprintOverlapsCycle(sprintMap.get(task.listId));
-    }
-    return false;
-  };
-  const getLastUpdatedMs = (task) => {
-    const candidates = [task.updatedAt, task.completedAt, task.startedAt, task.createdAt]
-      .map((v) => getDateValue(v))
-      .filter(Boolean)
-      .map((d) => d.getTime());
-    return candidates.length ? Math.max(...candidates) : 0;
-  };
+  // 2. CONTROLES DE FILTROS
+  const controlsDiv = document.createElement("div");
+  controlsDiv.className =
+    "mb-4 flex flex-wrap gap-3 items-center bg-white p-3 rounded-xl shadow-sm border border-gray-200";
 
   let sprintOptions = `<option value="all">Todos los Sprints Activos</option>`;
+
   state.taskLists
     .filter((l) => !l.isBacklog && !l.isArchived)
     .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
     .forEach((s) => {
+      // CORRECCIÓN: Quitamos el 'if (s.id !== state.currentSprintId)'
+      // Ahora agregamos TODOS los sprints a la lista sin discriminar.
       sprintOptions += `<option value="${s.id}">${s.title}</option>`;
     });
 
@@ -1611,6 +1361,57 @@ function renderPersonView(state) {
     }
   });
 
+  controlsDiv.innerHTML = `
+      <div class="flex items-center gap-2 flex-wrap">
+          <label class="text-xs font-semibold text-gray-500 uppercase">Período</label>
+          <select id="person-view-filter" class="p-2 pr-8 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+              ${sprintOptions}
+          </select>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+          <label class="text-xs font-semibold text-gray-500 uppercase">Persona</label>
+          <select id="person-view-people-filter" class="p-2 pr-8 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+              ${peopleOptions}
+          </select>
+      </div>
+
+      <button id="btn-show-velocity" class="h-[38px] px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg border border-gray-300 transition-colors flex items-center gap-2 text-sm font-semibold" title="Ver tabla de puntos por semana">
+        <i class="fas fa-table"></i> Histórico
+      </button>
+      
+      <div class="ml-auto flex items-center gap-2 text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg border border-gray-100">
+          <div class="flex items-center gap-1.5" title="Puntos terminados desde el lunes">
+              <span style="display:inline-block; width:9px; height:9px; border-radius:50%; background-color:#22c55e; border:1px solid #16a34a;"></span>
+              <span class="font-medium">Hecho (Semana)</span>
+          </div>
+          <div class="flex items-center gap-1.5" title="Puntos actualmente en la columna 'En Progreso'">
+              <span style="display:inline-block; width:9px; height:9px; border-radius:50%; background-color:#2563eb; border:1px solid #1d4ed8;"></span>
+              <span class="font-medium">Carga Viva</span>
+          </div>
+      </div>
+  `;
+  container.appendChild(controlsDiv);
+
+  // Restore selections
+  const sprintSelect = controlsDiv.querySelector("#person-view-filter");
+  if (state.personViewSprintFilter) sprintSelect.value = state.personViewSprintFilter;
+  const personSelect = controlsDiv.querySelector("#person-view-people-filter");
+  if (state.personViewPersonFilter) personSelect.value = state.personViewPersonFilter;
+
+  if (typeof appActions !== "undefined") {
+    sprintSelect.addEventListener("change", (e) =>
+      appActions.setPersonViewSprintFilter(e.target.value)
+    );
+    personSelect.addEventListener("change", (e) =>
+      appActions.setPersonViewPersonFilter(e.target.value)
+    );
+  }
+
+  const btnVelocity = controlsDiv.querySelector("#btn-show-velocity");
+  if (btnVelocity) {
+    btnVelocity.addEventListener("click", () => showVelocityReport(state));
+  }
+  // 3. FILTRADO
   let tasksToShow = [];
   if (state.personViewSprintFilter === "all" || !state.personViewSprintFilter) {
     const activeSprintIds = state.taskLists
@@ -1621,6 +1422,7 @@ function renderPersonView(state) {
     tasksToShow = state.tasks.filter((t) => t.listId === state.personViewSprintFilter);
   }
 
+  const normalize = (email) => (email ? email.trim().toLowerCase() : "unassigned");
   const grouped = { unassigned: [] };
   const profileMap = {};
 
@@ -1649,580 +1451,280 @@ function renderPersonView(state) {
     grouped[key].push(task);
   });
 
-  const allKeys = Object.keys(grouped);
-  const getProfileDisplay = (emailKey) => {
-    if (emailKey === "unassigned") {
-      return {
-        name: "Sin Asignar",
-        email: "Sin responsable",
-        avatar: null,
-      };
-    }
-    const profile = profileMap[emailKey];
-    const rawEmail = profile?.email || emailKey;
-    return {
-      name: profile?.displayName || rawEmail,
-      email: rawEmail,
-      avatar: profile?.photoURL || `https://ui-avatars.com/api/?name=${rawEmail.split("@")[0]}`,
-    };
-  };
-
-  const getPersonCycleCapacity = (emailKey) => {
-    if (emailKey === "unassigned") return CYCLE_POINTS_TARGET;
-    const profile = profileMap[emailKey];
-    const candidates = [
-      profile?.cycleCapacity,
-      profile?.capacity,
-      profile?.sprintCapacity,
-      profile?.pointsCapacity,
-      profile?.velocityCapacity,
-    ];
-    for (const candidate of candidates) {
-      const parsed = Number(candidate);
-      if (Number.isFinite(parsed) && parsed > 0) return parsed;
-    }
-    return CYCLE_POINTS_TARGET;
-  };
-
-  const getRiskState = (currentLoad, personCapacity = CYCLE_POINTS_TARGET) => {
-    const cap = Math.max(1, Number(personCapacity) || CYCLE_POINTS_TARGET);
-    const ratio = currentLoad / cap;
-    if (ratio > 1) {
-      return {
-        key: "high",
-        label: "Sobre meta",
-        title: `Carga mayor al 100% de la meta (${cap} pts por ciclo).`,
-        className: "person-risk-text--high",
-        chipClass: "person-risk-chip--high",
-        score: ratio + 1,
-      };
-    }
-    if (ratio > 0.7) {
-      return {
-        key: "medium",
-        label: "En límite",
-        title: `Carga entre 70% y 100% de la meta (${cap} pts por ciclo).`,
-        className: "person-risk-text--medium",
-        chipClass: "person-risk-chip--medium",
-        score: ratio + 0.4,
-      };
-    }
-    return {
-      key: "low",
-      label: "En rango",
-      title: `Carga menor o igual al 70% de la meta (${cap} pts por ciclo).`,
-      className: "person-risk-text--low",
-      chipClass: "person-risk-chip--low",
-      score: ratio,
-    };
-  };
-
-  const metricsMap = {};
-  allKeys.forEach((emailKey) => {
-    const tasks = grouped[emailKey] || [];
-    const tasksInCurrentCycle = tasks.filter((t) => isTaskInCurrentCycle(t));
-    const doneThisCycleTasks = tasksInCurrentCycle.filter((t) => {
-      if (t.kanbanStatus !== "done" && t.status !== "completed") return false;
-      if (!t.completedAt) return false;
-      const d = t.completedAt.toDate ? t.completedAt.toDate() : new Date(t.completedAt);
-      return d >= cycleWindow.start && d < cycleWindow.endExclusive;
-    });
-    const ptsDoneThisCycle = doneThisCycleTasks.reduce((sum, t) => sum + (t.points || 0), 0);
-    const inProgressTasks = tasksInCurrentCycle.filter((t) => t.kanbanStatus === "inprogress");
-    const ptsInProgress = inProgressTasks.reduce((sum, t) => sum + (t.points || 0), 0);
-    const todoTasks = tasksInCurrentCycle.filter((t) => isTodoTask(t));
-    const ptsTodo = todoTasks.reduce((sum, t) => sum + (t.points || 0), 0);
-    const currentLoad = ptsDoneThisCycle + ptsInProgress + ptsTodo;
-    const personCapacity = getPersonCycleCapacity(emailKey);
-    const risk = getRiskState(currentLoad, personCapacity);
-    const riskScore =
-      risk.score +
-      (ptsDoneThisCycle === 0 && currentLoad > 0 ? 0.35 : 0) +
-      (personCapacity > 0 ? ptsTodo / personCapacity : 0);
-    metricsMap[emailKey] = {
-      tasksCount: tasks.length,
-      ptsDoneThisCycle,
-      ptsInProgress,
-      ptsTodo,
-      capacity: personCapacity,
-      currentLoad,
-      isOverloaded: currentLoad > personCapacity,
-      risk,
-      riskScore,
-    };
-  });
-
-  const personFilter = state.personViewPersonFilter || "all";
-  const searchValue = (state.personViewSearch || "").trim().toLowerCase();
-  const quickFilter = state.personViewQuickFilter || "all";
-  const sortMode = state.personViewSortMode || "load_desc";
-  const viewMode = state.personViewMode || "current";
-
-  let visibleKeys = allKeys.filter((k) => (metricsMap[k]?.tasksCount || 0) > 0);
-  if (personFilter !== "all") {
-    const filterKey = normalize(personFilter);
-    visibleKeys = grouped[filterKey] ? [filterKey] : [];
+  let visibleKeys = Object.keys(grouped);
+  if (state.personViewPersonFilter && state.personViewPersonFilter !== "all") {
+    const filterKey = normalize(state.personViewPersonFilter);
+    visibleKeys = visibleKeys.filter((k) => k === filterKey);
   }
-  if (searchValue) {
-    visibleKeys = visibleKeys.filter((emailKey) => {
-      const profile = getProfileDisplay(emailKey);
-      return (
-        profile.name.toLowerCase().includes(searchValue) ||
-        profile.email.toLowerCase().includes(searchValue)
-      );
-    });
-  }
-  if (quickFilter !== "all") {
-    visibleKeys = visibleKeys.filter((emailKey) => {
-      const metrics = metricsMap[emailKey];
-      if (!metrics) return false;
-      if (quickFilter === "overloaded") return metrics.isOverloaded;
-      if (quickFilter === "no_progress")
-        return metrics.currentLoad > 0 && metrics.ptsDoneThisCycle === 0;
-      if (quickFilter === "unassigned") return emailKey === "unassigned";
-      if (quickFilter === "live_load") return metrics.ptsInProgress > 0;
-      return true;
-    });
-  }
-
-  const compareByName = (a, b) => {
-    if (a === "unassigned") return -1;
-    if (b === "unassigned") return 1;
-    return getProfileDisplay(a).name.localeCompare(getProfileDisplay(b).name, "es", {
-      sensitivity: "base",
-    });
-  };
 
   visibleKeys.sort((a, b) => {
-    const ma = metricsMap[a] || {};
-    const mb = metricsMap[b] || {};
-    switch (sortMode) {
-      case "risk_desc":
-        if ((mb.riskScore || 0) !== (ma.riskScore || 0)) return (mb.riskScore || 0) - (ma.riskScore || 0);
-        return compareByName(a, b);
-      case "done_desc":
-        if ((mb.ptsDoneThisCycle || 0) !== (ma.ptsDoneThisCycle || 0))
-          return (mb.ptsDoneThisCycle || 0) - (ma.ptsDoneThisCycle || 0);
-        if ((mb.currentLoad || 0) !== (ma.currentLoad || 0))
-          return (mb.currentLoad || 0) - (ma.currentLoad || 0);
-        return compareByName(a, b);
-      case "name_asc":
-        return compareByName(a, b);
-      case "load_desc":
-      default:
-        if ((mb.currentLoad || 0) !== (ma.currentLoad || 0))
-          return (mb.currentLoad || 0) - (ma.currentLoad || 0);
-        return compareByName(a, b);
-    }
+    if (a === "unassigned") return -1;
+    if (b === "unassigned") return 1;
+    return a.localeCompare(b);
   });
 
-  const summary = visibleKeys.reduce(
-    (acc, emailKey) => {
-      const m = metricsMap[emailKey];
-      if (!m) return acc;
-      acc.people += emailKey === "unassigned" ? 0 : 1;
-      acc.tasks += m.tasksCount;
-      acc.overloaded += m.isOverloaded ? 1 : 0;
-      acc.unassigned += emailKey === "unassigned" ? m.tasksCount : 0;
-      acc.liveLoad += m.ptsInProgress;
-      acc.doneCycle += m.ptsDoneThisCycle;
-      acc.totalLoad += m.currentLoad;
-      acc.totalCapacity += emailKey === "unassigned" ? 0 : Number(m.capacity) || CYCLE_POINTS_TARGET;
-      return acc;
-    },
-    {
-      people: 0,
-      tasks: 0,
-      overloaded: 0,
-      unassigned: 0,
-      liveLoad: 0,
-      doneCycle: 0,
-      totalLoad: 0,
-      totalCapacity: 0,
-    }
-  );
-
-  const latestMs = tasksToShow.reduce((max, task) => Math.max(max, getLastUpdatedMs(task)), 0);
-  const latestLabel = latestMs
-    ? new Date(latestMs).toLocaleString("es-MX", {
-        day: "2-digit",
-        month: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : "Sin actividad reciente";
-  const cycleCapacity = Math.max(0, Number(summary.totalCapacity) || 0);
-  const utilizationPct =
-    cycleCapacity > 0 ? Math.round((summary.totalLoad / cycleCapacity) * 100) : 0;
-  const completionPct = cycleCapacity > 0 ? Math.round((summary.doneCycle / cycleCapacity) * 100) : 0;
-  const livePct = cycleCapacity > 0 ? Math.round((summary.liveLoad / cycleCapacity) * 100) : 0;
-  const availablePts = Math.max(cycleCapacity - summary.totalLoad, 0);
-  const overflowPts = Math.max(summary.totalLoad - cycleCapacity, 0);
-  const avgCapacity = summary.people > 0 ? Math.round(cycleCapacity / summary.people) : 0;
-
-  const quickChips = [
-    { key: "all", label: "Todos" },
-    { key: "no_progress", label: "Sin avance" },
-    { key: "overloaded", label: "Sobrecargados" },
-    { key: "unassigned", label: "Sin asignar" },
-    { key: "live_load", label: "Con carga viva" },
-  ];
-  const sortOptions = [
-    { key: "load_desc", label: "Carga total" },
-    { key: "risk_desc", label: "Riesgo" },
-    { key: "done_desc", label: "Hecho ciclo" },
-    { key: "name_asc", label: "A-Z" },
-  ];
-  const activeQuick = quickChips.find((chip) => chip.key === quickFilter);
-  const activeSort = sortOptions.find((option) => option.key === sortMode);
-  const hasQuickFilter = quickFilter !== "all";
-  const hasCustomSort = sortMode !== "load_desc";
-  const activeFilterCount = Number(hasQuickFilter) + Number(hasCustomSort);
-  const showAdvancedByDefault = hasQuickFilter || hasCustomSort;
-  const quickChipsHTML = quickChips
-    .map((chip) => {
-      const active = quickFilter === chip.key;
-      const cls = active ? "person-quick-chip--active" : "person-quick-chip--idle";
-      return `<button type="button" data-person-quick="${chip.key}" class="person-quick-chip ${cls}">${chip.label}</button>`;
-    })
-    .join("");
-  const activePillsHTML = [
-    hasQuickFilter && activeQuick
-      ? `<span class="person-filter-pill">Estado: ${activeQuick.label}</span>`
-      : "",
-    hasCustomSort && activeSort ? `<span class="person-filter-pill">Orden: ${activeSort.label}</span>` : "",
-  ]
-    .filter(Boolean)
-    .join("");
-
-  const controlsDiv = document.createElement("div");
-  controlsDiv.className = "mb-3 bg-white p-3 md:p-4 rounded-xl shadow-sm border border-gray-200";
-  controlsDiv.innerHTML = `
-    <div class="person-toolbar-main">
-      <div class="person-control-field person-control-field--slim">
-          <label class="person-control-label">Persona</label>
-          <select id="person-view-people-filter" class="person-control-input person-control-input--slim">${peopleOptions}</select>
-      </div>
-      <div class="person-control-field person-control-field--slim">
-          <label class="person-control-label">Sprint</label>
-          <select id="person-view-filter" class="person-control-input person-control-input--slim">${sprintOptions}</select>
-      </div>
-      <div class="person-control-field person-control-field--slim">
-          <label class="person-control-label">Buscar</label>
-          <input id="person-view-search" type="text" value="${(state.personViewSearch || "").replace(/"/g, "&quot;")}" placeholder="Nombre o email" class="person-control-input person-control-input--slim" />
-      </div>
-      <div class="person-control-field person-control-field--slim">
-          <label class="person-control-label">Ver</label>
-          <div id="person-view-mode" class="person-mode-toggle person-mode-toggle--slim">
-            <button type="button" data-person-mode="current" class="flex-1 h-full rounded-md text-[13px] font-semibold transition-colors ${viewMode === "current" ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-100"}">Actual</button>
-            <button type="button" data-person-mode="history" class="flex-1 h-full rounded-md text-[13px] font-semibold transition-colors ${viewMode === "history" ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-100"}">Histórico</button>
-          </div>
-      </div>
-
-      <div class="person-toolbar-actions">
-        <button id="person-toggle-advanced-panel" type="button" class="person-toolbar-btn" aria-expanded="${showAdvancedByDefault ? "true" : "false"}">
-          <i class="fa-solid fa-sliders"></i>
-          Filtros
-          ${activeFilterCount > 0 ? `<span class="person-toolbar-badge">${activeFilterCount}</span>` : ""}
-        </button>
-        <button id="person-open-history-report" type="button" class="person-history-btn person-history-btn--slim">
-          <i class="fas fa-table"></i> Tabla
-        </button>
-      </div>
-    </div>
-
-    <div id="person-toolbar-collapsible" class="person-toolbar-collapsible ${showAdvancedByDefault ? "" : "u-hidden"}">
-      <div class="person-toolbar-panel">
-        <div class="person-toolbar-panel-head">
-          <h3>Filtros específicos</h3>
-          <button id="person-clear-advanced-panel" type="button" class="person-toolbar-clear ${activeFilterCount > 0 ? "" : "u-hidden"}">Limpiar</button>
-        </div>
-        <div id="person-view-quick-filters" class="person-quick-filters">${quickChipsHTML}</div>
-        <div class="person-toolbar-bottom-row">
-          <div class="person-toolbar-sort-wrap">
-            <label class="person-control-label">Ordenar</label>
-            <select id="person-view-sort" class="person-control-input person-control-input--slim">
-              <option value="load_desc" ${sortMode === "load_desc" ? "selected" : ""}>Carga total</option>
-              <option value="risk_desc" ${sortMode === "risk_desc" ? "selected" : ""}>Riesgo</option>
-              <option value="done_desc" ${sortMode === "done_desc" ? "selected" : ""}>Hecho ciclo</option>
-              <option value="name_asc" ${sortMode === "name_asc" ? "selected" : ""}>A-Z</option>
-            </select>
-          </div>
-          <div class="person-toolbar-active-row ${activeFilterCount > 0 ? "" : "u-hidden"}">${activePillsHTML}</div>
-        </div>
-      </div>
-
-      <details class="person-toolbar-panel person-toolbar-panel--context">
-        <summary>Contexto del ciclo</summary>
-        <div class="person-cycle-bento">
-          <article class="person-cycle-card person-cycle-card--hero">
-            <p class="person-cycle-eyebrow">Periodo activo</p>
-            <h4>${cycleStartLabel} a ${cycleEndLabel}</h4>
-            <p class="person-cycle-subline">Actualizado: ${latestLabel}</p>
-          </article>
-
-          <article class="person-cycle-card person-cycle-card--capacity ${overflowPts > 0 ? "person-cycle-card--warn" : ""}">
-            <p class="person-cycle-eyebrow">Capacidad del ciclo</p>
-            <h4>${summary.totalLoad} / ${cycleCapacity} pts</h4>
-            <p class="person-cycle-subline">${utilizationPct}% de uso · ${overflowPts > 0 ? `+${overflowPts} pts sobre capacidad` : `${availablePts} pts libres`}</p>
-            <div class="person-cycle-track">
-              <span class="person-cycle-fill person-cycle-fill--load" style="width:${Math.min(utilizationPct, 100)}%"></span>
-            </div>
-            <div class="person-cycle-track">
-              <span class="person-cycle-fill person-cycle-fill--done" style="width:${Math.min(livePct, 100)}%"></span>
-            </div>
-            <div class="person-cycle-inline-kpis">
-              <span><b>Hecho:</b> ${summary.doneCycle} pts (${completionPct}%)</span>
-              <span><b>Carga viva:</b> ${summary.liveLoad} pts (${livePct}%)</span>
-            </div>
-          </article>
-
-          <article class="person-cycle-card person-cycle-card--risk ${summary.overloaded > 0 ? "person-cycle-card--alert" : ""}">
-            <p class="person-cycle-eyebrow">Riesgo operativo</p>
-            <h4>${summary.overloaded} sobrecargados</h4>
-            <p class="person-cycle-subline">${summary.unassigned} tareas sin asignar · ${summary.tasks} tareas evaluadas</p>
-          </article>
-
-          <article class="person-cycle-card person-cycle-card--mini">
-            <p class="person-cycle-eyebrow">Equipo</p>
-            <h4>${summary.people}</h4>
-          </article>
-          <article class="person-cycle-card person-cycle-card--mini">
-            <p class="person-cycle-eyebrow">Tareas</p>
-            <h4>${summary.tasks}</h4>
-          </article>
-          <article class="person-cycle-card person-cycle-card--mini">
-            <p class="person-cycle-eyebrow">Carga viva</p>
-            <h4>${summary.liveLoad} pts</h4>
-            <p class="person-cycle-subline">${livePct}% de capacidad</p>
-          </article>
-          <article class="person-cycle-card person-cycle-card--mini person-cycle-card--accent">
-            <p class="person-cycle-eyebrow">Capacidad acumulada</p>
-            <h4>${cycleCapacity} pts</h4>
-            <p class="person-cycle-subline">Promedio ${avgCapacity} pts por persona</p>
-          </article>
-        </div>
-      </details>
-    </div>
-  `;
-  container.appendChild(controlsDiv);
-
-  const sprintSelect = controlsDiv.querySelector("#person-view-filter");
-  if (sprintSelect) sprintSelect.value = state.personViewSprintFilter || "all";
-  const personSelect = controlsDiv.querySelector("#person-view-people-filter");
-  if (personSelect) personSelect.value = state.personViewPersonFilter || "all";
-  const searchInput = controlsDiv.querySelector("#person-view-search");
-  if (searchInput) searchInput.value = state.personViewSearch || "";
-  const sortSelect = controlsDiv.querySelector("#person-view-sort");
-  if (sortSelect) sortSelect.value = sortMode;
-  const advancedPanel = controlsDiv.querySelector("#person-toolbar-collapsible");
-  const toggleAdvancedBtn = controlsDiv.querySelector("#person-toggle-advanced-panel");
-  const clearAdvancedBtn = controlsDiv.querySelector("#person-clear-advanced-panel");
-
-  if (typeof appActions !== "undefined") {
-    sprintSelect?.addEventListener("change", (e) => appActions.setPersonViewSprintFilter(e.target.value));
-    personSelect?.addEventListener("change", (e) => appActions.setPersonViewPersonFilter(e.target.value));
-    searchInput?.addEventListener("input", (e) => appActions.setPersonViewSearch(e.target.value));
-    sortSelect?.addEventListener("change", (e) => appActions.setPersonViewSortMode(e.target.value));
-    controlsDiv.querySelectorAll("[data-person-mode]").forEach((btn) => {
-      btn.addEventListener("click", () => appActions.setPersonViewMode(btn.dataset.personMode));
-    });
-    controlsDiv.querySelectorAll("[data-person-quick]").forEach((btn) => {
-      btn.addEventListener("click", () => appActions.setPersonViewQuickFilter(btn.dataset.personQuick));
-    });
-    clearAdvancedBtn?.addEventListener("click", () => {
-      if (quickFilter !== "all") appActions.setPersonViewQuickFilter("all");
-      if (sortMode !== "load_desc") appActions.setPersonViewSortMode("load_desc");
-    });
-  }
-
-  if (advancedPanel && toggleAdvancedBtn) {
-    toggleAdvancedBtn.addEventListener("click", () => {
-      advancedPanel.classList.toggle("u-hidden");
-      const expanded = !advancedPanel.classList.contains("u-hidden");
-      toggleAdvancedBtn.setAttribute("aria-expanded", expanded ? "true" : "false");
-    });
-  }
-
-  const btnOpenHistory = controlsDiv.querySelector("#person-open-history-report");
-  if (btnOpenHistory) btnOpenHistory.addEventListener("click", () => showVelocityReport(state));
-
-  if (viewMode === "history") {
-    const historyPanel = document.createElement("div");
-    historyPanel.className = "bg-white rounded-xl border border-gray-200 shadow-sm p-4";
-    historyPanel.innerHTML = `
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 class="text-base font-bold text-gray-800">Modo Histórico</h3>
-          <p class="text-sm text-gray-500">Consulta la tabla de velocidad quincenal sin perder tus filtros actuales.</p>
-        </div>
-        <button id="person-history-open-main" type="button" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-3 rounded-lg text-sm transition-colors">
-          Ver histórico completo
-        </button>
-      </div>
-      <div class="mt-3 grid grid-cols-2 xl:grid-cols-5 gap-2">
-        <div class="person-kpi-pill"><span class="person-kpi-label">Equipo filtrado</span><strong class="person-kpi-value">${summary.people}</strong></div>
-        <div class="person-kpi-pill"><span class="person-kpi-label">Tareas visibles</span><strong class="person-kpi-value">${summary.tasks}</strong></div>
-        <div class="person-kpi-pill"><span class="person-kpi-label">Sobrecargados</span><strong class="person-kpi-value ${summary.overloaded > 0 ? "text-red-600" : "text-gray-800"}">${summary.overloaded}</strong></div>
-        <div class="person-kpi-pill"><span class="person-kpi-label">Carga viva</span><strong class="person-kpi-value text-blue-600">${summary.liveLoad} pts</strong></div>
-        <div class="person-kpi-pill"><span class="person-kpi-label">Hecho ciclo</span><strong class="person-kpi-value text-emerald-600">${summary.doneCycle} pts</strong></div>
-      </div>
-    `;
-    container.appendChild(historyPanel);
-    const historyMainButton = historyPanel.querySelector("#person-history-open-main");
-    if (historyMainButton) historyMainButton.addEventListener("click", () => showVelocityReport(state));
-    return;
-  }
-
   if (visibleKeys.length === 0) {
-    const emptyState = document.createElement("div");
-    emptyState.className =
-      "bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center text-gray-500";
-    emptyState.innerHTML = `
-      <p class="text-sm font-semibold text-gray-700">No hay resultados con estos filtros.</p>
-      <p class="text-xs mt-1">Ajusta búsqueda, persona o quick-filters para continuar.</p>
-      <button id="person-clear-filters" type="button" class="mt-4 px-3 py-2 text-xs font-semibold rounded-lg border border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-700 transition-colors">Limpiar filtros</button>
-    `;
-    container.appendChild(emptyState);
-    const clearBtn = emptyState.querySelector("#person-clear-filters");
-    if (clearBtn && typeof appActions !== "undefined") {
-      clearBtn.addEventListener("click", () => appActions.resetPersonViewControls());
-    }
+    container.innerHTML += `<div class="text-center py-10 text-gray-400 italic">No hay resultados.</div>`;
     return;
   }
+
+  // 4. RENDERIZADO DE CARRILES
+  const WEEKLY_CAPACITY = 20;
 
   visibleKeys.forEach((emailKey) => {
     const tasks = grouped[emailKey];
-    const metrics = metricsMap[emailKey] || {};
+    const userProfile = profileMap[emailKey];
     const isExpanded = state.expandedPersonViews.has(emailKey);
-    const profile = getProfileDisplay(emailKey);
 
+    // --- CÁLCULO DE MÉTRICAS ---
+    const doneThisWeekTasks = tasks.filter((t) => {
+      if (t.kanbanStatus !== "done" && t.status !== "completed") return false;
+      if (!t.completedAt) return false;
+      const d = t.completedAt.toDate ? t.completedAt.toDate() : new Date(t.completedAt);
+      return d >= currentWeekStart;
+    });
+    const ptsDoneThisWeek = doneThisWeekTasks.reduce((sum, t) => sum + (t.points || 0), 0);
+
+    const inProgressTasks = tasks.filter((t) => t.kanbanStatus === "inprogress");
+    const ptsInProgress = inProgressTasks.reduce((sum, t) => sum + (t.points || 0), 0);
+
+    const todoTasks = tasks.filter((t) => t.kanbanStatus === "todo");
+    const ptsTodo = todoTasks.reduce((sum, t) => sum + (t.points || 0), 0);
+
+    const currentLoad = ptsDoneThisWeek + ptsInProgress + ptsTodo;
+
+    // Porcentajes
+    const pctDone = Math.min(100, (ptsDoneThisWeek / WEEKLY_CAPACITY) * 100);
+    const pctProg = Math.min(100 - pctDone, (ptsInProgress / WEEKLY_CAPACITY) * 100);
+    const spaceLeft = 100 - pctDone - pctProg;
+    const pctTodo = Math.min(spaceLeft, (ptsTodo / WEEKLY_CAPACITY) * 100);
+
+    const isOverloaded = currentLoad > WEEKLY_CAPACITY;
+    const loadColor = isOverloaded
+      ? "text-red-600"
+      : currentLoad >= 15
+        ? "text-blue-600"
+        : "text-gray-500";
+
+    // --- HEADER ---
     const swimlane = document.createElement("div");
-    const laneToneClass =
-      metrics.risk?.key === "high"
-        ? "person-lane--high"
-        : metrics.risk?.key === "medium"
-          ? "person-lane--medium"
-          : "person-lane--low";
     swimlane.className =
-      `mb-3 border border-gray-200 rounded-xl shadow-sm bg-white overflow-hidden transition-shadow duration-200 hover:shadow ${laneToneClass}`;
+      "mb-4 border border-gray-200 rounded-xl shadow-sm bg-white overflow-hidden transition-all duration-200";
 
-    const avatarHTML =
-      emailKey === "unassigned"
-        ? `<div class="rounded-full bg-gray-100 flex items-center justify-center text-gray-400" style="width:44px; height:44px;"><i class="fas fa-question"></i></div>`
-        : `<img src="${profile.avatar}" class="rounded-full border border-gray-100 object-cover" style="width:44px; height:44px;" alt="${profile.name}">`;
+    let headerHTML = "";
 
-    swimlane.innerHTML = `
-      <div class="px-3 py-3 md:px-4 md:py-3.5 cursor-pointer hover:bg-gray-50 transition-colors" data-person-toggle="${emailKey}">
-        <div class="person-row-header-grid">
-          <div class="person-row-identity">
-            ${avatarHTML}
-            <div class="min-w-0 person-identity-meta">
-              <h3 class="text-[16px] leading-tight font-bold text-gray-800 ${emailKey === "unassigned" ? "italic" : ""} truncate">${profile.name}</h3>
-              <p class="text-[14px] leading-snug text-gray-500 truncate">${metrics.tasksCount || 0} tareas</p>
+    if (emailKey === "unassigned") {
+      headerHTML = `
+        <div class="p-3 cursor-pointer hover:bg-gray-50 transition-colors" data-person-toggle="${emailKey}">
+          <div style="display:grid; grid-template-columns: 240px 1fr 140px; align-items:center; gap:12px;">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="rounded-full bg-gray-100 flex items-center justify-center text-gray-400" style="width: 34px; height: 34px;"><i class="fas fa-question"></i></div>
+                <div class="min-w-0">
+                    <h3 class="text-sm font-bold text-gray-700 italic truncate">Sin Asignar</h3>
+                    <p class="text-xs text-gray-500">${tasks.length} tareas</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2" style="min-height: 26px; flex-wrap: nowrap;">
+              <span class="px-2 py-0.5 rounded-full text-xs bg-green-50 text-green-700 border border-green-200 inline-flex items-center justify-center" style="min-width: 140px;">Hecho ${ptsDoneThisWeek} pts</span>
+              <span class="px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-200 inline-flex items-center justify-center" style="min-width: 140px;">Progreso ${ptsInProgress} pts</span>
+              <span class="px-2 py-0.5 rounded-full text-xs bg-gray-50 text-gray-600 border border-gray-200 inline-flex items-center justify-center" style="min-width: 140px;">Por hacer ${ptsTodo} pts</span>
+            </div>
+            <div class="flex items-center gap-2 justify-end">
+                <span class="text-sm font-bold ${loadColor}">${currentLoad}/${WEEKLY_CAPACITY} pts</span>
+                <i class="fas fa-chevron-right chevron-icon transition-transform duration-300 text-gray-400" 
+                   style="transform: ${isExpanded ? "rotate(90deg)" : "rotate(0deg)"}"></i>
             </div>
           </div>
+        </div>`;
+    } else {
+      const avatar =
+        userProfile?.photoURL || `https://ui-avatars.com/api/?name=${emailKey.split("@")[0]}`;
+      const name = userProfile?.displayName || emailKey;
 
-          <div class="person-row-stats">${buildPersonCapacityBar(metrics, metrics.capacity || CYCLE_POINTS_TARGET)}</div>
+      headerHTML = `
+        <div class="p-3 cursor-pointer hover:bg-gray-50 transition-colors group/header" data-person-toggle="${userProfile ? userProfile.email : emailKey}">
+          <div style="display:grid; grid-template-columns: 240px 1fr 140px; align-items:center; gap:12px;">
+            <div class="flex items-center gap-3 min-w-0">
+                <img src="${avatar}" class="rounded-full border border-gray-100 shadow-sm object-cover" style="width: 34px; height: 34px;">
+                <div class="min-w-0">
+                    <h3 class="text-sm font-bold text-gray-800 truncate">${name}</h3>
+                    <p class="text-xs text-gray-500">${tasks.length} tareas</p>
+                </div>
+            </div>
 
-          <div class="person-row-total ${metrics.risk?.className || "person-risk-text--low"}">
-            ${metrics.currentLoad || 0}/${metrics.capacity || CYCLE_POINTS_TARGET} pts
+            <div class="flex items-center gap-2" style="min-height: 26px; flex-wrap: nowrap;">
+              <span class="px-2 py-0.5 rounded-full text-xs bg-green-50 text-green-700 border border-green-200 inline-flex items-center justify-center" style="min-width: 140px;">Hecho ${ptsDoneThisWeek} pts</span>
+              <span class="px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-200 inline-flex items-center justify-center" style="min-width: 140px;">Progreso ${ptsInProgress} pts</span>
+              <span class="px-2 py-0.5 rounded-full text-xs bg-gray-50 text-gray-600 border border-gray-200 inline-flex items-center justify-center" style="min-width: 140px;">Por hacer ${ptsTodo} pts</span>
+            </div>
+
+            <div class="flex items-center gap-2 justify-end">
+                <span class="text-sm font-bold ${loadColor}">${currentLoad}/${WEEKLY_CAPACITY} pts</span>
+                <i class="fas fa-chevron-right chevron-icon text-gray-400" 
+                   style="transform: ${isExpanded ? "rotate(90deg)" : "rotate(0deg)"}"></i>
+            </div>
           </div>
+        </div>`;
+    }
 
-          <div class="person-row-risk">
-            <span class="person-risk-chip ${metrics.risk?.chipClass || "person-risk-chip--low"}" title="${metrics.risk?.title || ""}">${metrics.risk?.label || "En rango"}</span>
-          </div>
+    swimlane.innerHTML = headerHTML;
 
-          <div class="person-row-chevron">
-            <i class="fas fa-chevron-right chevron-icon text-gray-400" style="transform: ${isExpanded ? "rotate(90deg)" : "rotate(0deg)"}"></i>
-          </div>
-        </div>
-      </div>
-    `;
-
+    // --- BODY ---
     const columnsGrid = document.createElement("div");
     columnsGrid.className = `grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x border-gray-100 bg-gray-50/50 ${isExpanded ? "" : "hidden"}`;
 
-    ["todo", "inprogress", "done"].forEach((statusKey) => {
+    const cols = {
+      todo: { title: "Por Hacer", bg: "bg-transparent" },
+      inprogress: { title: "En Progreso", bg: "bg-blue-50/30" },
+      done: { title: "Hecho", bg: "bg-green-50/30" },
+    };
+
+    Object.keys(cols).forEach((statusKey) => {
       const colDiv = document.createElement("div");
-      const colTasks = tasks.filter((t) => resolveKanbanStatus(t) === statusKey);
-      const points = getColumnPoints(colTasks);
-      const wip = getWipState(statusKey, colTasks.length);
-      const toneClass =
-        statusKey === "inprogress" && wip.isOverLimit
-          ? "person-column person-column--wip-alert"
-          : statusKey === "inprogress"
-            ? "person-column person-column--inprogress"
-            : statusKey === "done"
-              ? "person-column person-column--done"
-              : "person-column person-column--todo";
-      colDiv.className = `p-2 min-h-[150px] flex flex-col ${toneClass}`;
+
+      // CAMBIO 1: Agregamos 'flex flex-col' para que los hijos ocupen altura completa
+      colDiv.className = `p-2 min-h-[150px] flex flex-col ${cols[statusKey].bg}`;
+
       colDiv.dataset.swimlaneStatus = statusKey;
       colDiv.dataset.assignee = emailKey;
 
+      // 1. Filtrado General
+      let colTasks = tasks.filter((t) => {
+        if (statusKey === "todo")
+          return t.kanbanStatus === "todo" || !["inprogress", "done"].includes(t.kanbanStatus);
+        return t.kanbanStatus === statusKey;
+      });
+
+      let headerActionHTML = "";
+
+      if (statusKey === "todo") {
+        headerActionHTML = `
+            <button data-action="quick-add-task-person" data-assignee="${emailKey}" class="ml-auto text-gray-400 hover:text-blue-600 transition-colors" title="Agregar tarea a ${emailKey}">
+                <i class="fa-solid fa-plus-circle"></i>
+            </button>`;
+      }
+
       colDiv.innerHTML = `
-        ${buildKanbanHeader({
-          statusKey,
-          count: colTasks.length,
-          points,
-          includeAdd: statusKey === "todo",
-          includeCollapse: false,
-          dense: true,
-        }).replace(
-          'data-action="add-task-sprint"',
-          `data-action="quick-add-task-person" data-assignee="${emailKey}"`
-        )}
+        <div class="flex items-center justify-between mb-2 sticky top-0 bg-opacity-90 z-10 px-1 py-1 shrink-0">
+            <div class="flex items-center gap-2">
+              <h4 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">${cols[statusKey].title}</h4>
+              <span class="text-[10px] text-gray-400">${colTasks.length}</span>
+            </div>
+            ${headerActionHTML} 
+        </div>
         <div class="space-y-2 swimlane-drop-zone flex-grow min-h-[100px] w-full pb-4"></div>`;
 
       const dropZone = colDiv.querySelector(".swimlane-drop-zone");
+
+      // 2. Ordenamiento (Más reciente arriba)
       colTasks.sort((a, b) => {
+        const getTime = (t, field) => {
+          const val = t[field];
+          if (!val) return 0;
+          return val.toDate ? val.toDate().getTime() : new Date(val).getTime();
+        };
+        let dateA, dateB;
         if (statusKey === "done") {
-          return (toDate(b.completedAt)?.getTime() || 0) - (toDate(a.completedAt)?.getTime() || 0);
+          dateA = getTime(a, "completedAt");
+          dateB = getTime(b, "completedAt");
+        } else if (statusKey === "inprogress") {
+          dateA = getTime(a, "startedAt") || getTime(a, "createdAt");
+          dateB = getTime(b, "startedAt") || getTime(b, "createdAt");
+        } else {
+          dateA = getTime(a, "createdAt");
+          dateB = getTime(b, "createdAt");
         }
-        if (statusKey === "inprogress") {
-          return getTaskAgeDays(b) - getTaskAgeDays(a);
-        }
-        return (toDate(a.createdAt)?.getTime() || 0) - (toDate(b.createdAt)?.getTime() || 0);
+        return dateB - dateA;
       });
 
+      // 3. LÓGICA ESPECIAL PARA "HECHO" (SEPARAR SEMANA ACTUAL VS ANTERIORES)
       if (statusKey === "done") {
-        const todayDone = colTasks.filter((task) => isDateToday(task.completedAt));
-        const historyDone = colTasks.filter((task) => !isDateToday(task.completedAt));
+        // A) Separamos las tareas
+        const recentTasks = [];
+        const oldTasks = [];
 
-        const todayLabel = document.createElement("div");
-        todayLabel.className = "text-[10px] font-bold uppercase tracking-wider text-emerald-700 px-1";
-        todayLabel.textContent = `Hecho hoy (${todayDone.length})`;
-        dropZone.appendChild(todayLabel);
+        colTasks.forEach((t) => {
+          // Si no tiene fecha, asumimos reciente para no perderla
+          if (!t.completedAt) {
+            recentTasks.push(t);
+            return;
+          }
+          const d = t.completedAt.toDate ? t.completedAt.toDate() : new Date(t.completedAt);
+          if (d >= currentWeekStart) {
+            recentTasks.push(t);
+          } else {
+            oldTasks.push(t);
+          }
+        });
 
-        if (todayDone.length === 0) {
-          const emptyToday = document.createElement("div");
-          emptyToday.className = "text-xs text-gray-400 px-1";
-          emptyToday.textContent = "Sin completadas hoy";
-          dropZone.appendChild(emptyToday);
-        } else {
-          todayDone.forEach((task) => dropZone.appendChild(createTaskElement(task, "sprint", state)));
+        // B) Renderizamos las RECIENTES (Esta semana)
+        // Aplicamos límite de 10 solo si hay muchísimas recientes
+        const recentVisible = recentTasks.slice(0, 10);
+        const recentHidden = recentTasks.slice(10); // Exceso de la semana actual
+
+        recentVisible.forEach((task) =>
+          dropZone.appendChild(createTaskElement(task, "sprint", state))
+        );
+
+        // Si hay más de 10 de ESTA semana, botón "Ver más recientes"
+        if (recentHidden.length > 0) {
+          const moreRecentContainer = document.createElement("div");
+          moreRecentContainer.className = "hidden space-y-2";
+          recentHidden.forEach((task) =>
+            moreRecentContainer.appendChild(createTaskElement(task, "sprint", state))
+          );
+          dropZone.appendChild(moreRecentContainer);
+
+          const btn = document.createElement("button");
+          btn.className =
+            "w-full text-xs text-green-700 font-semibold py-1 hover:bg-green-100 rounded mt-1";
+          btn.innerHTML = `Ver ${recentHidden.length} más de esta semana`;
+          btn.onclick = () => {
+            moreRecentContainer.classList.remove("hidden");
+            btn.remove();
+          };
+          dropZone.appendChild(btn);
         }
 
-        if (historyDone.length > 0) {
-          const historyContainer = document.createElement("div");
-          historyContainer.className = "hidden space-y-2 pt-2 border-t border-green-200/60";
-          historyDone.forEach((task) => historyContainer.appendChild(createTaskElement(task, "sprint", state)));
+        // C) Renderizamos las ANTIGUAS (Semanas pasadas) -> SIEMPRE OCULTAS POR DEFECTO
+        if (oldTasks.length > 0) {
+          // Separador visual
+          const separator = document.createElement("div");
+          separator.className = "pt-3 mt-2 border-t border-green-200/50";
+          dropZone.appendChild(separator);
 
+          // Contenedor Oculto
+          const historyContainer = document.createElement("div");
+          historyContainer.className = "hidden space-y-2 opacity-80"; // Un poco más transparentes para denotar antigüedad
+
+          oldTasks.forEach((task) =>
+            historyContainer.appendChild(createTaskElement(task, "sprint", state))
+          );
+
+          // Botón Activador (Estilo carpeta)
           const historyBtn = document.createElement("button");
           historyBtn.className =
-            "w-full flex items-center justify-center gap-2 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 py-1.5 rounded border border-dashed border-gray-300 transition-all";
-          historyBtn.innerHTML = `<i class="fa-solid fa-history"></i> <span>Historial (${historyDone.length})</span>`;
+            "w-full flex items-center justify-center gap-2 text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-100 py-2 rounded border border-dashed border-gray-300 transition-all";
+          historyBtn.innerHTML = `<i class="fa-solid fa-history"></i> <span>Ver ${oldTasks.length} de semanas anteriores</span>`;
+
           historyBtn.onclick = () => {
             const isHidden = historyContainer.classList.contains("hidden");
-            historyContainer.classList.toggle("hidden");
-            historyBtn.innerHTML = isHidden
-              ? `<i class="fa-solid fa-chevron-up"></i> <span>Ocultar historial</span>`
-              : `<i class="fa-solid fa-history"></i> <span>Historial (${historyDone.length})</span>`;
+            if (isHidden) {
+              historyContainer.classList.remove("hidden");
+              historyBtn.innerHTML = `<i class="fa-solid fa-chevron-up"></i> Ocultar anteriores`;
+              historyBtn.classList.add("bg-gray-50", "text-gray-600");
+            } else {
+              historyContainer.classList.add("hidden");
+              historyBtn.innerHTML = `<i class="fa-solid fa-history"></i> <span>Ver ${oldTasks.length} de semanas anteriores</span>`;
+              historyBtn.classList.remove("bg-gray-50", "text-gray-600");
+            }
           };
+
           dropZone.appendChild(historyBtn);
           dropZone.appendChild(historyContainer);
         }
       } else {
+        // RENDER NORMAL (ToDo / InProgress)
         colTasks.forEach((task) => dropZone.appendChild(createTaskElement(task, "sprint", state)));
       }
 
@@ -2250,8 +1752,8 @@ function renderActivityView(state) {
       const date = comment.timestamp?.toDate
         ? comment.timestamp.toDate()
         : comment.timestamp
-          ? new Date(comment.timestamp)
-          : null;
+        ? new Date(comment.timestamp)
+        : null;
       const isRead = comment.readBy?.includes(me);
       items.push({
         task,
@@ -2306,13 +1808,10 @@ function renderActivityView(state) {
 
   visibleItems.forEach((item) => {
     const taskWrapper = document.createElement("div");
-    taskWrapper.className = `activity-item-card bg-white p-4 rounded-xl shadow-md ${item.isRead ? "" : "is-unread"}`;
+    taskWrapper.className = "bg-white p-4 rounded-xl shadow-md";
     taskWrapper.innerHTML = `
       <div class="flex items-center justify-between mb-2">
-        <div class="flex items-center gap-2 min-w-0">
-          ${item.isRead ? "" : '<span class="activity-unread-dot" title="No leída"></span>'}
-          <div class="text-sm text-gray-600 truncate">En la tarea: <span class="font-semibold text-blue-700">${item.task.title}</span></div>
-        </div>
+        <div class="text-sm text-gray-500">En la tarea: <span class="font-semibold text-blue-600">${item.task.title}</span></div>
         <button data-action="open-task-details" data-id="${item.task.id}" class="text-xs text-blue-600 hover:underline">Abrir</button>
       </div>
     `;
@@ -3030,13 +2529,7 @@ export function handleRouteChange(state) {
     "#handbook": document.getElementById("view-handbook"),
     "#settings": document.getElementById("view-settings"),
   };
-  let hash = window.location.hash || "#backlog";
-  if (hash === "#mytasks" || hash === "#activity") {
-    hash = "#by-person";
-    if (typeof window !== "undefined" && window.history?.replaceState) {
-      window.history.replaceState(null, "", "#by-person");
-    }
-  }
+  const hash = window.location.hash || "#backlog";
 
   Object.values(views).forEach((view) => view && view.classList.add("hidden"));
   document.querySelectorAll(".sidebar-link").forEach((link) => link.classList.remove("active"));
@@ -3289,15 +2782,8 @@ function showThemeModal(theme = null) {
 
   showModal({ title, themeInputs: true, okText, callback });
 
-  const themeTitleInput = document.getElementById("modal-theme-title");
-  const themeDescriptionInput = document.getElementById("modal-theme-description");
-  if (!themeTitleInput || !themeDescriptionInput) {
-    console.error("No se encontraron los inputs del modal de Tema.");
-    return;
-  }
-
-  themeTitleInput.value = isEditing ? theme.title : "";
-  themeDescriptionInput.value = isEditing ? theme.description : "";
+  document.getElementById("modal-theme-title").value = isEditing ? theme.title : "";
+  document.getElementById("modal-theme-description").value = isEditing ? theme.description : "";
 }
 function showHandbookReaderModal(entry) {
   if (!entry) return;
@@ -3340,25 +2826,10 @@ function showHandbookReaderModal(entry) {
   }
 }
 
-function setSprintMenuOpen(isOpen) {
-  const menuContainer = document.getElementById("sprint-menu-container");
-  const menuButton = menuContainer?.querySelector('[data-action="toggle-sprint-menu"]');
-  const menuContent = document.getElementById("sprint-actions-menu");
-  if (!menuContainer || !menuButton || !menuContent) return;
-
-  menuContainer.classList.toggle("is-active", isOpen);
-  menuButton.setAttribute("aria-expanded", String(isOpen));
-  menuContent.setAttribute("aria-hidden", String(!isOpen));
-}
-
 function handleAppClick(e) {
   const target = e.target;
   const actionTarget = target.closest("[data-action]");
   const colorSwatch = target.closest(".color-swatch");
-
-  if (!target.closest("#sprint-menu-container")) {
-    setSprintMenuOpen(false);
-  }
 
   if (colorSwatch) {
     const palette = colorSwatch.parentElement;
@@ -3578,12 +3049,14 @@ function handleAppClick(e) {
         }
         return;
       }
-      case "toggle-sprint-menu": {
+      /* case "toggle-sprint-menu": {
         const menuContainer = document.getElementById("sprint-menu-container");
-        const isOpen = !!menuContainer?.classList.contains("is-active");
-        setSprintMenuOpen(!isOpen);
+        if (menuContainer) {
+          menuContainer.classList.toggle("is-active");
+        }
         return;
       }
+      */
 
       case "save-matrix-thresholds": {
         const impactThreshold = document.getElementById("matrix-impact-threshold").value;
@@ -3662,8 +3135,6 @@ function handleAppClick(e) {
 
         const nameInput = document.getElementById("modal-sprint-name");
         nameInput.value = ""; // Limpiar input
-        const capacityInput = document.getElementById("modal-sprint-capacity");
-        if (capacityInput) capacityInput.value = CYCLE_POINTS_TARGET;
 
         // 2. Lógica Epic/Secuencia
         const epicSelect = document.getElementById("modal-sprint-epic-select");
@@ -3701,15 +3172,12 @@ function handleAppClick(e) {
         }
         return;
       case "edit-sprint":
-        setSprintMenuOpen(false);
         handleEditSprintClick();
         return;
       case "archive-sprint":
-        setSprintMenuOpen(false);
         appActions.archiveSprint(appState.currentSprintId);
         return;
       case "delete-sprint":
-        setSprintMenuOpen(false);
         appActions.deleteSprint(appState.currentSprintId);
         return;
       case "new-epic":
@@ -3767,14 +3235,6 @@ function handleAppClick(e) {
       case "mark-all-as-read":
         appActions.markAllAsRead();
         return;
-      case "toggle-comment-expand": {
-        const textId = actionTarget.dataset.target;
-        const textEl = textId ? document.getElementById(textId) : null;
-        if (!textEl) return;
-        const isExpanded = textEl.classList.toggle("is-expanded");
-        actionTarget.textContent = isExpanded ? "Ver menos" : "Ver más";
-        return;
-      }
     }
   }
 
@@ -3841,638 +3301,33 @@ function handleAppClick(e) {
   }
 }
 
-function parseAppDate(rawValue) {
-  if (!rawValue) return null;
-  if (rawValue instanceof Date) return new Date(rawValue);
-  if (rawValue?.toDate && typeof rawValue.toDate === "function") return rawValue.toDate();
-  if (typeof rawValue === "string") {
-    const normalized = /^\d{4}-\d{2}-\d{2}$/.test(rawValue) ? `${rawValue}T00:00:00` : rawValue;
-    const parsed = new Date(normalized);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-  }
-  const parsed = new Date(rawValue);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function normalizeDateToMidnight(dateValue) {
-  const date = parseAppDate(dateValue);
-  if (!date) return null;
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
-
-function toDateInputValue(dateValue) {
-  const date = normalizeDateToMidnight(dateValue);
-  return date ? date.toISOString().split("T")[0] : "";
-}
-
-function dateDiffInDays(startDate, endDate) {
-  const start = normalizeDateToMidnight(startDate);
-  const end = normalizeDateToMidnight(endDate);
-  if (!start || !end) return 0;
-  const msPerDay = 24 * 60 * 60 * 1000;
-  const startUtc = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
-  const endUtc = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
-  return Math.round((endUtc - startUtc) / msPerDay);
-}
-
-function formatDateLabel(dateValue) {
-  const date = parseAppDate(dateValue);
-  if (!date) return "Sin fecha";
-  return date.toLocaleDateString("es-MX", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function openCommitmentDateModal(taskId) {
-  const task = appState.tasks.find((t) => t.id === taskId);
-  if (!task) return;
-
-  const taskCreatedAt = normalizeDateToMidnight(task.createdAt) || normalizeDateToMidnight(new Date());
-  const today = normalizeDateToMidnight(new Date());
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const plusSeven = new Date(today);
-  plusSeven.setDate(plusSeven.getDate() + 7);
-
-  const sprint = appState.taskLists.find((list) => list.id === task.listId && !list.isBacklog);
-  let cycleEndDate = normalizeDateToMidnight(sprint?.endDate);
-  if (!cycleEndDate) {
-    const cycleWindow = getCurrentCycleWindow(new Date());
-    cycleEndDate = new Date(cycleWindow.endExclusive);
-    cycleEndDate.setDate(cycleEndDate.getDate() - 1);
-    cycleEndDate = normalizeDateToMidnight(cycleEndDate);
-  }
-
-  const currentDueDate = normalizeDateToMidnight(task.dueDate);
-  const daysOpen = Math.max(0, dateDiffInDays(taskCreatedAt, today));
-  const quickPickMap = {
-    today: toDateInputValue(today),
-    tomorrow: toDateInputValue(tomorrow),
-    cycle: toDateInputValue(cycleEndDate),
-    plus7: toDateInputValue(plusSeven),
-    none: "",
-  };
-
-  const dueDateModalHTML = `
-    <div class="task-modal-shell">
-      <p class="task-modal-subtitle">Define una fecha clara para ejecución. La fecha exacta seguirá disponible en el modal de detalle.</p>
-      <div class="task-modal-chip-grid" id="task-date-quick-picks">
-        <button type="button" class="task-modal-chip" data-quick-pick="today">Hoy</button>
-        <button type="button" class="task-modal-chip" data-quick-pick="tomorrow">Mañana</button>
-        <button type="button" class="task-modal-chip" data-quick-pick="cycle">Fin de ciclo</button>
-        <button type="button" class="task-modal-chip" data-quick-pick="plus7">+7 días</button>
-        <button type="button" class="task-modal-chip task-modal-chip--danger" data-quick-pick="none">Sin fecha</button>
-      </div>
-      <div class="task-modal-field">
-        <label for="task-commitment-date-input">Fecha exacta</label>
-        <input id="task-commitment-date-input" type="date" class="task-modal-input" value="${toDateInputValue(currentDueDate)}" />
-      </div>
-      <div class="task-modal-summary" id="task-commitment-summary">Fecha seleccionada: ${currentDueDate ? formatDateLabel(currentDueDate) : "Sin fecha"}</div>
-      <div id="task-commitment-risk" class="task-risk-indicator task-risk-indicator--neutral">
-        <span id="task-commitment-risk-tag" class="task-risk-indicator__tag">Sin riesgo definido</span>
-        <p id="task-commitment-risk-text" class="task-risk-indicator__text">Selecciona una fecha para evaluar urgencia y riesgo.</p>
-      </div>
-      <p id="task-commitment-error" class="task-modal-error hidden" role="alert"></p>
-      <p id="task-commitment-feedback" class="task-modal-feedback hidden" aria-live="polite"></p>
-      <div class="task-modal-inline-actions">
-        <button id="task-commitment-cancel-btn" type="button" class="task-modal-btn task-modal-btn--ghost">Cancelar</button>
-        <button id="task-commitment-save-btn" type="button" class="task-modal-btn task-modal-btn--solid">Guardar fecha</button>
-      </div>
-    </div>
-  `;
-
-  showModal({
-    title: "Fecha compromiso",
-    htmlContent: dueDateModalHTML,
-    actionModal: true,
-  });
-
-  const modalFooter = document.getElementById("modal-footer");
-  if (modalFooter) modalFooter.classList.add("hidden");
-
-  const dateInput = document.getElementById("task-commitment-date-input");
-  const quickPickContainer = document.getElementById("task-date-quick-picks");
-  const summary = document.getElementById("task-commitment-summary");
-  const riskBox = document.getElementById("task-commitment-risk");
-  const riskTag = document.getElementById("task-commitment-risk-tag");
-  const riskText = document.getElementById("task-commitment-risk-text");
-  const errorBox = document.getElementById("task-commitment-error");
-  const feedbackBox = document.getElementById("task-commitment-feedback");
-  const cancelBtn = document.getElementById("task-commitment-cancel-btn");
-  const saveBtn = document.getElementById("task-commitment-save-btn");
-
-  const interactiveElements = [dateInput, cancelBtn, saveBtn].filter(Boolean);
-
-  const setFeedback = (type, message) => {
-    if (!feedbackBox) return;
-    feedbackBox.classList.remove("hidden", "is-loading", "is-success");
-    feedbackBox.textContent = message;
-    if (type === "loading") feedbackBox.classList.add("is-loading");
-    if (type === "success") feedbackBox.classList.add("is-success");
-  };
-
-  const clearFeedback = () => {
-    if (!feedbackBox) return;
-    feedbackBox.classList.add("hidden");
-    feedbackBox.classList.remove("is-loading", "is-success");
-    feedbackBox.textContent = "";
-  };
-
-  const setError = (message = "") => {
-    if (!errorBox) return;
-    if (!message) {
-      errorBox.classList.add("hidden");
-      errorBox.textContent = "";
-      return;
-    }
-    errorBox.classList.remove("hidden");
-    errorBox.textContent = message;
-  };
-
-  const setBusy = (isBusy) => {
-    interactiveElements.forEach((el) => {
-      el.disabled = isBusy;
-    });
-    if (saveBtn) saveBtn.textContent = isBusy ? "Guardando..." : "Guardar fecha";
-  };
-
-  const applyRiskState = (dueDate) => {
-    if (!riskBox || !riskTag || !riskText) return;
-    riskBox.classList.remove(
-      "task-risk-indicator--neutral",
-      "task-risk-indicator--low",
-      "task-risk-indicator--medium",
-      "task-risk-indicator--high"
-    );
-
-    if (!dueDate) {
-      const noDateMessage =
-        daysOpen > 14
-          ? `Sin fecha tras ${daysOpen} días abierta. Define compromiso para evitar deuda.`
-          : "Sin fecha compromiso. Se recomienda definirla para priorizar mejor.";
-      riskBox.classList.add(daysOpen > 14 ? "task-risk-indicator--high" : "task-risk-indicator--neutral");
-      riskTag.textContent = daysOpen > 14 ? "Riesgo alto" : "Sin compromiso";
-      riskText.textContent = noDateMessage;
-      return;
-    }
-
-    const daysToDue = dateDiffInDays(today, dueDate);
-    if (daysToDue < 0) {
-      riskBox.classList.add("task-risk-indicator--high");
-      riskTag.textContent = `Vencida hace ${Math.abs(daysToDue)}d`;
-      riskText.textContent = "Requiere acción inmediata o renegociación de fecha.";
-      return;
-    }
-
-    if (daysToDue <= 2) {
-      riskBox.classList.add("task-risk-indicator--high");
-      riskTag.textContent = "Riesgo alto";
-      riskText.textContent = "Fecha muy próxima. Verifica bloqueos y responsable antes de guardar.";
-      return;
-    }
-
-    if (daysToDue <= 5) {
-      riskBox.classList.add("task-risk-indicator--medium");
-      riskTag.textContent = "Riesgo medio";
-      riskText.textContent = "Ventana ajustada. Conviene dividir o cerrar dependencias.";
-      return;
-    }
-
-    riskBox.classList.add("task-risk-indicator--low");
-    riskTag.textContent = "Riesgo bajo";
-    riskText.textContent = "Margen saludable para ejecución con seguimiento normal.";
-  };
-
-  const refreshQuickPickState = () => {
-    const currentValue = dateInput?.value || "";
-    quickPickContainer?.querySelectorAll("[data-quick-pick]").forEach((btn) => {
-      const quickValue = quickPickMap[btn.dataset.quickPick] ?? "";
-      btn.classList.toggle("is-active", quickValue === currentValue);
-    });
-  };
-
-  const refreshDueDateUI = () => {
-    const selectedDate = normalizeDateToMidnight(dateInput?.value || "");
-    if (summary) {
-      summary.textContent = `Fecha seleccionada: ${selectedDate ? formatDateLabel(selectedDate) : "Sin fecha"}`;
-    }
-    applyRiskState(selectedDate);
-    refreshQuickPickState();
-  };
-
-  quickPickContainer?.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-quick-pick]");
-    if (!button || !dateInput) return;
-    const pick = button.dataset.quickPick;
-    dateInput.value = quickPickMap[pick] ?? "";
-    setError("");
-    clearFeedback();
-    refreshDueDateUI();
-  });
-
-  dateInput?.addEventListener("change", () => {
-    setError("");
-    clearFeedback();
-    refreshDueDateUI();
-  });
-
-  cancelBtn?.addEventListener("click", hideModal);
-
-  saveBtn?.addEventListener("click", async () => {
-    setError("");
-    clearFeedback();
-    const selectedDate = normalizeDateToMidnight(dateInput?.value || "");
-
-    if (selectedDate && taskCreatedAt && selectedDate < taskCreatedAt) {
-      setError(
-        `La fecha compromiso no puede ser anterior a la creación (${formatDateLabel(taskCreatedAt)}).`
-      );
-      return;
-    }
-
-    setBusy(true);
-    setFeedback("loading", "Guardando fecha compromiso...");
-    await Promise.resolve(
-      appActions.updateTask(taskId, {
-        dueDate: selectedDate ? Timestamp.fromDate(selectedDate) : null,
-      })
-    );
-    setFeedback(
-      "success",
-      selectedDate ? `Fecha guardada: ${formatDateLabel(selectedDate)}.` : "Fecha compromiso eliminada."
-    );
-    setTimeout(() => hideModal(), 620);
-  });
-
-  refreshDueDateUI();
-}
-
-const POINT_ESTIMATION_SCALE = [0, 1, 2, 3, 5, 8, 13, 20];
-
-function scoreToRecommendedPoints(score) {
-  const safeScore = Math.max(0, Math.min(12, Number(score) || 0));
-  if (safeScore <= 1) return 0;
-  if (safeScore <= 2) return 1;
-  if (safeScore <= 4) return 2;
-  if (safeScore <= 5) return 3;
-  if (safeScore <= 6) return 5;
-  if (safeScore <= 8) return 8;
-  if (safeScore <= 10) return 13;
-  return 20;
-}
-
-function pointsToBaselineScore(points) {
-  const numeric = Number(points);
-  const scoreByPoints = {
-    0: 0,
-    1: 2,
-    2: 4,
-    3: 5,
-    5: 6,
-    8: 8,
-    13: 10,
-    20: 12,
-  };
-  if (Number.isFinite(numeric) && scoreByPoints[numeric] !== undefined) return scoreByPoints[numeric];
-  const nearest = POINT_ESTIMATION_SCALE.reduce((closest, option) =>
-    Math.abs(option - numeric) < Math.abs(closest - numeric) ? option : closest
-  , 0);
-  return scoreByPoints[nearest] ?? 0;
-}
-
-function distributeBaselineScore(score) {
-  const safeScore = Math.max(0, Math.min(12, Number(score) || 0));
-  const baseValue = Math.floor(safeScore / 4);
-  let remainder = safeScore % 4;
-  const values = [baseValue, baseValue, baseValue, baseValue].map((v) => Math.min(3, v));
-  for (let i = 0; i < values.length && remainder > 0; i += 1) {
-    if (values[i] < 3) {
-      values[i] += 1;
-      remainder -= 1;
-    }
-  }
-  return {
-    complexity: values[0],
-    uncertainty: values[1],
-    dependencies: values[2],
-    qa: values[3],
-  };
-}
-
-function getScaleIndex(points) {
-  return POINT_ESTIMATION_SCALE.indexOf(Number(points));
-}
-
-function getConfidenceProfile(factors) {
-  const uncertaintyLoad = factors.uncertainty + factors.dependencies;
-  const qualityLoad = factors.qa;
-  if (uncertaintyLoad >= 5 || (uncertaintyLoad >= 4 && qualityLoad >= 2)) {
-    return {
-      label: "Confianza baja",
-      detail: "Alta variabilidad por incertidumbre/dependencias.",
-      tone: "low",
-    };
-  }
-  if (uncertaintyLoad >= 3 || qualityLoad >= 2) {
-    return {
-      label: "Confianza media",
-      detail: "Existe variación moderada en alcance o validación.",
-      tone: "medium",
-    };
-  }
-  return {
-    label: "Confianza alta",
-    detail: "Supuestos estables y riesgo controlado.",
-    tone: "high",
-  };
-}
-
-function openPointsEstimatorModal(taskId) {
-  const task = appState.tasks.find((t) => t.id === taskId);
-  if (!task) return;
-
-  const baselineScore = pointsToBaselineScore(task.points ?? 0);
-  const baselineFactors = distributeBaselineScore(baselineScore);
-  const pointsModalHTML = `
-    <div class="task-modal-shell task-points-modal-shell">
-      <p class="task-modal-subtitle">Evalúa 4 factores (0-3) para estimar con precisión y dejar evidencia de override.</p>
-      <div class="task-points-legend">
-        <div class="task-points-legend__item"><strong>0:</strong> mínimo</div>
-        <div class="task-points-legend__item"><strong>1:</strong> bajo</div>
-        <div class="task-points-legend__item"><strong>2:</strong> medio</div>
-        <div class="task-points-legend__item"><strong>3:</strong> alto</div>
-      </div>
-      <div class="task-factor-grid">
-        <div class="task-factor-field">
-          <label for="task-factor-complexity">Complejidad técnica</label>
-          <select id="task-factor-complexity" class="task-modal-input task-modal-select">
-            <option value="0" ${baselineFactors.complexity === 0 ? "selected" : ""}>0 · Flujo directo</option>
-            <option value="1" ${baselineFactors.complexity === 1 ? "selected" : ""}>1 · Cambios acotados</option>
-            <option value="2" ${baselineFactors.complexity === 2 ? "selected" : ""}>2 · Integración moderada</option>
-            <option value="3" ${baselineFactors.complexity === 3 ? "selected" : ""}>3 · Arquitectura compleja</option>
-          </select>
-        </div>
-        <div class="task-factor-field">
-          <label for="task-factor-uncertainty">Incertidumbre</label>
-          <select id="task-factor-uncertainty" class="task-modal-input task-modal-select">
-            <option value="0" ${baselineFactors.uncertainty === 0 ? "selected" : ""}>0 · Requisito cerrado</option>
-            <option value="1" ${baselineFactors.uncertainty === 1 ? "selected" : ""}>1 · Dudas menores</option>
-            <option value="2" ${baselineFactors.uncertainty === 2 ? "selected" : ""}>2 · Decisiones abiertas</option>
-            <option value="3" ${baselineFactors.uncertainty === 3 ? "selected" : ""}>3 · Alcance inestable</option>
-          </select>
-        </div>
-        <div class="task-factor-field">
-          <label for="task-factor-dependencies">Dependencias</label>
-          <select id="task-factor-dependencies" class="task-modal-input task-modal-select">
-            <option value="0" ${baselineFactors.dependencies === 0 ? "selected" : ""}>0 · Sin bloqueos</option>
-            <option value="1" ${baselineFactors.dependencies === 1 ? "selected" : ""}>1 · Un tercero</option>
-            <option value="2" ${baselineFactors.dependencies === 2 ? "selected" : ""}>2 · Varias áreas</option>
-            <option value="3" ${baselineFactors.dependencies === 3 ? "selected" : ""}>3 · Cadena crítica</option>
-          </select>
-        </div>
-        <div class="task-factor-field">
-          <label for="task-factor-qa">Esfuerzo QA</label>
-          <select id="task-factor-qa" class="task-modal-input task-modal-select">
-            <option value="0" ${baselineFactors.qa === 0 ? "selected" : ""}>0 · Verificación rápida</option>
-            <option value="1" ${baselineFactors.qa === 1 ? "selected" : ""}>1 · Casos básicos</option>
-            <option value="2" ${baselineFactors.qa === 2 ? "selected" : ""}>2 · Matriz amplia</option>
-            <option value="3" ${baselineFactors.qa === 3 ? "selected" : ""}>3 · Riesgo alto/regresión</option>
-          </select>
-        </div>
-      </div>
-      <div class="task-points-summary-card">
-        <div class="task-points-summary-main">
-          <span>Score</span>
-          <strong id="task-points-score-value">0/12</strong>
-        </div>
-        <div class="task-points-summary-main">
-          <span>Recomendado</span>
-          <strong id="task-points-recommended-value">0 pts</strong>
-        </div>
-        <div id="task-points-confidence-chip" class="task-confidence-chip">Confianza alta</div>
-      </div>
-      <p id="task-points-confidence-detail" class="task-points-confidence-detail"></p>
-      <div class="task-factor-field task-factor-field--wide">
-        <label for="task-points-final-select">Puntos finales</label>
-        <select id="task-points-final-select" class="task-modal-input task-modal-select">
-          ${POINT_ESTIMATION_SCALE.map((value) => {
-            const isSelected = Number(task.points ?? 0) === value;
-            return `<option value="${value}" ${isSelected ? "selected" : ""}>${value} pts</option>`;
-          }).join("")}
-        </select>
-      </div>
-      <div class="task-factor-field task-factor-field--wide">
-        <label for="task-points-override-reason">Motivo de override</label>
-        <textarea id="task-points-override-reason" class="task-modal-input task-modal-textarea" rows="3" placeholder="Opcional si mantienes la recomendación."></textarea>
-        <p id="task-points-override-hint" class="task-modal-hint">Si te alejas 2 escalones o más, esta justificación será obligatoria.</p>
-      </div>
-      <div id="task-points-quality-alert" class="task-quality-alert hidden" role="status"></div>
-      <p id="task-points-error" class="task-modal-error hidden" role="alert"></p>
-      <p id="task-points-feedback" class="task-modal-feedback hidden" aria-live="polite"></p>
-      <div class="task-modal-inline-actions">
-        <button id="task-points-cancel-btn" type="button" class="task-modal-btn task-modal-btn--ghost">Cancelar</button>
-        <button id="task-points-save-btn" type="button" class="task-modal-btn task-modal-btn--solid">Guardar puntos</button>
-      </div>
-    </div>
-  `;
-
-  showModal({
-    title: "Asignar puntos",
-    htmlContent: pointsModalHTML,
-    actionModal: true,
-  });
-
-  const modalFooter = document.getElementById("modal-footer");
-  if (modalFooter) modalFooter.classList.add("hidden");
-
-  const factorIds = ["complexity", "uncertainty", "dependencies", "qa"];
-  const factorElements = factorIds.reduce((acc, key) => {
-    acc[key] = document.getElementById(`task-factor-${key}`);
-    return acc;
-  }, {});
-  const scoreValueEl = document.getElementById("task-points-score-value");
-  const recommendedValueEl = document.getElementById("task-points-recommended-value");
-  const confidenceChipEl = document.getElementById("task-points-confidence-chip");
-  const confidenceDetailEl = document.getElementById("task-points-confidence-detail");
-  const finalSelect = document.getElementById("task-points-final-select");
-  const overrideReason = document.getElementById("task-points-override-reason");
-  const overrideHint = document.getElementById("task-points-override-hint");
-  const qualityAlert = document.getElementById("task-points-quality-alert");
-  const errorBox = document.getElementById("task-points-error");
-  const feedbackBox = document.getElementById("task-points-feedback");
-  const cancelBtn = document.getElementById("task-points-cancel-btn");
-  const saveBtn = document.getElementById("task-points-save-btn");
-
-  const setError = (message = "") => {
-    if (!errorBox) return;
-    if (!message) {
-      errorBox.classList.add("hidden");
-      errorBox.textContent = "";
-      return;
-    }
-    errorBox.classList.remove("hidden");
-    errorBox.textContent = message;
-  };
-
-  const setFeedback = (type, message) => {
-    if (!feedbackBox) return;
-    feedbackBox.classList.remove("hidden", "is-loading", "is-success");
-    feedbackBox.textContent = message;
-    if (type === "loading") feedbackBox.classList.add("is-loading");
-    if (type === "success") feedbackBox.classList.add("is-success");
-  };
-
-  const clearFeedback = () => {
-    if (!feedbackBox) return;
-    feedbackBox.classList.add("hidden");
-    feedbackBox.textContent = "";
-    feedbackBox.classList.remove("is-loading", "is-success");
-  };
-
-  const setBusy = (isBusy) => {
-    [...Object.values(factorElements), finalSelect, overrideReason, cancelBtn, saveBtn]
-      .filter(Boolean)
-      .forEach((el) => {
-        el.disabled = isBusy;
-      });
-    if (saveBtn) saveBtn.textContent = isBusy ? "Guardando..." : "Guardar puntos";
-  };
-
-  let manualPointTouched = false;
-  let currentRecommendation = 0;
-  let requiresReason = false;
-
-  const readFactors = () =>
-    factorIds.reduce((acc, key) => {
-      const rawVal = Number(factorElements[key]?.value ?? 0);
-      acc[key] = Math.max(0, Math.min(3, rawVal));
-      return acc;
-    }, {});
-
-  const updateQualityAlert = (finalPoints) => {
-    if (!qualityAlert) return;
-    qualityAlert.classList.remove("hidden", "is-warning", "is-danger");
-    if (finalPoints >= 20) {
-      qualityAlert.classList.add("is-danger");
-      qualityAlert.textContent = "20 pts sugiere tarea demasiado grande. Divide en subtareas antes del sprint.";
-      return;
-    }
-    if (finalPoints >= 13) {
-      qualityAlert.classList.add("is-warning");
-      qualityAlert.textContent = "13 pts o más suele degradar flujo. Revisa posibilidad de split.";
-      return;
-    }
-    qualityAlert.classList.add("hidden");
-    qualityAlert.textContent = "";
-  };
-
-  const updateOverrideState = () => {
-    const selectedPoints = Number(finalSelect?.value ?? 0);
-    const selectedIndex = getScaleIndex(selectedPoints);
-    const recommendedIndex = getScaleIndex(currentRecommendation);
-    const jump = selectedIndex >= 0 && recommendedIndex >= 0 ? Math.abs(selectedIndex - recommendedIndex) : 0;
-    requiresReason = jump >= 2;
-    if (overrideHint) {
-      overrideHint.textContent = requiresReason
-        ? "Override fuerte detectado: agrega una justificación clara."
-        : "Override opcional: puedes añadir contexto si lo consideras útil.";
-      overrideHint.classList.toggle("is-required", requiresReason);
-    }
-    if (overrideReason) {
-      overrideReason.required = requiresReason;
-      overrideReason.classList.toggle("is-required", requiresReason);
-    }
-    updateQualityAlert(selectedPoints);
-  };
-
-  const refreshEstimatorUI = () => {
-    const factors = readFactors();
-    const score = factors.complexity + factors.uncertainty + factors.dependencies + factors.qa;
-    currentRecommendation = scoreToRecommendedPoints(score);
-
-    if (scoreValueEl) scoreValueEl.textContent = `${score}/12`;
-    if (recommendedValueEl) {
-      recommendedValueEl.textContent = `${currentRecommendation} pts`;
-      recommendedValueEl.classList.toggle("is-zero", currentRecommendation === 0);
-    }
-
-    const confidence = getConfidenceProfile(factors);
-    if (confidenceChipEl) {
-      confidenceChipEl.textContent = confidence.label;
-      confidenceChipEl.classList.remove("is-high", "is-medium", "is-low");
-      confidenceChipEl.classList.add(`is-${confidence.tone}`);
-    }
-    if (confidenceDetailEl) confidenceDetailEl.textContent = confidence.detail;
-
-    if (finalSelect && !manualPointTouched) {
-      finalSelect.value = String(currentRecommendation);
-    }
-    updateOverrideState();
-  };
-
-  factorIds.forEach((key) => {
-    factorElements[key]?.addEventListener("change", () => {
-      setError("");
-      clearFeedback();
-      refreshEstimatorUI();
-    });
-  });
-
-  finalSelect?.addEventListener("change", () => {
-    manualPointTouched = true;
-    setError("");
-    clearFeedback();
-    updateOverrideState();
-  });
-
-  overrideReason?.addEventListener("input", () => {
-    setError("");
-  });
-
-  cancelBtn?.addEventListener("click", hideModal);
-
-  saveBtn?.addEventListener("click", async () => {
-    setError("");
-    clearFeedback();
-    const selectedPoints = Number(finalSelect?.value ?? 0);
-    const reason = (overrideReason?.value || "").trim();
-
-    if (!POINT_ESTIMATION_SCALE.includes(selectedPoints)) {
-      setError("Selecciona un valor de puntos válido.");
-      return;
-    }
-
-    if (requiresReason && reason.length < 8) {
-      setError("Agrega una justificación de al menos 8 caracteres para este override.");
-      return;
-    }
-
-    setBusy(true);
-    setFeedback("loading", "Guardando estimación...");
-    await Promise.resolve(appActions.updateTask(taskId, { points: selectedPoints }));
-    setFeedback("success", `Puntos actualizados a ${selectedPoints}.`);
-    setTimeout(() => hideModal(), 620);
-  });
-
-  if (!POINT_ESTIMATION_SCALE.includes(Number(task.points ?? 0)) && finalSelect) {
-    finalSelect.value = String(scoreToRecommendedPoints(baselineScore));
-  }
-  refreshEstimatorUI();
-}
-
 function handleTaskCardAction(action, taskId) {
   const task = appState.tasks.find((t) => t.id === taskId);
   if (!task) return;
   switch (action) {
-    case "open-details":
-      openTaskDetailsModal(task);
-      break;
     case "due-date":
-      openCommitmentDateModal(taskId);
+      showModal({
+        title: "Asignar Fecha Compromiso",
+        input: true,
+        inputType: "date",
+        inputValue: task.dueDate
+          ? task.dueDate.toDate
+            ? task.dueDate.toDate().toISOString().split("T")[0]
+            : task.dueDate
+          : "",
+        okText: "Guardar Fecha",
+        callback: (dateVal) => {
+          if (dateVal) {
+            // Guardamos como Timestamp de Firestore si es posible, o string si no
+            const dateObj = new Date(dateVal + "T00:00:00");
+            appActions.updateTask(taskId, {
+              dueDate: Timestamp.fromDate(dateObj),
+            });
+          } else {
+            appActions.updateTask(taskId, { dueDate: null }); // Borrar si se deja vacío
+          }
+        },
+      });
       break;
     case "sync-task-to-calendar":
       appActions.syncTaskToCalendar(taskId);
@@ -4492,9 +3347,93 @@ function handleTaskCardAction(action, taskId) {
         callback: (title) => title && appActions.updateTask(taskId, { title }),
       });
       break;
+    // --- EN ui.js (dentro de handleTaskCardAction) ---
+
+    // --- EN ui.js (dentro de handleTaskCardAction) ---
+
+    // --- EN ui.js (dentro de handleTaskCardAction) ---
+
     case "points":
-      openPointsEstimatorModal(taskId);
+      // ESCALA CORREGIDA: 1 DÍA = 4 PUNTOS (Base: 20 pts/semana)
+      const pointOptions = [
+        { val: 0.5, label: "1 hr / Quick Fix" },
+        { val: 1, label: "2 hrs / Bloque corto" },
+        { val: 2, label: "Medio día (4 hrs)" },
+        { val: 4, label: "1 día (8 hrs)" },
+        { val: 8, label: "2 días" },
+        { val: 12, label: "3 días" },
+        { val: 20, label: "1 semana (Full)" },
+        { val: 40, label: "Sprint Completo (2 sem)" },
+      ];
+
+      // Generamos el HTML con diseño de 2 columnas
+      let buttonsHTML = pointOptions
+        .map((opt) => {
+          const isActive =
+            task.points === opt.val
+              ? "bg-blue-600 text-white ring-2 ring-blue-300 shadow-md"
+              : "bg-white border border-gray-200 text-gray-700 hover:bg-blue-50 hover:border-blue-200";
+
+          return `
+            <button type="button" class="point-selector-btn ${isActive} flex flex-col items-center justify-center py-2 px-1 rounded-lg transition-all" data-value="${opt.val}">
+                <span class="text-lg font-bold">${opt.val}</span>
+                <span class="text-[10px] opacity-80 font-medium leading-tight">${opt.label}</span>
+            </button>`;
+        })
+        .join("");
+
+      const contentHTML = `
+        <div class="flex flex-col gap-3">
+            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Guía de Esfuerzo (Base: 4 pts = 1 día)</p>
+            <div class="grid grid-cols-2 gap-2" id="points-grid">
+                ${buttonsHTML}
+            </div>
+            <div class="mt-3 pt-3 border-t border-gray-100">
+                 <label class="text-xs text-gray-400 block mb-1">O ingresa valor manual:</label>
+                 <input type="number" id="manual-points-input" class="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" value="${task.points || 0}" step="0.5">
+            </div>
+        </div>
+      `;
+
+      showModal({
+        title: "Asignar Puntos",
+        htmlContent: contentHTML,
+        okText: "Guardar Puntos",
+        callback: () => {
+          const selectedBtn = document.querySelector(".point-selector-btn.selected-in-modal");
+          let val = selectedBtn ? Number(selectedBtn.dataset.value) : null;
+
+          if (val === null) {
+            const manualVal = document.getElementById("manual-points-input").value;
+            val = manualVal === "" ? 0 : Number(manualVal);
+          }
+
+          appActions.updateTask(taskId, { points: val });
+        },
+      });
+
+      // Script para selección visual
+      setTimeout(() => {
+        const grid = document.getElementById("points-grid");
+        if (grid) {
+          grid.addEventListener("click", (e) => {
+            const btn = e.target.closest("button");
+            if (btn) {
+              grid.querySelectorAll("button").forEach((b) => {
+                b.className =
+                  "point-selector-btn bg-white border border-gray-200 text-gray-700 hover:bg-blue-50 hover:border-blue-200 flex flex-col items-center justify-center py-2 px-1 rounded-lg transition-all";
+              });
+              btn.className =
+                "point-selector-btn bg-blue-600 text-white ring-2 ring-blue-300 shadow-md flex flex-col items-center justify-center py-2 px-1 rounded-lg transition-all selected-in-modal";
+              document.getElementById("manual-points-input").value = btn.dataset.value;
+            }
+          });
+        }
+      }, 50);
       break;
+    // --- EN ui.js (dentro de handleTaskCardAction) ---
+
+    // --- EN ui.js (dentro de handleTaskCardAction) ---
 
     case "assign": {
       // 1. FILTRAR DUPLICADOS
@@ -4723,7 +3662,7 @@ function handleEditSprintClick() {
       .toDate()
       .toISOString()
       .split("T")[0];
-  document.getElementById("modal-sprint-capacity").value = sprint.capacity || CYCLE_POINTS_TARGET;
+  document.getElementById("modal-sprint-capacity").value = sprint.capacity || "";
 
   const palette = document.getElementById("sprint-color-palette");
   palette.querySelectorAll(".selected").forEach((el) => el.classList.remove("selected"));
@@ -4797,19 +3736,12 @@ export function initializeEventListeners(state, actions) {
 
   const modalOkBtn = document.getElementById("modal-ok-btn");
   const modalCancelBtn = document.getElementById("modal-cancel-btn");
-  const modalCloseIcon = document.getElementById("modal-close-icon");
-  const taskModalCloseTop = document.getElementById("task-modal-close-top");
   const sprintSelector = document.getElementById("sprint-list-select");
   const sprintCapacityInput = document.getElementById("sprint-capacity-input");
   const selectAllBacklog = document.getElementById("select-all-backlog-tasks");
 
   document.addEventListener("click", handleAppClick);
   document.addEventListener("change", handleAppChange);
-  document.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter" || e.target?.id !== "comment-input") return;
-    e.preventDefault();
-    handlePostComment();
-  });
 
   if (dom.toggleBacklogViewBtn) {
     dom.toggleBacklogViewBtn.addEventListener("click", () => toggleBacklogView(appState));
@@ -4832,67 +3764,79 @@ export function initializeEventListeners(state, actions) {
       card.classList.remove("dragging");
       appActions.setDraggedTaskId(null);
     }
-    clearDropIndicators();
   });
 
   // --- DRAG OVER (Permitir soltar) ---
   document.addEventListener("dragover", (e) => {
+    // 1. Kanban Sprint (Columnas normales)
+    if (e.target.closest("#kanban-todo, #kanban-inprogress, #kanban-done")) {
+      e.preventDefault();
+      return;
+    }
+
+    // 2. Swimlanes (Vista por Persona) - DETECCIÓN MEJORADA
     const dropZone = e.target.closest(".swimlane-drop-zone");
     if (dropZone) {
       e.preventDefault();
-      updateDropIndicator(dropZone, e.clientY);
+      dropZone.parentElement.classList.add("bg-gray-100"); // Feedback visual
       return;
     }
 
+    // 3. Matriz Backlog
     const dropQuad = e.target.closest("[data-quad-list]");
     if (dropQuad) {
       e.preventDefault();
-      if (activeDropZone || activeDropIndicator) clearDropIndicators();
-      if (activeDropMatrixQuad && activeDropMatrixQuad !== dropQuad) {
-        activeDropMatrixQuad.classList.remove("is-drop-target");
-      }
       dropQuad.classList.add("is-drop-target");
-      activeDropMatrixQuad = dropQuad;
-      return;
     }
-
-    clearDropIndicators();
   });
 
   // --- DRAG LEAVE (Limpiar estilos) ---
   document.addEventListener("dragleave", (e) => {
-    if (!e.relatedTarget) clearDropIndicators();
+    const dropZone = e.target.closest(".swimlane-drop-zone");
+    if (dropZone) {
+      dropZone.parentElement.classList.remove("bg-gray-100");
+    }
+    const dropQuad = e.target.closest("[data-quad-list]");
+    if (dropQuad) {
+      dropQuad.classList.remove("is-drop-target");
+    }
   });
 
   // --- DROP (Soltar) ---
   document.addEventListener("drop", (e) => {
     const taskId = appState.draggedTaskId;
     if (!taskId) return;
-    clearDropIndicators();
 
+    // A) Soltar en KANBAN SPRINT (Vista normal)
+    const kanbanCol = e.target.closest("#kanban-todo, #kanban-inprogress, #kanban-done");
+    if (kanbanCol) {
+      e.preventDefault();
+      const newStatus = kanbanCol.id.replace("kanban-", ""); // todo, inprogress, done
+      updateTaskStatusLogic(taskId, newStatus, null); // null = no cambiar assignee
+      return;
+    }
+
+    // B) Soltar en SWIMLANES (Vista por Persona)
     const dropZone = e.target.closest(".swimlane-drop-zone");
     if (dropZone) {
       e.preventDefault();
-      const sprintStatus = dropZone.dataset.status;
-      if (sprintStatus) {
-        updateTaskStatusLogic(taskId, sprintStatus, null);
-        return;
-      }
+      dropZone.parentElement.classList.remove("bg-gray-100");
 
-      const colDiv = dropZone.closest("[data-swimlane-status]");
-      if (!colDiv) return;
+      const colDiv = dropZone.parentElement;
       const newStatus = colDiv.dataset.swimlaneStatus;
       const newAssigneeRaw = colDiv.dataset.assignee;
+      // Si es "unassigned", mandamos null, si no, el email
       const newAssignee = newAssigneeRaw === "unassigned" ? null : newAssigneeRaw;
+
       updateTaskStatusLogic(taskId, newStatus, newAssignee);
       return;
     }
 
+    // C) Soltar en MATRIZ BACKLOG
     const dropQuad = e.target.closest("[data-quad-list]");
     if (dropQuad) {
       e.preventDefault();
       dropQuad.classList.remove("is-drop-target");
-      activeDropMatrixQuad = null;
       const targetQuad = dropQuad.dataset.quadList;
       const impactThreshold = appState.triageConfig?.matrixThresholds?.impact || 3;
       const effortThreshold = appState.triageConfig?.matrixThresholds?.effort || 3;
@@ -4950,8 +3894,6 @@ export function initializeEventListeners(state, actions) {
 
   // --- Resto de listeners (Modales, Selects, etc) ---
   modalCancelBtn.addEventListener("click", hideModal);
-  if (modalCloseIcon) modalCloseIcon.addEventListener("click", hideModal);
-  if (taskModalCloseTop) taskModalCloseTop.addEventListener("click", hideModal);
 
   modalOkBtn.addEventListener("click", async () => {
     if (!modalCallback) return hideModal();
@@ -5006,11 +3948,9 @@ export function initializeEventListeners(state, actions) {
     // 4. LÓGICA PARA TEMAS (Themes)
     const themeInputs = document.getElementById("modal-theme-inputs");
     if (themeInputs && !themeInputs.classList.contains("hidden")) {
-      const themeTitleInput = document.getElementById("modal-theme-title");
-      const themeDescriptionInput = document.getElementById("modal-theme-description");
       result = {
-        title: themeTitleInput?.value || "",
-        description: themeDescriptionInput?.value || "",
+        title: document.getElementById("modal-theme-title").value,
+        description: document.getElementById("modal-theme-description").value,
       };
     }
 
@@ -5066,7 +4006,6 @@ export function hideApp() {
 }
 
 export function showModal(config) {
-  const modalContent = document.getElementById("modal-content");
   const modal = {
     overlay: document.getElementById("modal-overlay"),
     title: document.getElementById("modal-title"),
@@ -5078,46 +4017,19 @@ export function showModal(config) {
     taskDetails: document.getElementById("modal-task-details"),
     handbookInputs: document.getElementById("modal-handbook-inputs"),
     okBtn: document.getElementById("modal-ok-btn"),
-    footer: document.getElementById("modal-footer"),
-    closeIcon: document.getElementById("modal-close-icon"),
   };
-  const modalCancelBtn = document.getElementById("modal-cancel-btn");
-  const modalSections = [
-    modal.title,
-    modal.text,
-    modal.input,
-    modal.sprintInputs,
-    modal.epicInputs,
-    modal.themeInputs,
-    modal.taskDetails,
-    modal.handbookInputs,
-  ];
-  modalSections.forEach((section) => section?.classList.add("hidden"));
-
-  if (modal.text) {
-    modal.text.textContent = "";
-    modal.text.innerHTML = "";
-    modal.text.className = MODAL_TEXT_BASE_CLASS;
-  }
-  if (modal.input) {
-    modal.input.value = "";
-    modal.input.placeholder = "";
-    modal.input.type = "text";
-  }
-  if (modal.okBtn) {
-    modal.okBtn.className = "modal-solid-btn px-6 py-2.5 text-sm font-semibold shadow-sm transition-all hidden";
-    modal.okBtn.textContent = "Aceptar";
-  }
-  if (modal.footer) modal.footer.classList.remove("hidden");
-  if (modalCancelBtn) {
-    modalCancelBtn.className = "modal-ghost-btn px-6 py-2.5 text-sm font-semibold transition-colors";
-    modalCancelBtn.classList.remove("hidden");
-  }
-  if (modal.overlay) {
-    modal.overlay.classList.remove("hidden");
-    modal.overlay.style.display = "flex";
-  }
-
+  Object.keys(modal).forEach((key) => {
+    const el = modal[key];
+    if (el && el.classList) {
+      // Verificamos que el elemento y su lista de clases existan
+      el.classList.add("hidden");
+      if (key === "text" || el.id === "modal-text") {
+        el.textContent = "";
+        el.className = "mb-4 hidden";
+      }
+    }
+  });
+  modal.overlay.classList.remove("hidden");
   if (config.title) {
     modal.title.textContent = config.title;
     modal.title.classList.remove("hidden");
@@ -5140,32 +4052,13 @@ export function showModal(config) {
   if (config.themeInputs) modal.themeInputs.classList.remove("hidden");
   if (config.taskDetails) modal.taskDetails.classList.remove("hidden");
   if (config.handbookInputs) modal.handbookInputs.classList.remove("hidden");
-  if (modalContent) {
-    modalContent.classList.remove(...MODAL_MODE_CLASSES);
-    if (!config.taskDetails) modalContent.removeAttribute("data-active-task-id");
-    if (config.taskDetails) modalContent.classList.add("is-task-modal");
-    else if (config.sprintInputs) modalContent.classList.add("is-sprint-form-modal");
-    else if (config.epicInputs) modalContent.classList.add("is-epic-form-modal");
-    else if (config.themeInputs) modalContent.classList.add("is-theme-form-modal");
-    else if (config.handbookInputs) modalContent.classList.add("is-handbook-form-modal");
-    else modalContent.classList.add("is-simple-modal");
-    if (config.actionModal) modalContent.classList.add("is-task-action-modal");
-  }
-  if (modal.footer) modal.footer.classList.toggle("hidden", Boolean(config.taskDetails));
-  if (modal.closeIcon) modal.closeIcon.classList.remove("hidden");
   if (config.okText) {
     modal.okBtn.textContent = config.okText;
-    const isCloseAction = /^cerrar$/i.test(config.okText.trim());
-    const baseClass = isCloseAction
-      ? "modal-ghost-btn font-semibold py-1.5 px-5 rounded-md transition-colors"
-      : "modal-solid-btn font-semibold py-1.5 px-5 rounded-md shadow-sm transition-all";
-    modal.okBtn.className = `${baseClass} ${config.okClass || ""}`.trim();
+    modal.okBtn.className = `text-white font-semibold py-2 px-4 rounded-lg ${config.okClass || "bg-blue-600 hover:bg-blue-700"}`;
     modal.okBtn.classList.remove("hidden");
-    if (modalCancelBtn && (config.hideCancel || isCloseAction)) {
-      modalCancelBtn.classList.add("hidden");
-    }
   }
-  modalCallback = typeof config.callback === "function" ? config.callback : null;
+  modalCallback = config.callback;
+  modal.overlay.style.display = "flex";
 }
 
 export function hideModal() {
@@ -5173,23 +4066,14 @@ export function hideModal() {
     quillInstance = null;
   }
   const overlay = document.getElementById("modal-overlay");
-  if (overlay) {
-    overlay.classList.add("hidden");
-    overlay.style.display = "none";
-  }
+  if (overlay) overlay.style.display = "none";
   const content = document.getElementById("modal-content");
-  if (content) {
-    content.removeAttribute("data-active-task-id");
-    content.classList.remove(...MODAL_MODE_CLASSES);
-  }
-  modalCallback = null;
+  if (content) content.removeAttribute("data-active-task-id");
 }
 
 export function renderTaskDetails(task, state) {
   const els = {
     title: document.getElementById("modal-task-title"),
-    description: document.getElementById("modal-task-description"),
-    timeStats: document.getElementById("modal-task-time-stats"),
     points: document.getElementById("modal-task-points"),
     pointsField: document.getElementById("modal-task-points-field"),
     pointsHint: document.getElementById("modal-task-points-hint"),
@@ -5204,60 +4088,12 @@ export function renderTaskDetails(task, state) {
     epicField: document.getElementById("modal-task-epic-field"),
     epicHint: document.getElementById("modal-task-epic-hint"),
     krSelect: document.getElementById("modal-task-kr-select"),
-    dueDate: document.getElementById("modal-task-due-date"),
-    saveStatus: document.getElementById("modal-save-status"),
+    // CORRECCIÓN 1: Usamos los IDs que coinciden con tu index.html
     impactContainer: document.getElementById("impactContainer"),
     effortContainer: document.getElementById("effortContainer"),
-    avatarImg: document.getElementById("modal-task-avatar-img"),
-    banner: document.querySelector(".modal-task-banner"),
   };
 
   if (!els.title) return;
-
-  // Custom action buttons for the profile-card styled modal
-  const customOkBtn = document.getElementById("task-modal-ok-btn");
-  const customCancelBtn = document.getElementById("task-modal-cancel-btn");
-  if (customOkBtn) {
-    customOkBtn.onclick = () => document.getElementById("modal-ok-btn")?.click();
-  }
-  if (customCancelBtn) {
-    customCancelBtn.onclick = () => document.getElementById("modal-cancel-btn")?.click();
-  }
-
-  const getDate = (ts) => (ts && ts.toDate ? ts.toDate() : ts ? new Date(ts) : null);
-  const toDateInputValue = (dateObj) => {
-    if (!dateObj) return "";
-    const y = dateObj.getFullYear();
-    const m = String(dateObj.getMonth() + 1).padStart(2, "0");
-    const d = String(dateObj.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  };
-
-  let saveStatusTimeout = null;
-  const setSaveStatus = (mode, text) => {
-    if (!els.saveStatus) return;
-    els.saveStatus.textContent = text;
-    els.saveStatus.classList.remove("is-saving", "is-saved", "is-error");
-    if (mode === "saving") els.saveStatus.classList.add("is-saving");
-    if (mode === "saved") els.saveStatus.classList.add("is-saved");
-    if (mode === "error") els.saveStatus.classList.add("is-error");
-  };
-  const persistTaskUpdate = (patch) => {
-    if (!patch || typeof appActions === "undefined") return;
-    setSaveStatus("saving", "Guardando...");
-    Promise.resolve(appActions.updateTask(task.id, patch))
-      .then(() => {
-        setSaveStatus("saved", "Guardado ahora");
-        if (saveStatusTimeout) clearTimeout(saveStatusTimeout);
-        saveStatusTimeout = setTimeout(() => {
-          setSaveStatus("idle", "Sin cambios recientes");
-        }, 2200);
-      })
-      .catch(() => {
-        setSaveStatus("error", "No se pudo guardar");
-      });
-  };
-  setSaveStatus("idle", "Sin cambios recientes");
 
   const setRequiredState = (fieldEl, hintEl, isMissing) => {
     if (!fieldEl) return;
@@ -5293,140 +4129,33 @@ export function renderTaskDetails(task, state) {
     }
 
     const epicRaw = els.epicSelect?.value;
-    const epicVal = epicRaw !== undefined && epicRaw !== null ? epicRaw : (task.epicId ?? "");
+    const epicVal = epicRaw !== undefined && epicRaw !== null ? epicRaw : task.epicId ?? "";
     const isEpicMissing = !epicVal;
     setRequiredState(els.epicField, els.epicHint, isEpicMissing);
     setSelectState(els.epicSelect, isEpicMissing);
 
     const assigneeRaw = document.getElementById("detail-modal-assignee")?.value;
     const assigneeVal =
-      assigneeRaw !== undefined && assigneeRaw !== null ? assigneeRaw : (task.assignee ?? "");
+      assigneeRaw !== undefined && assigneeRaw !== null ? assigneeRaw : task.assignee ?? "";
     const isAssigneeMissing = !assigneeVal;
     setRequiredState(els.assigneeField, els.assigneeHint, isAssigneeMissing);
     setSelectState(document.getElementById("detail-modal-assignee"), isAssigneeMissing);
   };
 
-  const normalizeTitle = (raw) => (raw || "").replace(/\s+/g, " ").trim();
-  const initialTitle = normalizeTitle(task.title || "Sin título");
-  els.title.textContent = initialTitle;
-
-  const persistTitle = () => {
-    const nextTitle = normalizeTitle(els.title.textContent);
-    const currentTitle = normalizeTitle(task.title || "Sin título");
-    if (!nextTitle) {
-      els.title.textContent = currentTitle;
-      return;
-    }
-    if (nextTitle === currentTitle) {
-      els.title.textContent = currentTitle;
-      return;
-    }
-    task.title = nextTitle;
-    els.title.textContent = nextTitle;
-    persistTaskUpdate({ title: nextTitle });
-  };
-
-  els.title.onblur = persistTitle;
-  els.title.onkeydown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      els.title.blur();
-    }
-  };
-
-  if (els.description) {
-    if (document.activeElement !== els.description) {
-      els.description.value = task.description || "";
-    }
-
-    const persistDescription = () => {
-      const nextDescription = els.description.value ?? "";
-      const currentDescription = task.description || "";
-      if (nextDescription === currentDescription) return;
-      task.description = nextDescription;
-      persistTaskUpdate({ description: nextDescription });
-    };
-
-    els.description.onblur = persistDescription;
-    els.description.onkeydown = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-        e.preventDefault();
-        persistDescription();
-      }
-    };
-  }
+  // --- 1. DATOS BÁSICOS ---
+  els.title.textContent = task.title || "Sin título";
   els.points.textContent = task.points || "0";
-
-  // Avatar & Banner
-  let assigneeUser = null;
-  if (task.assignee) {
-    assigneeUser = state.allUsers.find((u) => u.email === task.assignee);
-  }
-  if (els.avatarImg) {
-    if (assigneeUser && assigneeUser.photoURL) {
-      els.avatarImg.src = assigneeUser.photoURL;
-    } else {
-      els.avatarImg.src = `https://ui-avatars.com/api/?name=${task.assignee ? task.assignee : "U"}&background=random&size=96`;
-    }
-  }
-  // --- 1.5. ESTADÍSTICAS DE TIEMPO ---
-  if (els.timeStats) {
-    const now = new Date();
-    const createdAt = getDate(task.createdAt) || now;
-    const startedAt = getDate(task.startedAt);
-    const completedAt = getDate(task.completedAt);
-
-    const formatDiff = (start, end) => {
-      if (!start) return "—";
-      const diffMs = (end || now) - start;
-      const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      if (days > 0) return `${days}d ${hours}h`;
-      return `${hours}h`;
-    };
-
-    const daysSinceCreation = formatDiff(createdAt, completedAt || now);
-    let timeInTodo = "—";
-    let timeInProgress = "—";
-
-    if (startedAt) {
-      timeInTodo = formatDiff(createdAt, startedAt);
-      timeInProgress = formatDiff(startedAt, completedAt || now);
-    } else {
-      timeInTodo = formatDiff(createdAt, completedAt || now);
-    }
-
-    const createdCycleStr = createdAt.toLocaleDateString("es-MX", {
-      day: "2-digit",
-      month: "short",
-      year: "2-digit",
-    });
-
-    els.timeStats.innerHTML = `
-      <div class="time-stat-card">
-          <span class="time-stat-title">Creada</span>
-          <span class="time-stat-value">${createdCycleStr}</span>
-      </div>
-      <div class="time-stat-card">
-          <span class="time-stat-title">Antigüedad Total</span>
-          <span class="time-stat-value">${daysSinceCreation}</span>
-      </div>
-      <div class="time-stat-card">
-          <span class="time-stat-title">T. Por Hacer</span>
-          <span class="time-stat-value">${timeInTodo}</span>
-      </div>
-      <div class="time-stat-card time-stat-card-blue">
-          <span class="time-stat-title time-stat-title-blue">T. En Progreso</span>
-          <span class="time-stat-value time-stat-value-blue">${timeInProgress}</span>
-      </div>
-    `;
+  if (els.desc) {
+    const descText = (task.description || "").trim();
+    els.desc.textContent = descText.length ? descText : "Sin descripción";
+    els.desc.classList.toggle("italic", !descText.length);
   }
 
   // --- 2. RENDERIZADO DE USUARIOS Y PUNTOS (EDITABLES) ---
 
   // A) SELECTOR DE PUNTOS
   const pointOptions = [0, 0.5, 1, 2, 3, 5, 8, 13, 20, 40];
-  let pointsSelectHTML = `<select id="detail-modal-points" class="modal-input-slim font-medium">`;
+  let pointsSelectHTML = `<select id="detail-modal-points" class="font-black text-blue-600 bg-transparent border-none focus:ring-0 cursor-pointer text-2xl leading-none appearance-none text-right w-16">`;
   pointOptions.forEach((p) => {
     pointsSelectHTML += `<option value="${p}" ${task.points == p ? "selected" : ""}>${p}</option>`;
   });
@@ -5440,13 +4169,15 @@ export function renderTaskDetails(task, state) {
   const pointsSelect = document.getElementById("detail-modal-points");
   if (pointsSelect) {
     pointsSelect.addEventListener("change", (e) => {
-      persistTaskUpdate({ points: Number(e.target.value) });
+      if (typeof appActions !== "undefined") {
+        appActions.updateTask(task.id, { points: Number(e.target.value) });
+      }
       updateRequiredStates();
     });
   }
 
   // B) SELECTOR DE ASIGNADO (RESPONSABLE)
-  let assigneeSelectHTML = `<select id="detail-modal-assignee" class="modal-input-slim text-xs text-gray-700">
+  let assigneeSelectHTML = `<select id="detail-modal-assignee" class="w-full text-xs border border-gray-200 rounded p-1 bg-gray-50 text-gray-700 focus:ring-blue-500 outline-none">
     <option value="">-- Sin Asignar --</option>`;
 
   // Ordenar usuarios
@@ -5466,60 +4197,47 @@ export function renderTaskDetails(task, state) {
   const assigneeSelect = document.getElementById("detail-modal-assignee");
   if (assigneeSelect) {
     assigneeSelect.addEventListener("change", (e) => {
-      persistTaskUpdate({ assignee: e.target.value || null });
+      if (typeof appActions !== "undefined") {
+        appActions.updateTask(task.id, { assignee: e.target.value || null });
+      }
       updateRequiredStates();
     });
-  }
-
-  if (els.dueDate) {
-    const taskDueDate = getDate(task.dueDate);
-    els.dueDate.value = toDateInputValue(taskDueDate);
-    els.dueDate.onchange = (e) => {
-      const dateVal = e.target.value;
-      if (dateVal) {
-        const dateObj = new Date(`${dateVal}T00:00:00`);
-        persistTaskUpdate({ dueDate: Timestamp.fromDate(dateObj) });
-      } else {
-        persistTaskUpdate({ dueDate: null });
-      }
-    };
   }
 
   // --- 3. SPRINT Y STATUS ---
   const sprint = state.taskLists?.find((l) => l.id === task.listId);
   els.sprint.textContent = sprint ? sprint.title : "Backlog (Sin Sprint)";
 
-  if (els.banner) {
-    const color = sprint?.color || "#8ec5fc";
-    els.banner.style.background = `linear-gradient(135deg, #ffffff 0%, ${color} 100%)`;
-  }
-
   const statusConfig = {
     todo: {
       text: "Por hacer",
-      class: "bg-slate-50 text-slate-700 border border-slate-200",
-      icon: "fa-regular fa-circle text-slate-500",
+      class: "bg-gray-100 text-gray-700 border border-gray-200",
+      icon: "fa-regular fa-circle text-gray-500",
     },
     inprogress: {
       text: "En progreso",
-      class: "bg-blue-50 text-blue-700 border border-blue-200",
+      class: "bg-blue-50 text-blue-700 border border-gray-200",
       icon: "fa-solid fa-circle-dot text-blue-600",
     },
     done: {
       text: "Hecho",
-      class: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-      icon: "fa-solid fa-check text-emerald-700",
+      class: "bg-gray-50 text-green-700 border border-green-200",
+      icon: "fa-solid fa-check text-green-700",
     },
   };
   const getStatusValue = () =>
     task.kanbanStatus && statusConfig[task.kanbanStatus] ? task.kanbanStatus : "todo";
-  els.status.className = "w-full";
+  const currentStatus = statusConfig[getStatusValue()];
+  els.status.className = "shrink-0";
   els.status.innerHTML = `
-    <select id="detail-modal-status" class="modal-input-slim font-medium">
-      <option value="todo">Por hacer</option>
-      <option value="inprogress">En progreso</option>
-      <option value="done">Hecho</option>
-    </select>
+    <div id="detail-modal-status-wrapper" class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold uppercase tracking-wider ${currentStatus.class}">
+      <i id="detail-modal-status-icon" class="${currentStatus.icon}" style="font-size: 10px;"></i>
+      <select id="detail-modal-status" class="bg-transparent border-none text-xs font-semibold uppercase tracking-wider focus:ring-0 outline-none cursor-pointer" style="color: inherit;">
+        <option value="todo">Por hacer</option>
+        <option value="inprogress">En progreso</option>
+        <option value="done">Hecho</option>
+      </select>
+    </div>
   `;
 
   const applyStatusUpdate = (newStatus) => {
@@ -5540,24 +4258,21 @@ export function renderTaskDetails(task, state) {
       updates.startedAt = null;
     }
     task.kanbanStatus = newStatus;
-    persistTaskUpdate(updates);
+    appActions.updateTask(task.id, updates);
   };
 
   const statusSelect = document.getElementById("detail-modal-status");
+  const statusWrapper = document.getElementById("detail-modal-status-wrapper");
+  const statusIcon = document.getElementById("detail-modal-status-icon");
   if (statusSelect) {
     statusSelect.value = getStatusValue();
-
-    // Asignamos color dinámicamente según el estado seleccionado para un toque premium
-    const updateSelectColor = () => {
-      if (statusSelect.value === "done") statusSelect.style.color = "#16a34a";
-      else if (statusSelect.value === "inprogress") statusSelect.style.color = "#2563eb";
-      else statusSelect.style.color = "#4b5563";
-    };
-    updateSelectColor();
-
     statusSelect.onchange = (e) => {
       const newStatus = e.target.value;
-      updateSelectColor();
+      const cfg = statusConfig[newStatus] || statusConfig.todo;
+      if (statusWrapper) {
+        statusWrapper.className = `inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold uppercase tracking-wider ${cfg.class}`;
+      }
+      if (statusIcon) statusIcon.className = cfg.icon;
       applyStatusUpdate(newStatus);
     };
   }
@@ -5582,11 +4297,13 @@ export function renderTaskDetails(task, state) {
     els.epicSelect.onchange = (e) => {
       const newEpicId = e.target.value;
       updateKRDropdown(newEpicId, null);
-      persistTaskUpdate({ epicId: newEpicId, krId: null });
+      if (typeof appActions !== "undefined")
+        appActions.updateTask(task.id, { epicId: newEpicId, krId: null });
       updateRequiredStates();
     };
     els.krSelect.onchange = (e) => {
-      persistTaskUpdate({ krId: e.target.value });
+      if (typeof appActions !== "undefined")
+        appActions.updateTask(task.id, { krId: e.target.value });
     };
   }
 
@@ -5785,26 +4502,19 @@ function showVelocityReport(state) {
     return;
   }
 
-  // 2. Helpers para agrupar por ciclos de 15 días
-  const getCycleStart = (date) => getCurrentCycleWindow(date).start;
-
-  const formatCycleKey = (date) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, "0");
-    const d = String(date.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
+  // 2. Helper para obtener "Año-Semana" (Ej: "2024-W05")
+  const getWeekKey = (date) => {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 4 - (d.getDay() || 7)); // Ajuste ISO
+    const yearStart = new Date(d.getFullYear(), 0, 1);
+    const weekNo = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+    return `${d.getFullYear()}-S${weekNo.toString().padStart(2, "0")}`;
   };
 
-  const formatCycleLabel = (key) => {
-    const start = new Date(`${key}T00:00:00`);
-    const end = new Date(start);
-    end.setDate(start.getDate() + CYCLE_LENGTH_DAYS - 1);
-    return `${formatCycleDateDMY(start)} a ${formatCycleDateDMY(end)}`;
-  };
-
-  // 3. Organizar datos: Mapa[Email][Ciclo] = Puntos
+  // 3. Organizar datos: Mapa[Email][Semana] = Puntos
   const reportData = {};
-  const allCycles = new Set();
+  const allWeeks = new Set();
   const userNames = {};
 
   // Inicializar usuarios
@@ -5820,66 +4530,61 @@ function showVelocityReport(state) {
   // Rellenar datos
   completedTasks.forEach((t) => {
     const date = t.completedAt.toDate ? t.completedAt.toDate() : new Date(t.completedAt);
-    const cycleStart = getCycleStart(date);
-    const cycleKey = formatCycleKey(cycleStart);
+    const weekKey = getWeekKey(date);
     const assignee = t.assignee || "unassigned";
 
-    allCycles.add(cycleKey);
+    allWeeks.add(weekKey);
 
     if (!reportData[assignee]) reportData[assignee] = {}; // Por si es un usuario borrado
 
-    const currentPts = reportData[assignee][cycleKey] || 0;
-    reportData[assignee][cycleKey] = currentPts + (t.points || 0);
+    const currentPts = reportData[assignee][weekKey] || 0;
+    reportData[assignee][weekKey] = currentPts + (t.points || 0);
   });
 
-  // 4. Ordenar ciclos (Columnas)
-  const cyclesToShow = 5;
-  const sortedCycles = Array.from(allCycles).sort().slice(-cyclesToShow);
+  // 4. Ordenar semanas (Columnas)
+  const weeksToShow = 8;
+  const sortedWeeks = Array.from(allWeeks).sort().slice(-weeksToShow);
 
   // 5. Métricas globales
   const allPoints = [];
   Object.keys(reportData).forEach((email) => {
-    sortedCycles.forEach((c) => allPoints.push(reportData[email][c] || 0));
+    sortedWeeks.forEach((w) => allPoints.push(reportData[email][w] || 0));
   });
   const maxPoint = Math.max(1, ...allPoints);
   const totalPointsGlobal = allPoints.reduce((sum, p) => sum + p, 0);
-  const avgCycleGlobal = (totalPointsGlobal / (sortedCycles.length || 1)).toFixed(1);
+  const avgWeeklyGlobal = (totalPointsGlobal / (sortedWeeks.length || 1)).toFixed(1);
 
-  const cycleRangeLabel = (() => {
-    if (!sortedCycles.length) return "—";
-    const firstStart = new Date(`${sortedCycles[0]}T00:00:00`);
-    const lastStart = new Date(`${sortedCycles[sortedCycles.length - 1]}T00:00:00`);
-    const lastEnd = new Date(lastStart);
-    lastEnd.setDate(lastEnd.getDate() + CYCLE_LENGTH_DAYS - 1);
-    return `${formatCycleDateDMY(firstStart)} a ${formatCycleDateDMY(lastEnd)}`;
-  })();
-
-  const formatCycleHeader = (key) => {
-    const start = new Date(`${key}T00:00:00`);
-    const end = new Date(start);
-    end.setDate(start.getDate() + CYCLE_LENGTH_DAYS - 1);
-    return `<span class="block leading-tight">${formatCycleDateDMY(start)}</span><span class="block leading-tight text-[10px] normal-case text-gray-500">${formatCycleDateDMY(end)}</span>`;
-  };
+  const weekRangeLabel =
+    sortedWeeks.length > 1
+      ? `${sortedWeeks[0].replace("-", " ")} → ${sortedWeeks[sortedWeeks.length - 1].replace(
+          "-",
+          " "
+        )}`
+      : sortedWeeks[0]?.replace("-", " ") || "—";
 
   // 6. Construir Tabla HTML
   let tableHTML = `
-    <div class="space-y-3">
-      <div class="flex flex-wrap items-center gap-1.5 mb-3 text-[11px] text-gray-500">
-        <span class="px-2 py-1 rounded-full bg-gray-50 border border-gray-200">Periodo: ${cycleRangeLabel}</span>
-        <span class="px-2 py-1 rounded-full bg-gray-50 border border-gray-200">Total: <strong class="text-gray-900">${totalPointsGlobal}</strong> pts</span>
-        <span class="px-2 py-1 rounded-full bg-gray-50 border border-gray-200">Prom/ciclo: <strong class="text-gray-900">${avgCycleGlobal}</strong></span>
-        <span class="px-2 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700">Meta: <strong>${CYCLE_POINTS_TARGET} pts</strong></span>
-      </div>
-      <div class="rounded-xl border border-gray-200 overflow-hidden">
-        <table class="w-full table-fixed text-xs text-left text-gray-500 border-collapse">
-            <thead class="text-[10px] text-gray-700 uppercase bg-gray-50 border-b">
+    <div class="flex flex-wrap items-center gap-2 mb-3 text-xs text-gray-500">
+      <span class="px-2 py-1 rounded-full bg-gray-50 border border-gray-200">Periodo: ${weekRangeLabel}</span>
+      <span class="px-2 py-1 rounded-full bg-gray-50 border border-gray-200">Total: <strong class="text-gray-900">${totalPointsGlobal}</strong> pts</span>
+      <span class="px-2 py-1 rounded-full bg-gray-50 border border-gray-200">Promedio semanal: <strong class="text-gray-900">${avgWeeklyGlobal}</strong></span>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full text-sm text-left text-gray-500 border-collapse">
+            <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b">
                 <tr>
-                    <th class="px-2 py-2 border-r w-[24%]">Miembro</th>
-                    ${sortedCycles
-                      .map((c) => `<th class="px-1.5 py-2 text-center border-r">${formatCycleHeader(c)}</th>`)
+                    <th class="px-4 py-3 border-r">Miembro</th>
+                    ${sortedWeeks
+                      .map(
+                        (w) =>
+                          `<th class="px-3 py-3 text-center border-r" style="min-width: 70px;">${w.replace(
+                            "-",
+                            " "
+                          )}</th>`
+                      )
                       .join("")}
-                    <th class="px-1.5 py-2 text-center bg-gray-100 w-[9%]">Total</th>
-                    <th class="px-1.5 py-2 text-center bg-gray-100 w-[9%]">Prom</th>
+                    <th class="px-3 py-3 text-center bg-gray-100">Total</th>
+                    <th class="px-3 py-3 text-center bg-gray-100">Prom</th>
                 </tr>
             </thead>
             <tbody class="bg-white">
@@ -5889,49 +4594,47 @@ function showVelocityReport(state) {
   Object.keys(reportData)
     .sort()
     .forEach((email) => {
-      const pointsInPeriod = sortedCycles.map((c) => reportData[email][c] || 0);
+      const pointsInPeriod = sortedWeeks.map((w) => reportData[email][w] || 0);
       const totalPoints = pointsInPeriod.reduce((a, b) => a + b, 0);
-      const avg = (totalPoints / (sortedCycles.length || 1)).toFixed(1);
+      const avg = (totalPoints / (sortedWeeks.length || 1)).toFixed(1);
       const name = userNames[email] || email;
 
       let avgColor = "text-gray-600";
-      if (avg >= CYCLE_POINTS_TARGET) avgColor = "text-green-600 font-bold";
-      else if (avg < CYCLE_POINTS_TARGET * 0.5) avgColor = "text-amber-600";
+      if (avg >= 20) avgColor = "text-green-600 font-bold";
+      else if (avg < 10) avgColor = "text-amber-600";
 
       tableHTML += `
             <tr class="border-b hover:bg-gray-50 transition-colors">
-                <td class="px-2 py-2 font-medium text-gray-900 border-r"><div class="truncate" title="${name}">${name}</div></td>
+                <td class="px-4 py-3 font-medium text-gray-900 border-r whitespace-nowrap">${name}</td>
                 ${pointsInPeriod
                   .map((pts) => {
                     const intensity = pts > 0 ? Math.min(1, pts / maxPoint) : 0;
-                    const bg =
-                      pts > 0 ? `rgba(37, 99, 235, ${0.08 + intensity * 0.35})` : "transparent";
+                    const bg = pts > 0 ? `rgba(37, 99, 235, ${0.08 + intensity * 0.35})` : "transparent";
                     const color = pts > 0 ? "#1d4ed8" : "#cbd5e1";
                     return `
-                      <td class="px-1 py-1.5 text-center border-r">
-                        <div style="height:22px; line-height:22px; border-radius:7px; background:${bg}; color:${color}; font-weight:${pts > 0 ? 600 : 400};">
+                      <td class="px-2 py-2 text-center border-r">
+                        <div style="min-width:64px; height:26px; line-height:26px; border-radius:8px; background:${bg}; color:${color}; font-weight:${pts > 0 ? 600 : 400};">
                           ${pts > 0 ? pts : "—"}
                         </div>
                       </td>
                     `;
                   })
                   .join("")}
-                <td class="px-1.5 py-2 text-center bg-gray-50 font-semibold text-gray-900">${totalPoints}</td>
-                <td class="px-1.5 py-2 text-center bg-gray-50 font-bold ${avgColor}">${avg}</td>
+                <td class="px-3 py-3 text-center bg-gray-50 font-semibold text-gray-900">${totalPoints}</td>
+                <td class="px-3 py-3 text-center bg-gray-50 font-bold ${avgColor}">${avg}</td>
             </tr>
         `;
     });
 
   tableHTML += `</tbody></table></div>
-      <p class="text-[11px] text-gray-400 mt-2 text-right">* Se muestran los últimos ${cyclesToShow} ciclos de ${CYCLE_LENGTH_DAYS} días con actividad.</p>
-    </div>`;
+    <p class="text-xs text-gray-400 mt-2 text-right">* Se muestran las últimas ${weeksToShow} semanas con actividad.</p>
+    `;
 
   // 6. Mostrar Modal
   showModal({
-    title: "Histórico de Velocidad (Ciclos quincenales globales)",
+    title: "Histórico de Velocidad (Puntos Completados)",
     htmlContent: tableHTML,
     okText: "Cerrar",
-    hideCancel: true,
   });
 }
 

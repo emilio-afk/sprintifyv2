@@ -61,6 +61,11 @@ const state = {
   expandedPersonViews: new Set(), // Controla qué carriles están abiertos
   personViewPersonFilter: "all", // Filtro de persona ('all' o email)
   personViewSprintFilter: "all",
+  personViewSearch: "",
+  personViewSortMode: "load_desc",
+  personViewQuickFilter: "all",
+  personViewMode: "current",
+  personViewDensity: "comfortable",
   hasInitializedPersonViews: false, // Para evitar resetear la vista en cada update
   collapsedColumns: new Set(), // Almacena los IDs ('todo', 'inprogress', 'done')
   expandedEpicIds: new Set(),
@@ -124,6 +129,45 @@ const actions = {
   // ¡ESTA ERA LA QUE FALTABA Y CAUSABA EL ERROR ROJO!
   setPersonViewSprintFilter(filter) {
     state.personViewSprintFilter = filter;
+    requestRender();
+  },
+
+  setPersonViewSearch(value) {
+    state.personViewSearch = typeof value === "string" ? value : "";
+    requestRender();
+  },
+
+  setPersonViewSortMode(value) {
+    const allowed = new Set(["load_desc", "risk_desc", "done_desc", "name_asc"]);
+    state.personViewSortMode = allowed.has(value) ? value : "load_desc";
+    requestRender();
+  },
+
+  setPersonViewQuickFilter(value) {
+    const allowed = new Set(["all", "overloaded", "no_progress", "unassigned", "live_load"]);
+    state.personViewQuickFilter = allowed.has(value) ? value : "all";
+    requestRender();
+  },
+
+  setPersonViewMode(value) {
+    const allowed = new Set(["current", "history"]);
+    state.personViewMode = allowed.has(value) ? value : "current";
+    requestRender();
+  },
+
+  setPersonViewDensity(value) {
+    const allowed = new Set(["comfortable", "compact"]);
+    state.personViewDensity = allowed.has(value) ? value : "comfortable";
+    requestRender();
+  },
+
+  resetPersonViewControls() {
+    state.personViewPersonFilter = "all";
+    state.personViewSprintFilter = "all";
+    state.personViewSearch = "";
+    state.personViewSortMode = "load_desc";
+    state.personViewQuickFilter = "all";
+    state.personViewMode = "current";
     requestRender();
   },
 
@@ -363,6 +407,9 @@ const actions = {
 
   addNewSprint(result) {
     const { title, sequence, start, end, capacity = 0, color, epicId } = result || {};
+    const parsedCapacity = Number(capacity);
+    const normalizedCapacity =
+      Number.isFinite(parsedCapacity) && parsedCapacity > 0 ? parsedCapacity : 40;
 
     if (!title || !start || !end) return ui.showModal({ title: "Error", text: "Faltan datos." });
 
@@ -372,7 +419,7 @@ const actions = {
       startDate: Timestamp.fromDate(new Date(`${start}T00:00:00`)),
       endDate: Timestamp.fromDate(new Date(`${end}T00:00:00`)),
       isBacklog: false,
-      capacity: Number(capacity) || 0,
+      capacity: normalizedCapacity,
       createdAt: serverTimestamp(),
       createdBy: state.user?.email ?? null,
       color,
@@ -383,12 +430,15 @@ const actions = {
 
   updateSprint(sprintId, result) {
     const { title, sequence, start, end, capacity = 0, color, epicId } = result || {};
+    const parsedCapacity = Number(capacity);
+    const normalizedCapacity =
+      Number.isFinite(parsedCapacity) && parsedCapacity > 0 ? parsedCapacity : 40;
 
     const updates = {
       title,
       startDate: Timestamp.fromDate(new Date(`${start}T00:00:00`)),
       endDate: Timestamp.fromDate(new Date(`${end}T00:00:00`)),
-      capacity: Number(capacity) || 0,
+      capacity: normalizedCapacity,
       color,
       epicId: epicId || null,
     };
@@ -1147,7 +1197,7 @@ function setupUpdateNotifier() {
   };
 
   const checkForUpdate = async () => {
-    if (bannerShown || (navigator?.onLine === false)) return;
+    if (bannerShown || navigator?.onLine === false) return;
     const results = await Promise.all(targets.map((path) => fetchRemoteVersion(path)));
     results.forEach((remote, index) => {
       if (bannerShown || !remote) return;

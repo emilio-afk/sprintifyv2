@@ -1,0 +1,6 @@
+Revertir a este checkpoint:
+cp ".codex-checkpoints/20260302-160828/index.html" index.html
+cp ".codex-checkpoints/20260302-160828/ui.js" js/ui/ui.js
+cp ".codex-checkpoints/20260302-160828/input.css" styles/input.css
+# Opcional: restaurar cambios no comiteados previos
+git apply --index --allow-binary-replacement ".codex-checkpoints/checkpoint-uiux-20260302-160828-workingtree.patch"

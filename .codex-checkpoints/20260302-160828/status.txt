@@ -1,0 +1,3 @@
+## main...SprintifyV2/main
+ M .DS_Store
+?? .codex-checkpoints/

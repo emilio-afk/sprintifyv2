@@ -1,0 +1,17 @@
+# Dependencias de Node (ESTE ES EL CULPABLE #1 DE TUS ERRORES)
+node_modules/
+
+# Archivos de bloqueo (pesan muchísimo y no sirven para programar)
+package-lock.json
+
+# Carpetas de otras herramientas/agentes (solo gastan tokens)
+.codex-checkpoints/
+.roo/
+codex-skills/
+
+# Configuración de despliegue y repositorios que no necesita modificar
+.github/
+.git/
+
+# CSS Compilado de Tailwind
+styles/output.css
