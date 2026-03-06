@@ -29,6 +29,131 @@ const dom = {
   },
 };
 
+const SIDEBAR_COLLAPSED_STORAGE_KEY = "sprintify.sidebar.collapsed";
+const SIDEBAR_MOBILE_MEDIA_QUERY = "(max-width: 1023px)";
+let sidebarShellState = {
+  collapsed: false,
+  mobileOpen: false,
+};
+let sidebarShellInitialized = false;
+let sidebarMediaQueryList = null;
+
+function isMobileSidebarLayout() {
+  return typeof window !== "undefined" && !!window.matchMedia?.(SIDEBAR_MOBILE_MEDIA_QUERY).matches;
+}
+
+function readSidebarCollapsedPreference() {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function writeSidebarCollapsedPreference(isCollapsed) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(Boolean(isCollapsed)));
+  } catch {
+    // Ignore storage failures and keep the in-memory state.
+  }
+}
+
+function syncSidebarAccessibleLabels() {
+  document.querySelectorAll("#sidebar .sidebar-link").forEach((link) => {
+    const label = link.querySelector("span")?.textContent?.trim();
+    if (!label) return;
+    link.setAttribute("title", label);
+    link.setAttribute("aria-label", label);
+    link.dataset.tooltip = label;
+  });
+
+  document.querySelectorAll("#sidebar .nav-group-button").forEach((button) => {
+    const label = button.querySelector("h3")?.textContent?.trim();
+    if (!label) return;
+    button.setAttribute("title", label);
+    button.setAttribute("aria-label", `Alternar grupo ${label}`);
+  });
+}
+
+function updateSidebarToggleButtons() {
+  const isMobile = isMobileSidebarLayout();
+  const isExpanded = isMobile ? sidebarShellState.mobileOpen : !sidebarShellState.collapsed;
+  const ariaLabel = isMobile
+    ? sidebarShellState.mobileOpen
+      ? "Cerrar navegación lateral"
+      : "Abrir navegación lateral"
+    : sidebarShellState.collapsed
+      ? "Expandir navegación lateral"
+      : "Colapsar navegación lateral";
+  const title = isMobile
+    ? sidebarShellState.mobileOpen
+      ? "Cerrar menú"
+      : "Abrir menú"
+    : sidebarShellState.collapsed
+      ? "Expandir sidebar"
+      : "Colapsar sidebar";
+
+  document.querySelectorAll('[data-action="toggle-sidebar"]').forEach((button) => {
+    button.setAttribute("aria-expanded", String(isExpanded));
+    button.setAttribute("aria-label", ariaLabel);
+    button.setAttribute("title", title);
+  });
+}
+
+function applySidebarShellState() {
+  const appContainer = document.getElementById("app-container");
+  const overlay = document.getElementById("sidebar-overlay");
+  if (!appContainer) return;
+
+  const isMobile = isMobileSidebarLayout();
+  if (!isMobile) {
+    sidebarShellState.mobileOpen = false;
+  }
+
+  appContainer.dataset.sidebar = sidebarShellState.collapsed ? "collapsed" : "expanded";
+  appContainer.dataset.sidebarMobileOpen = isMobile && sidebarShellState.mobileOpen ? "true" : "false";
+
+  if (overlay) {
+    overlay.setAttribute("aria-hidden", String(!(isMobile && sidebarShellState.mobileOpen)));
+  }
+
+  if (typeof document !== "undefined") {
+    document.body.classList.toggle("sidebar-mobile-open", isMobile && sidebarShellState.mobileOpen);
+  }
+
+  updateSidebarToggleButtons();
+}
+
+function setSidebarCollapsed(isCollapsed) {
+  sidebarShellState.collapsed = Boolean(isCollapsed);
+  writeSidebarCollapsedPreference(sidebarShellState.collapsed);
+  applySidebarShellState();
+}
+
+function setSidebarMobileOpen(isOpen) {
+  sidebarShellState.mobileOpen = Boolean(isOpen);
+  applySidebarShellState();
+}
+
+function initializeSidebarShell() {
+  syncSidebarAccessibleLabels();
+
+  if (!sidebarShellInitialized) {
+    sidebarShellState.collapsed = readSidebarCollapsedPreference();
+    sidebarMediaQueryList = window.matchMedia?.(SIDEBAR_MOBILE_MEDIA_QUERY) || null;
+    if (sidebarMediaQueryList?.addEventListener) {
+      sidebarMediaQueryList.addEventListener("change", applySidebarShellState);
+    } else if (sidebarMediaQueryList?.addListener) {
+      sidebarMediaQueryList.addListener(applySidebarShellState);
+    }
+    sidebarShellInitialized = true;
+  }
+
+  applySidebarShellState();
+}
+
 function getTaskContext(task, state) {
   if (task.listId === state.backlogId) return "backlog";
   return "sprint";
@@ -3043,10 +3168,16 @@ export function handleRouteChange(state) {
 
   document
     .querySelectorAll(".nav-group-button")
-    .forEach((button) => button.classList.remove("is-open"));
+    .forEach((button) => {
+      button.classList.remove("is-open");
+      button.setAttribute("aria-expanded", "false");
+    });
   document
     .querySelectorAll(".nav-group-content")
-    .forEach((content) => content.classList.add("hidden"));
+    .forEach((content) => {
+      content.classList.add("hidden");
+      content.setAttribute("aria-hidden", "true");
+    });
 
   const headerControls = document.getElementById("header-controls");
   if (headerControls) {
@@ -3069,7 +3200,9 @@ export function handleRouteChange(state) {
         const button = document.querySelector(`[data-target="${parentGroup.id}"]`);
         if (button) {
           button.classList.add("is-open");
+          button.setAttribute("aria-expanded", "true");
           parentGroup.classList.remove("hidden");
+          parentGroup.setAttribute("aria-hidden", "false");
         }
       }
 
@@ -3355,9 +3488,14 @@ function handleAppClick(e) {
   const target = e.target;
   const actionTarget = target.closest("[data-action]");
   const colorSwatch = target.closest(".color-swatch");
+  const sidebarLink = target.closest("#sidebar .sidebar-link");
 
   if (!target.closest("#sprint-menu-container")) {
     setSprintMenuOpen(false);
+  }
+
+  if (sidebarLink && isMobileSidebarLayout()) {
+    setSidebarMobileOpen(false);
   }
 
   if (colorSwatch) {
@@ -3573,11 +3711,24 @@ function handleAppClick(e) {
         const targetId = button.dataset.target;
         const content = document.getElementById(targetId);
         if (content) {
-          button.classList.toggle("is-open");
-          content.classList.toggle("hidden");
+          const isOpen = button.classList.toggle("is-open");
+          content.classList.toggle("hidden", !isOpen);
+          button.setAttribute("aria-expanded", String(isOpen));
+          content.setAttribute("aria-hidden", String(!isOpen));
         }
         return;
       }
+      case "toggle-sidebar": {
+        if (isMobileSidebarLayout()) {
+          setSidebarMobileOpen(!sidebarShellState.mobileOpen);
+        } else {
+          setSidebarCollapsed(!sidebarShellState.collapsed);
+        }
+        return;
+      }
+      case "close-sidebar-overlay":
+        setSidebarMobileOpen(false);
+        return;
       case "toggle-sprint-menu": {
         const menuContainer = document.getElementById("sprint-menu-container");
         const isOpen = !!menuContainer?.classList.contains("is-active");
@@ -4794,6 +4945,7 @@ function handleAppChange(e) {
 export function initializeEventListeners(state, actions) {
   appState = state;
   appActions = actions;
+  initializeSidebarShell();
 
   const modalOkBtn = document.getElementById("modal-ok-btn");
   const modalCancelBtn = document.getElementById("modal-cancel-btn");
@@ -4806,6 +4958,10 @@ export function initializeEventListeners(state, actions) {
   document.addEventListener("click", handleAppClick);
   document.addEventListener("change", handleAppChange);
   document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && sidebarShellState.mobileOpen && isMobileSidebarLayout()) {
+      setSidebarMobileOpen(false);
+      return;
+    }
     if (e.key !== "Enter" || e.target?.id !== "comment-input") return;
     e.preventDefault();
     handlePostComment();
@@ -5057,8 +5213,14 @@ export function showApp(user) {
   document.getElementById("user-name").textContent = user.displayName;
   document.getElementById("user-email").textContent = user.email;
   document.getElementById("user-avatar").src = user.photoURL;
+  document.getElementById("user-info")?.setAttribute("title", user.displayName || user.email || "Usuario");
+  document
+    .getElementById("user-info")
+    ?.setAttribute("aria-label", user.displayName || user.email || "Usuario");
+  applySidebarShellState();
 }
 export function hideApp() {
+  setSidebarMobileOpen(false);
   document.getElementById("main-content")?.classList.add("hidden");
   document.getElementById("sidebar")?.classList.remove("flex");
   document.getElementById("sidebar")?.classList.add("hidden");
