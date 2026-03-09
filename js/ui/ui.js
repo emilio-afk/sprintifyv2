@@ -458,6 +458,7 @@ function createTaskElement(task, context, state) {
                 <button class="task-action-icon" data-action="open-details" title="Editar detalles"><i class="fa-solid fa-pen-to-square"></i></button>
                 <button class="task-action-icon" data-action="due-date" title="Cambiar fecha"><i class="fa-regular fa-calendar-check"></i></button>
                 <button class="task-action-icon" data-action="points" title="Cambiar puntos"><i class="fa-solid fa-coins"></i></button>
+                <button class="task-action-icon" data-action="move-to-sprint" title="Mover a otro sprint"><i class="fa-solid fa-right-left"></i></button>
                 <button class="task-action-icon task-action-icon--danger" data-action="delete" title="Eliminar tarea"><i class="fa-solid fa-trash-can"></i></button>
             </div>
         </div>
@@ -1735,6 +1736,10 @@ function buildPersonCapacityBar(metrics, capacity = CYCLE_POINTS_TARGET) {
 function renderPersonView(state) {
   const container = document.getElementById("view-by-person");
   if (!container) return;
+  if (Array.isArray(state.personHistoryCharts)) {
+    state.personHistoryCharts.forEach((chart) => chart?.destroy?.());
+  }
+  state.personHistoryCharts = [];
   container.innerHTML = "";
 
   const cycleWindow = getCurrentCycleWindow(new Date());
@@ -2039,6 +2044,360 @@ function renderPersonView(state) {
     }
   );
 
+  const formatCycleKey = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+
+  const getTaskEntryDate = (task) => {
+    const dates = [task.createdAt, task.startedAt, task.completedAt]
+      .map((value) => getDateValue(value))
+      .filter(Boolean)
+      .sort((a, b) => a.getTime() - b.getTime());
+    return dates[0] || null;
+  };
+
+  const buildHistoryAnalytics = () => {
+    const relevantSprintIds = new Set(
+      state.personViewSprintFilter && state.personViewSprintFilter !== "all"
+        ? [state.personViewSprintFilter]
+        : state.taskLists.filter((list) => !list.isBacklog).map((list) => list.id)
+    );
+    const visibleKeySet = new Set(visibleKeys.length ? visibleKeys : allKeys);
+    const scopedTasks = state.tasks.filter((task) => {
+      if (!relevantSprintIds.has(task.listId)) return false;
+      const assigneeKey = task.assignee ? normalize(task.assignee) : "unassigned";
+      return visibleKeySet.has(assigneeKey);
+    });
+
+    const cycleKeySet = new Set([formatCycleKey(cycleWindow.start)]);
+    scopedTasks.forEach((task) => {
+      [task.createdAt, task.startedAt, task.completedAt].forEach((value) => {
+        const date = getDateValue(value);
+        if (!date) return;
+        cycleKeySet.add(formatCycleKey(getCurrentCycleWindow(date).start));
+      });
+    });
+
+    const cycleKeys = Array.from(cycleKeySet).sort().slice(-6);
+    const cycles = cycleKeys.map((key) => {
+      const start = new Date(`${key}T00:00:00`);
+      const endExclusive = new Date(start);
+      endExclusive.setDate(endExclusive.getDate() + CYCLE_LENGTH_DAYS);
+
+      let donePoints = 0;
+      let inProgressOpen = 0;
+      let todoOpen = 0;
+      let unassignedOpen = 0;
+      let noProgress = 0;
+      const activePeople = new Set();
+      const openLoadByPerson = new Map();
+
+      scopedTasks.forEach((task) => {
+        const points = Number(task.points) || 0;
+        const assigneeKey = task.assignee ? normalize(task.assignee) : "unassigned";
+        const entryDate = getTaskEntryDate(task);
+        const startedAt = getDateValue(task.startedAt);
+        const completedAt = getDateValue(task.completedAt);
+        const touchesCycle =
+          (entryDate && entryDate < endExclusive && (!completedAt || completedAt >= start)) ||
+          (completedAt && completedAt >= start && completedAt < endExclusive);
+
+        if (touchesCycle && assigneeKey !== "unassigned") activePeople.add(assigneeKey);
+
+        if (completedAt && completedAt >= start && completedAt < endExclusive) {
+          donePoints += points;
+        }
+
+        const isOpenAtClose =
+          entryDate && entryDate < endExclusive && (!completedAt || completedAt >= endExclusive);
+        if (!isOpenAtClose) return;
+
+        if (startedAt && startedAt < endExclusive) {
+          inProgressOpen += points;
+        } else {
+          todoOpen += points;
+          noProgress += 1;
+        }
+
+        if (assigneeKey === "unassigned") {
+          unassignedOpen += 1;
+          return;
+        }
+
+        openLoadByPerson.set(assigneeKey, (openLoadByPerson.get(assigneeKey) || 0) + points);
+      });
+
+      let capacity = 0;
+      activePeople.forEach((emailKey) => {
+        capacity += getPersonCycleCapacity(emailKey);
+      });
+
+      let overloadedPeople = 0;
+      openLoadByPerson.forEach((load, emailKey) => {
+        if (load > getPersonCycleCapacity(emailKey)) overloadedPeople += 1;
+      });
+
+      return {
+        key,
+        label: formatShortDate(start),
+        rangeLabel: `${formatCycleDateDMY(start)} a ${formatCycleDateDMY(
+          new Date(endExclusive.getTime() - 24 * 60 * 60 * 1000)
+        )}`,
+        donePoints,
+        inProgressOpen,
+        todoOpen,
+        unassignedOpen,
+        noProgress,
+        overloadedPeople,
+        capacity,
+      };
+    });
+
+    return {
+      cycles,
+      labels: cycles.map((cycle) => cycle.label),
+      donePoints: cycles.map((cycle) => cycle.donePoints),
+      inProgressOpen: cycles.map((cycle) => cycle.inProgressOpen),
+      todoOpen: cycles.map((cycle) => cycle.todoOpen),
+      unassignedOpen: cycles.map((cycle) => cycle.unassignedOpen),
+      noProgress: cycles.map((cycle) => cycle.noProgress),
+      overloadedPeople: cycles.map((cycle) => cycle.overloadedPeople),
+      capacity: cycles.map((cycle) => cycle.capacity),
+    };
+  };
+
+  const mountHistoryCharts = (historyPanel, analytics) => {
+    const chartShells = historyPanel.querySelectorAll(".person-history-chart-shell");
+    if (!analytics.cycles.length) {
+      chartShells.forEach((shell) => {
+        shell.innerHTML =
+          '<div class="person-history-empty">Aun no hay historial suficiente para visualizar tendencia.</div>';
+      });
+      return;
+    }
+
+    if (typeof Chart === "undefined") {
+      chartShells.forEach((shell) => {
+        shell.innerHTML =
+          '<div class="person-history-empty">No se pudo cargar la libreria de graficas.</div>';
+      });
+      return;
+    }
+
+    const rootStyles = getComputedStyle(document.documentElement);
+    const textColor = rootStyles.getPropertyValue("--ink").trim() || "#1d231f";
+    const mutedColor = rootStyles.getPropertyValue("--muted").trim() || "#5d645b";
+    const gridColor = rootStyles.getPropertyValue("--line-default").trim() || "#ccd0bf";
+    const fontFamily = rootStyles.getPropertyValue("--font-body").trim() || "Inter, sans-serif";
+
+    const baseOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: "index",
+        intersect: false,
+      },
+      plugins: {
+        legend: {
+          labels: {
+            color: textColor,
+            boxWidth: 12,
+            boxHeight: 12,
+            usePointStyle: true,
+            font: {
+              family: fontFamily,
+              size: 11,
+              weight: "600",
+            },
+          },
+        },
+        tooltip: {
+          backgroundColor: "#1f1f1d",
+          titleColor: "#fbfbf6",
+          bodyColor: "#fbfbf6",
+          borderColor: "rgba(255,255,255,0.08)",
+          borderWidth: 1,
+          padding: 10,
+          titleFont: {
+            family: fontFamily,
+            size: 12,
+            weight: "700",
+          },
+          bodyFont: {
+            family: fontFamily,
+            size: 11,
+          },
+          callbacks: {
+            title(items) {
+              const item = items?.[0];
+              if (!item) return "";
+              return analytics.cycles[item.dataIndex]?.rangeLabel || item.label;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: {
+            display: false,
+          },
+          ticks: {
+            color: mutedColor,
+            font: {
+              family: fontFamily,
+              size: 11,
+            },
+          },
+        },
+        y: {
+          beginAtZero: true,
+          grid: {
+            color: gridColor,
+          },
+          ticks: {
+            precision: 0,
+            color: mutedColor,
+            font: {
+              family: fontFamily,
+              size: 11,
+            },
+          },
+        },
+      },
+    };
+
+    const velocityCanvas = historyPanel.querySelector("#person-history-velocity-chart");
+    const loadCanvas = historyPanel.querySelector("#person-history-load-chart");
+    const riskCanvas = historyPanel.querySelector("#person-history-risk-chart");
+    const charts = [];
+
+    if (velocityCanvas) {
+      charts.push(
+        new Chart(velocityCanvas, {
+          type: "line",
+          data: {
+            labels: analytics.labels,
+            datasets: [
+              {
+                label: "Hecho",
+                data: analytics.donePoints,
+                borderColor: "#08a95d",
+                backgroundColor: "rgba(8, 169, 93, 0.14)",
+                fill: true,
+                tension: 0.32,
+                pointRadius: 3,
+                pointHoverRadius: 4,
+                pointBackgroundColor: "#08a95d",
+              },
+              {
+                label: "Capacidad",
+                data: analytics.capacity,
+                borderColor: "#a7ad96",
+                borderDash: [6, 6],
+                borderWidth: 2,
+                pointRadius: 0,
+                tension: 0,
+              },
+            ],
+          },
+          options: baseOptions,
+        })
+      );
+    }
+
+    if (loadCanvas) {
+      charts.push(
+        new Chart(loadCanvas, {
+          data: {
+            labels: analytics.labels,
+            datasets: [
+              {
+                type: "bar",
+                label: "En progreso",
+                data: analytics.inProgressOpen,
+                backgroundColor: "#00592f",
+                borderRadius: 6,
+                stack: "load",
+              },
+              {
+                type: "bar",
+                label: "Pendiente",
+                data: analytics.todoOpen,
+                backgroundColor: "#d9dbc6",
+                borderColor: "#ccd0bf",
+                borderWidth: 1,
+                borderRadius: 6,
+                stack: "load",
+              },
+              {
+                type: "line",
+                label: "Capacidad",
+                data: analytics.capacity,
+                borderColor: "#08a95d",
+                backgroundColor: "#08a95d",
+                borderWidth: 2,
+                pointRadius: 2,
+                pointHoverRadius: 3,
+                tension: 0.25,
+              },
+            ],
+          },
+          options: {
+            ...baseOptions,
+            scales: {
+              ...baseOptions.scales,
+              x: {
+                ...baseOptions.scales.x,
+                stacked: true,
+              },
+              y: {
+                ...baseOptions.scales.y,
+                stacked: true,
+              },
+            },
+          },
+        })
+      );
+    }
+
+    if (riskCanvas) {
+      charts.push(
+        new Chart(riskCanvas, {
+          type: "bar",
+          data: {
+            labels: analytics.labels,
+            datasets: [
+              {
+                label: "Sobrecargados",
+                data: analytics.overloadedPeople,
+                backgroundColor: "#8d4646",
+                borderRadius: 6,
+              },
+              {
+                label: "Sin asignar",
+                data: analytics.unassignedOpen,
+                backgroundColor: "#a7ad96",
+                borderRadius: 6,
+              },
+              {
+                label: "Sin avance",
+                data: analytics.noProgress,
+                backgroundColor: "#c8ba82",
+                borderRadius: 6,
+              },
+            ],
+          },
+          options: baseOptions,
+        })
+      );
+    }
+
+    state.personHistoryCharts = charts;
+  };
+
   const latestMs = tasksToShow.reduce((max, task) => Math.max(max, getLastUpdatedMs(task)), 0);
   const latestLabel = latestMs
     ? new Date(latestMs).toLocaleString("es-MX", {
@@ -2245,6 +2604,7 @@ function renderPersonView(state) {
   if (btnOpenHistory) btnOpenHistory.addEventListener("click", () => showVelocityReport(state));
 
   if (viewMode === "history") {
+    const historyAnalytics = buildHistoryAnalytics();
     const historyPanel = document.createElement("div");
     historyPanel.className = "bg-white rounded-xl border border-gray-200 shadow-sm p-4";
     historyPanel.innerHTML = `
@@ -2264,10 +2624,49 @@ function renderPersonView(state) {
         <div class="person-kpi-pill"><span class="person-kpi-label">Carga viva</span><strong class="person-kpi-value text-[color:var(--brand-700)]">${summary.liveLoad} pts</strong></div>
         <div class="person-kpi-pill"><span class="person-kpi-label">Hecho ciclo</span><strong class="person-kpi-value text-emerald-700">${summary.doneCycle} pts</strong></div>
       </div>
+      <div class="person-history-analytics">
+        <section class="person-history-card person-history-card--wide">
+          <div class="person-history-card-head">
+            <div>
+              <h4>Velocidad por ciclo</h4>
+              <p>Puntos completados por ciclo quincenal frente a la capacidad del equipo filtrado.</p>
+            </div>
+            <span class="person-history-chip">Ultimos ${historyAnalytics.cycles.length} ciclos</span>
+          </div>
+          <div class="person-history-chart-shell">
+            <canvas id="person-history-velocity-chart" aria-label="Grafica de velocidad por ciclo"></canvas>
+          </div>
+        </section>
+        <div class="person-history-grid">
+          <section class="person-history-card">
+            <div class="person-history-card-head">
+              <div>
+                <h4>Carga vs capacidad</h4>
+                <p>Cierre de ciclo con trabajo en progreso, pendiente y capacidad disponible.</p>
+              </div>
+            </div>
+            <div class="person-history-chart-shell person-history-chart-shell--compact">
+              <canvas id="person-history-load-chart" aria-label="Grafica de carga vs capacidad"></canvas>
+            </div>
+          </section>
+          <section class="person-history-card">
+            <div class="person-history-card-head">
+              <div>
+                <h4>Riesgo operativo</h4>
+                <p>Lectura de sobrecarga, tareas sin asignar y trabajo sin avance al cierre.</p>
+              </div>
+            </div>
+            <div class="person-history-chart-shell person-history-chart-shell--compact">
+              <canvas id="person-history-risk-chart" aria-label="Grafica de riesgo operativo"></canvas>
+            </div>
+          </section>
+        </div>
+      </div>
     `;
     container.appendChild(historyPanel);
     const historyMainButton = historyPanel.querySelector("#person-history-open-main");
     if (historyMainButton) historyMainButton.addEventListener("click", () => showVelocityReport(state));
+    mountHistoryCharts(historyPanel, historyAnalytics);
     return;
   }
 
@@ -4717,6 +5116,54 @@ function handleTaskCardAction(action, taskId) {
     case "points":
       openPointsEstimatorModal(taskId);
       break;
+    case "move-to-sprint": {
+      const availableSprints = appState.taskLists
+        .filter((list) => !list.isBacklog && !list.isArchived && list.id !== task.listId)
+        .sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+
+      if (availableSprints.length === 0) {
+        showModal({
+          title: "Sin sprints disponibles",
+          text: "No hay otro sprint activo disponible para mover esta tarea.",
+          okText: "Cerrar",
+        });
+        break;
+      }
+
+      const currentList = appState.taskLists.find((list) => list.id === task.listId);
+      const optionsHTML = availableSprints
+        .map(
+          (sprint) =>
+            `<option value="${sprint.id}">${(sprint.title || "Sprint").replace(/</g, "&lt;")}</option>`
+        )
+        .join("");
+
+      showModal({
+        title: "Mover a otro sprint",
+        htmlContent: `
+          <div class="flex flex-col gap-3">
+            <div class="text-sm text-slate-600">
+              <strong class="text-slate-800">${(task.title || "Tarea").replace(/</g, "&lt;")}</strong>
+              <div class="mt-1">Sprint actual: ${currentList?.title || "Sin sprint"}</div>
+            </div>
+            <div class="flex flex-col gap-2">
+              <label for="modal-move-sprint-select" class="text-sm font-bold text-gray-700">Sprint destino</label>
+              <select id="modal-move-sprint-select" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                ${optionsHTML}
+              </select>
+            </div>
+          </div>
+        `,
+        okText: "Mover tarea",
+        callback: async () => {
+          const selectEl = document.getElementById("modal-move-sprint-select");
+          const targetSprintId = selectEl?.value;
+          if (!targetSprintId) return;
+          await Promise.resolve(appActions.moveTasksToSprint([taskId], targetSprintId));
+        },
+      });
+      break;
+    }
 
     case "assign": {
       // 1. FILTRAR DUPLICADOS
