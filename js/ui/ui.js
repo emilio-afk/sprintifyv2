@@ -193,12 +193,13 @@ function resolveKanbanStatus(task) {
 }
 
 function getTaskAgeDays(task, now = new Date()) {
+  const lastMovedAt = toDate(task.lastMovedAt);
   const completedAt = toDate(task.completedAt);
   const startedAt = toDate(task.startedAt);
   const createdAt = toDate(task.createdAt) || now;
   const isDone = isTaskDone(task);
   const status = resolveKanbanStatus(task);
-  const anchor = status === "inprogress" && startedAt ? startedAt : createdAt;
+  const anchor = lastMovedAt || (status === "inprogress" && startedAt ? startedAt : createdAt);
   const end = isDone && completedAt ? completedAt : now;
   const diffMs = end.getTime() - anchor.getTime();
   return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
@@ -244,15 +245,15 @@ function buildKanbanHeader({
   const meta = KANBAN_COLUMN_META[statusKey] || { title: statusKey, accent: "slate" };
   const wip = getWipState(statusKey, count);
   const countClass = wip.isOverLimit
-    ? "kanban-column-count kanban-column-count--alert"
-    : "kanban-column-count";
+    ? `kanban-column-count kanban-column-count--${statusKey} kanban-column-count--alert`
+    : `kanban-column-count kanban-column-count--${statusKey}`;
   const wrapClass = dense ? "kanban-column-head kanban-column-head--dense" : "kanban-column-head";
   const wipText =
     statusKey === "inprogress"
       ? `<span class="kanban-column-meta ${
           wip.isOverLimit ? "kanban-column-meta--alert" : ""
         }">WIP ${count}/${wip.limit}${wip.isOverLimit ? ` (+${wip.overBy})` : ""}</span>`
-      : `<span class="kanban-column-meta">${points} pts</span>`;
+      : `<span class="kanban-column-meta kanban-column-meta--${statusKey}">${points} pts</span>`;
   const collapseBtn = includeCollapse
     ? `<button data-action="collapse-column" data-col="${collapseColumnKey}" class="kanban-column-action" title="Colapsar columna">
           <i class="fa-solid fa-compress"></i>
@@ -267,7 +268,7 @@ function buildKanbanHeader({
     <div class="${wrapClass}">
       <div class="kanban-column-title-wrap">
         ${collapseBtn}
-        <h3 class="kanban-column-title">
+        <h3 class="kanban-column-title kanban-column-title--${statusKey}">
           <span>${meta.title}</span>
           <span class="${countClass}">${count}</span>
         </h3>
@@ -315,7 +316,7 @@ function updateDropIndicator(dropZone, clientY) {
 // EN ui.js - Reemplaza la función createTaskElement completa o actualiza su lógica interna
 
 function createTaskElement(task, context, state) {
-  const { allUsers, taskLists } = state;
+  const { allUsers, taskLists, epics = [], themes = [] } = state;
   const isCompleted = isTaskDone(task);
 
   const now = new Date();
@@ -353,7 +354,7 @@ function createTaskElement(task, context, state) {
 
   const assigneeHTML = task.assignee
     ? `<img src="${userPhotoURL}" class="w-6 h-6 rounded-full border border-white shadow-sm object-cover" title="${task.assignee}">`
-    : `<div class="w-6 h-6 rounded-full bg-gray-50 border border-gray-300 border-dashed flex items-center justify-center text-gray-400 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-colors" title="Asignar Responsable"><i class="fa-solid fa-user-plus" style="font-size: 10px;"></i></div>`;
+    : `<div class="w-6 h-6 rounded-full bg-[color:var(--surface-secondary)] border border-[color:var(--line-default)] border-dashed flex items-center justify-center text-[color:var(--muted)] hover:bg-[color:var(--brand-50)] hover:text-[color:var(--brand-700)] hover:border-[color:var(--line-strong)] transition-colors" title="Asignar Responsable"><i class="fa-solid fa-user-plus" style="font-size: 10px;"></i></div>`;
 
   const pointsValue = Number(task.points ?? 0);
   const hasMissingPoints = !Number.isFinite(pointsValue) || pointsValue <= 0;
@@ -363,58 +364,95 @@ function createTaskElement(task, context, state) {
     : "task-points-badge-v3";
   const pointsHTML = `<span class="${pointsBadgeClass}" title="${hasMissingPoints ? "Falta estimar puntos" : "Puntos estimados"}">${pointsLabel} pts</span>`;
 
-  const checkboxHTML = `<input type="checkbox" class="form-checkbox h-3.5 w-3.5 text-blue-600 rounded border-gray-300 focus:ring-0 cursor-pointer mt-0.5 shrink-0" ${isCompleted ? "checked" : ""} ${context.includes("backlog") ? 'data-select-task="true"' : ""}>`;
+  const checkboxHTML = `<input type="checkbox" class="form-checkbox h-3.5 w-3.5 rounded border-gray-300 text-[color:var(--brand-700)] focus:ring-0 cursor-pointer mt-0.5 shrink-0" ${isCompleted ? "checked" : ""} ${context.includes("backlog") ? 'data-select-task="true"' : ""}>`;
 
   const sprint = taskLists.find((l) => l.id === task.listId);
   const sprintColor = sprint?.color || "#3b82f6";
+  const sprintAccent = toRgba(sprintColor, 0.58, "rgba(15, 118, 110, 0.58)");
+  const sprintTitle = sprint?.title || "Backlog";
+  const epic = task.epicId ? epics.find((entry) => entry.id === task.epicId) : null;
+  const epicTitle = epic?.title || "";
+  const theme = epic?.themeId ? themes.find((entry) => entry.id === epic.themeId) : null;
+  const projectTitle = theme?.title || epicTitle || sprintTitle;
 
   const commentsCount = task.comments?.length || 0;
   const aging = getTaskAgingState(task, now);
-  const agedChipHTML =
-    aging.key === "danger"
-      ? `<div class="task-meta-chip task-meta-chip--danger" title="Tarea envejecida"><i class="fa-regular fa-clock"></i><span>${aging.label}</span></div>`
-      : aging.key === "warn"
-        ? `<div class="task-meta-chip task-meta-chip--warn" title="Revisar avance"><i class="fa-regular fa-clock"></i><span>${aging.label}</span></div>`
-        : "";
 
   const hiddenSummary = [];
   if (timeInProgressLabel) hiddenSummary.push(`En progreso: ${timeInProgressLabel}`);
   if (isInherited && !isCompleted) hiddenSummary.push("Heredada");
+  if (aging.label) hiddenSummary.push(aging.label);
   hiddenSummary.push(`Creada: ${daysOpen}d`);
   if (commentsCount > 0) hiddenSummary.push(`${commentsCount} comentarios`);
   const hiddenSummaryTitle = hiddenSummary.join(" • ").replace(/"/g, "&quot;");
   const taskTitle = task.title || "Sin título";
   const shouldClampTitle = taskTitle.length > 90;
+  const dueDate = getDate(task.dueDate);
+  let dueChipHTML = "";
+  if (dueDate && !Number.isNaN(dueDate.getTime())) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const due = new Date(dueDate);
+    due.setHours(0, 0, 0, 0);
+    const diffDays = Math.floor((due - today) / (1000 * 60 * 60 * 24));
+    let dueClass = "task-meta-chip task-meta-chip--label task-meta-chip--label-muted";
+    let dueLabel = due.toLocaleDateString("es-MX", { day: "numeric", month: "short" });
+    if (diffDays < 0) {
+      dueClass = "task-meta-chip task-meta-chip--status task-meta-chip--danger";
+      dueLabel = `Vencida ${Math.abs(diffDays)}d`;
+    } else if (diffDays === 0) {
+      dueClass = "task-meta-chip task-meta-chip--status task-meta-chip--warn";
+      dueLabel = "Entrega hoy";
+    } else if (diffDays === 1) {
+      dueClass = "task-meta-chip task-meta-chip--status task-meta-chip--warn";
+      dueLabel = "Entrega mañana";
+    }
+    dueChipHTML = `<div class="${dueClass}" title="Fecha compromiso"><i class="fa-regular fa-calendar"></i><span>${dueLabel}</span></div>`;
+  }
+  const inheritedChipHTML = isInherited && !isCompleted
+    ? `<div class="task-meta-chip task-meta-chip--label task-meta-chip--label-muted" title="Tarea heredada"><i class="fa-solid fa-arrow-turn-down"></i><span>Heredada</span></div>`
+    : "";
 
   const ageClass =
     aging.key === "danger" ? "task-card-v3--aging-danger" : aging.key === "warn" ? "task-card-v3--aging-warn" : "";
   const taskCard = document.createElement("div");
   taskCard.id = task.id;
-  taskCard.className = `task-card task-card-v3 ${ageClass} group relative bg-white p-3 rounded-lg ${isCompleted ? "opacity-60" : ""}`;
+  taskCard.className = `task-card task-card-v3 ${ageClass} group relative rounded-lg ${isCompleted ? "opacity-60" : ""}`;
   taskCard.draggable = true;
   taskCard.dataset.context = context;
   taskCard.style.setProperty("--task-accent", sprintColor);
+  taskCard.style.setProperty("--task-accent-soft", sprintAccent);
   taskCard.title = hiddenSummaryTitle || taskTitle;
 
   taskCard.innerHTML = `
-    <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background-color: ${sprintColor}; border-top-left-radius: 6px; border-bottom-left-radius: 6px;"></div>
-    <div class="pl-2 pr-3 flex flex-col h-full relative gap-2">
-        <div class="task-bento-head">
-            ${checkboxHTML}
-            <div class="task-bento-title-wrap">
-                <div class="min-w-0">
-                  <span class="task-title-v3 block break-words ${shouldClampTitle ? "is-clamped" : ""} ${isCompleted ? "line-through text-gray-400" : ""}" title="${taskTitle.replace(/"/g, "&quot;")}">${taskTitle}</span>
-                  ${shouldClampTitle ? '<button class="task-title-expand" data-action="open-details" type="button">Ver más</button>' : ""}
+    <div class="task-bento-shell px-3 py-2.5 flex flex-col h-full relative gap-2.5">
+        <div class="task-bento-top">
+            <div class="task-bento-head">
+                ${checkboxHTML}
+                <div class="task-bento-copy">
+                  <div class="task-kicker-row">
+                    <span class="task-kicker" title="${projectTitle.replace(/"/g, "&quot;")}">${projectTitle}</span>
+                    ${commentsCount > 0 ? `<span class="task-kicker task-kicker--muted" title="Comentarios"><i class="fa-regular fa-comment"></i>${commentsCount}</span>` : ""}
+                  </div>
+                  <div class="task-bento-title-wrap">
+                      <div class="min-w-0">
+                        <span class="task-title-v3 block break-words ${shouldClampTitle ? "is-clamped" : ""} ${isCompleted ? "line-through text-gray-400" : ""}" title="${taskTitle.replace(/"/g, "&quot;")}">${taskTitle}</span>
+                        ${shouldClampTitle ? '<button class="task-title-expand" data-action="open-details" type="button">Ver más</button>' : ""}
+                      </div>
+                  </div>
                 </div>
-                ${pointsHTML}
             </div>
-            <div class="cursor-pointer shrink-0" data-action="assign" title="Asignar Responsable">
-                ${assigneeHTML}
+            <div class="task-bento-toolbar">
+              ${pointsHTML}
+              <div class="cursor-pointer shrink-0 task-assignee-anchor" data-action="assign" title="Asignar Responsable">
+                  ${assigneeHTML}
+              </div>
             </div>
         </div>
         <div class="task-bento-foot">
             <div class="task-meta-zone">
-                ${agedChipHTML}
+                ${dueChipHTML}
+                ${inheritedChipHTML}
             </div>
             <div class="task-actions-zone">
                 <button class="task-action-icon" data-action="open-details" title="Editar detalles"><i class="fa-solid fa-pen-to-square"></i></button>
@@ -545,6 +583,7 @@ function createCompactTaskElement(task, state) {
         status: isChecked ? "completed" : "needsAction",
         kanbanStatus: isChecked ? "done" : "todo",
         completedAt: isChecked ? Timestamp.now() : null,
+        lastMovedAt: Timestamp.now(),
       });
     } else {
       compact.classList.toggle("opacity-60", isChecked);
@@ -638,12 +677,13 @@ function renderBacklog(state) {
 
     // Header colapsable
     const header = document.createElement("div");
-    header.className =
-      "flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50 transition-all mb-2";
+    header.className = "backlog-epic-header";
     header.dataset.action = "toggle-backlog-epic";
     header.dataset.epicId = epicId;
 
     const epicColor = epic?.color || "#64748b";
+    const epicAccent = toRgba(epicColor, 0.5, "rgba(103, 116, 139, 0.5)");
+    const epicAccentSoft = toRgba(epicColor, 0.14, "rgba(103, 116, 139, 0.14)");
     const epicName = epic?.title || "Sin Épica";
     const taskCount = tasks.length;
     const doneCount = tasks.filter((t) => t.status === "completed").length;
@@ -655,13 +695,15 @@ function renderBacklog(state) {
     const chevron = isCollapsed ? "fa-chevron-right" : "fa-chevron-down";
 
     header.innerHTML = `
-      <div style="flex-shrink: 0; width: 4px; height: 24px; background-color: ${epicColor}; border-radius: 2px;"></div>
+      <span class="backlog-epic-accent" style="background:${epicAccent}; box-shadow: 0 0 0 4px ${epicAccentSoft};"></span>
       <i class="fas ${chevron} text-slate-400" style="font-size: 12px;"></i>
       <div class="flex-1 min-w-0">
-        <h3 class="font-semibold text-slate-800 text-sm truncate">${epicName}</h3>
+        <h3 class="backlog-epic-title">${epicName}</h3>
       </div>
-      <div class="flex items-center gap-2 text-xs text-slate-500">
-        <span class="px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200">Tareas: ${taskCount}</span>
+      <div class="backlog-epic-stats">
+        <span class="backlog-epic-chip">Tareas ${taskCount}</span>
+        <span class="backlog-epic-chip">Hechas ${doneCount}</span>
+        <span class="backlog-epic-chip">Pts ${donePoints}/${points}</span>
       </div>
     `;
 
@@ -711,10 +753,10 @@ function renderBacklogMatrix(state) {
   const highEffortPct = total ? Math.round((highEffort / total) * 100) : 0;
 
   dom.backlogMatrixContainer.innerHTML = `
-    <div class="flex items-center flex-wrap gap-2 mb-3">
-      <span class="text-xs text-gray-500">Total: <strong class="text-gray-900">${total}</strong></span>
-      <span class="text-xs text-gray-500">Quick Wins: <strong class="text-emerald-700">${counts.quick}</strong> (${quickPct}%)</span>
-      <span class="text-xs text-gray-500">Alto esfuerzo: <strong class="text-amber-700">${highEffort}</strong> (${highEffortPct}%)</span>
+    <div class="matrix-summary-row">
+      <span class="matrix-summary-chip">Total <strong>${total}</strong></span>
+      <span class="matrix-summary-chip matrix-summary-chip--quick">Quick Wins <strong>${counts.quick}</strong> (${quickPct}%)</span>
+      <span class="matrix-summary-chip matrix-summary-chip--warn">Alto esfuerzo <strong>${highEffort}</strong> (${highEffortPct}%)</span>
     </div>
     <div class="backlog-matrix">
       <div class="matrix-axis-label matrix-axis-y">Impacto</div>
@@ -815,7 +857,7 @@ function renderSprintKanban(state) {
     const isCollapsed = state.collapsedColumns.has(col.key);
     if (isCollapsed) {
       wrapper.className =
-        "w-12 py-4 bg-gray-100 rounded-xl flex flex-col items-center justify-center transition-all duration-300 cursor-pointer hover:bg-gray-200 border border-gray-200";
+        `kanban-column-collapsed kanban-column-collapsed--${col.key}`;
       wrapper.dataset.action = "collapse-column";
       wrapper.dataset.col = col.key;
       wrapper.title = "Clic para expandir";
@@ -835,7 +877,7 @@ function renderSprintKanban(state) {
 
     const inProgressAlertClass = col.key === "inprogress" && wip.isOverLimit ? "kanban-column--wip-alert" : "";
     wrapper.className =
-      `flex-1 min-w-0 bg-white rounded-xl p-3 flex flex-col transition-all duration-300 ease-in-out border border-gray-200 shadow-sm ${inProgressAlertClass}`;
+      `kanban-column kanban-column--${col.key} ${inProgressAlertClass}`;
     wrapper.removeAttribute("data-action");
     wrapper.innerHTML = `
       ${buildKanbanHeader({
@@ -856,8 +898,7 @@ function renderSprintKanban(state) {
       const historyDone = colTasks.filter((task) => !isDateToday(task.completedAt));
 
       const todayHeader = document.createElement("div");
-      todayHeader.className =
-        "text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-md px-2 py-1";
+      todayHeader.className = "kanban-day-label";
       todayHeader.textContent = `Hecho hoy · ${todayDone.length}`;
       container.appendChild(todayHeader);
 
@@ -872,8 +913,7 @@ function renderSprintKanban(state) {
 
       if (historyDone.length > 0) {
         const historyToggle = document.createElement("button");
-        historyToggle.className =
-          "w-full mt-2 py-1.5 text-xs font-semibold text-gray-500 bg-white border border-gray-200 rounded hover:bg-gray-50 transition-colors";
+        historyToggle.className = "kanban-history-btn mt-2";
         historyToggle.innerHTML = `<i class="fa-solid fa-history mr-1"></i> Ver historial (${historyDone.length})`;
 
         const historyContainer = document.createElement("div");
@@ -905,8 +945,7 @@ function renderSprintKanban(state) {
       });
 
       const toggleBtn = document.createElement("button");
-      toggleBtn.className =
-        "w-full py-1.5 text-xs font-semibold text-gray-500 bg-white border border-gray-200 rounded hover:bg-gray-50 transition-colors mb-2";
+      toggleBtn.className = "kanban-history-btn mb-2";
       toggleBtn.innerHTML = `<i class="fa-solid fa-chevron-down mr-1"></i> Ver ${hiddenTasks.length} tareas más`;
       toggleBtn.onclick = () => {
         hiddenContainer.classList.toggle("hidden");
@@ -984,21 +1023,21 @@ function renderEpics(state) {
   const toolbar = document.getElementById("epics-toolbar");
   if (toolbar) {
     toolbar.innerHTML = `
-      <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+      <div class="rounded-2xl border border-[var(--border)] bg-[color:var(--surface)]/92 p-4 shadow-sm backdrop-blur-sm">
         <div class="flex items-center gap-3">
           <input type="text" id="epics-search" placeholder="Buscar epics por nombre..." 
-            class="px-4 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+            class="rounded-xl border border-[var(--line-default)] bg-[color:var(--surface)] px-4 text-sm text-[color:var(--ink)] outline-none transition-shadow focus:ring-2 focus:ring-[color:var(--line-focus)]"
             style="width: 260px; height: 40px;"
             value="${state.epicsSearch}">
 
-          <select id="epics-status-filter" class="py-2 px-3 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none" style="height: 40px;">
+          <select id="epics-status-filter" class="rounded-xl border border-[var(--line-default)] bg-[color:var(--surface)] py-2 px-3 text-sm text-[color:var(--ink)] outline-none focus:ring-2 focus:ring-[color:var(--line-focus)]" style="height: 40px;">
             <option value="">Todos los Estados</option>
-            <option value="Por Empezar" ${state.epicsStatusFilter === "Por Empezar" ? "selected" : ""}>🚀 Por Empezar</option>
-            <option value="En Progreso" ${state.epicsStatusFilter === "En Progreso" ? "selected" : ""}>⚡ En Progreso</option>
-            <option value="Completado" ${state.epicsStatusFilter === "Completado" ? "selected" : ""}>✅ Completado</option>
+            <option value="Por Empezar" ${state.epicsStatusFilter === "Por Empezar" ? "selected" : ""}>Por Empezar</option>
+            <option value="En Progreso" ${state.epicsStatusFilter === "En Progreso" ? "selected" : ""}>En Progreso</option>
+            <option value="Completado" ${state.epicsStatusFilter === "Completado" ? "selected" : ""}>Completado</option>
           </select>
 
-          <select id="epics-sort" class="py-2 px-3 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none" style="height: 40px;">
+          <select id="epics-sort" class="rounded-xl border border-[var(--line-default)] bg-[color:var(--surface)] py-2 px-3 text-sm text-[color:var(--ink)] outline-none focus:ring-2 focus:ring-[color:var(--line-focus)]" style="height: 40px;">
             <option value="recent" ${state.epicsSortMode === "recent" ? "selected" : ""}>Recientes primero</option>
             <option value="progress_asc" ${state.epicsSortMode === "progress_asc" ? "selected" : ""}>Progreso (menor %)</option>
             <option value="progress_desc" ${state.epicsSortMode === "progress_desc" ? "selected" : ""}>Progreso (mayor %)</option>
@@ -1008,7 +1047,7 @@ function renderEpics(state) {
 
           <button
             data-action="new-epic"
-            class="bg-blue-500 hover:bg-blue-900 text-white font-semibold py-2 px-3 rounded-md flex items-center gap-2 transition-opacity"
+            class="flex items-center gap-2 rounded-xl bg-[color:var(--brand-700)] py-2 px-4 font-semibold text-white transition-colors hover:bg-[color:var(--brand-900)]"
             style="height: 40px;"
           >
             <i class="fa-solid fa-plus fa-fw inline-block w-4 h-4 text-current"></i>
@@ -1096,6 +1135,25 @@ function renderEpics(state) {
   applyFilters();
 }
 
+function toRgba(color, alpha, fallback = `rgba(15, 118, 110, ${alpha})`) {
+  if (typeof color !== "string") return fallback;
+  const hex = color.trim();
+  const shortMatch = /^#([0-9a-f]{3})$/i.exec(hex);
+  if (shortMatch) {
+    const [r, g, b] = shortMatch[1].split("").map((part) => parseInt(part + part, 16));
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  const longMatch = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (longMatch) {
+    const value = longMatch[1];
+    const r = parseInt(value.slice(0, 2), 16);
+    const g = parseInt(value.slice(2, 4), 16);
+    const b = parseInt(value.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  return fallback;
+}
+
 function renderEpicCards(epics, state) {
   const container = document.getElementById("epics-container");
 
@@ -1145,10 +1203,9 @@ function renderEpicCards(epics, state) {
       else timeLabel = `Día ${daysPassed}/${totalDays}`;
     }
 
-    // --- HEALTH INDICATOR (NUEVO) ---
-    let healthIcon = "●";
-    let healthLabel = "On Track";
-    let healthColor = "text-green-700";
+    // --- HEALTH INDICATOR ---
+    let healthLabel = "En curso";
+    let healthTone = "bg-emerald-50 text-emerald-800 border border-emerald-200";
     // --- TIME-BASED PROGRESS ---
     let percentTimeElapsed = null;
     let deltaPercent = null;
@@ -1170,11 +1227,11 @@ function renderEpicCards(epics, state) {
     if (totalPoints > 0) {
       const expectedProgress = percentTimeElapsed != null ? percentTimeElapsed : 100;
       if (progressPercent < expectedProgress * 0.7) {
-        healthLabel = "Behind";
-        healthColor = "text-red-600";
+        healthLabel = "Atrasado";
+        healthTone = "bg-rose-50 text-rose-800 border border-rose-200";
       } else if (progressPercent < expectedProgress) {
-        healthLabel = "At Risk";
-        healthColor = "text-amber-700";
+        healthLabel = "En riesgo";
+        healthTone = "bg-amber-50 text-amber-800 border border-amber-200";
       }
     }
 
@@ -1190,45 +1247,44 @@ function renderEpicCards(epics, state) {
       .map((kr, index) => {
         const isChecked = completedIndices.includes(index);
         return `
-        <div class="flex items-start gap-2 text-xs p-2 rounded-md border transition-colors bg-white ${isChecked ? "border-green-200" : "border-gray-200"}">
+        <div class="flex items-start gap-2 rounded-xl border bg-[color:var(--surface)] p-2.5 text-xs transition-colors ${isChecked ? "border-emerald-200 bg-emerald-50/45" : "border-[color:var(--line-subtle)]"}">
           <input type="checkbox" 
-                 class="epic-kr-checkbox mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer flex-shrink-0"
+                 class="epic-kr-checkbox mt-0.5 h-4 w-4 flex-shrink-0 cursor-pointer rounded border-gray-300 text-[color:var(--brand-700)] focus:ring-[color:var(--line-focus)]"
                  data-epic-id="${epic.id}"
                  data-index="${index}"
                  ${isChecked ? "checked" : ""}>
-          <span class="text-gray-700 leading-snug ${isChecked ? "line-through opacity-50" : ""}">${kr}</span>
+          <span class="leading-snug text-[color:var(--text-strong)] ${isChecked ? "line-through opacity-50" : ""}">${kr}</span>
         </div>`;
       })
       .join("");
 
     const statusConfig = {
       "Por Empezar": {
-        class: "bg-gray-100 text-gray-700 border border-gray-200",
+        class: "border border-stone-200 bg-stone-100 text-stone-700",
         icon: "fa-hourglass-start",
       },
       "En Progreso": {
-        class: "bg-blue-50 text-blue-700 border border-gray-200",
+        class: "border border-teal-200 bg-teal-50 text-teal-800",
         icon: "fa-person-running",
       },
       Completado: {
-        class: "bg-gray-100 text-green-700 border border-green-200",
+        class: "border border-emerald-200 bg-emerald-50 text-emerald-800",
         icon: "fa-check-circle",
       },
     };
     const statusStyle = statusConfig[epic.status] || statusConfig["Por Empezar"];
     const epicColor = epic.color || "#3b82f6";
-
-    // Progress bar color gradient (rojo -> amarillo -> verde)
-    let barColor = "#ef4444"; // rojo
-    if (progressPercent > 50) barColor = "#eab308"; // amarillo
-    if (progressPercent > 75) barColor = "#22c55e"; // verde
+    const epicAccentSoft = toRgba(epicColor, 0.14);
+    const epicAccentStrong = toRgba(epicColor, 0.45);
 
     // Delta badge color based on how far ahead/behind the epic is relative to time
-    let deltaColorClass = "text-gray-600";
+    let deltaBadgeClass = "border border-stone-200 bg-stone-100 text-stone-600";
     if (deltaPercent != null) {
-      if (deltaPercent >= 10) deltaColorClass = "text-green-700";
-      else if (deltaPercent <= -10) deltaColorClass = "text-red-600";
-      else deltaColorClass = "text-amber-700";
+      if (deltaPercent >= 10)
+        deltaBadgeClass = "border border-emerald-200 bg-emerald-50 text-emerald-800";
+      else if (deltaPercent <= -10)
+        deltaBadgeClass = "border border-rose-200 bg-rose-50 text-rose-800";
+      else deltaBadgeClass = "border border-amber-200 bg-amber-50 text-amber-800";
     }
     const deltaSign =
       deltaPercent == null ? "" : deltaPercent > 0 ? "+" : deltaPercent < 0 ? "-" : "";
@@ -1236,54 +1292,58 @@ function renderEpicCards(epics, state) {
     // --- RENDERIZADO ---
     const epicCard = document.createElement("div");
     epicCard.className =
-      "epic-card bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col transition-all duration-200 relative overflow-hidden group h-fit";
+      "epic-card group relative h-fit overflow-hidden rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] shadow-sm transition-all duration-200";
     epicCard.dataset.id = epic.id;
+    epicCard.style.boxShadow = `inset 0 3px 0 ${epicAccentStrong}`;
 
     epicCard.innerHTML = `
-      <div class="h-1 w-full absolute top-0 left-0" style="background-color: ${epicColor}"></div>
-
       <div class="p-4">
-        <div class="flex justify-between items-center mb-2">
+        <div class="mb-3 flex items-center justify-between gap-3">
             <div class="flex items-center gap-2">
-              <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold uppercase tracking-wider ${statusStyle.class}" style="font-size: 10px;">
+              <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${statusStyle.class}">
                   <i class="fa-solid ${statusStyle.icon}" style="font-size: 10px;"></i> ${epic.status}
               </span>
-              <span class="${healthColor}" title="${healthLabel}">${healthIcon}</span>
+              <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${healthTone}">${healthLabel}</span>
             </div>
             <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button data-action="edit-epic" class="text-gray-400 hover:text-blue-600 transition-colors"><i class="fas fa-pencil"></i></button>
-                <button data-action="delete-epic" class="text-gray-400 hover:text-red-600 transition-colors"><i class="fas fa-trash-can"></i></button>
+                <button data-action="edit-epic" class="text-stone-400 transition-colors hover:text-[color:var(--brand-700)]"><i class="fas fa-pencil"></i></button>
+                <button data-action="delete-epic" class="text-stone-400 transition-colors hover:text-rose-700"><i class="fas fa-trash-can"></i></button>
             </div>
         </div>
 
-        <div class="mb-2">
-            <h3 class="font-semibold text-gray-900 truncate" style="font-size: 16px;" title="${epic.title}">${epic.title}</h3>
-            <p class="text-xs text-gray-500 truncate">${epic.description || "Sin descripción."}</p>
+        <div class="mb-3">
+            <div class="mb-2 flex items-start gap-2">
+              <span class="mt-1 h-2.5 w-2.5 flex-shrink-0 rounded-full border border-white/70" style="background-color: ${epicAccentStrong}; box-shadow: 0 0 0 4px ${epicAccentSoft};"></span>
+              <div class="min-w-0">
+                <h3 class="truncate text-[16px] font-semibold text-[color:var(--text-strong)]" title="${epic.title}">${epic.title}</h3>
+                <p class="truncate text-xs text-[color:var(--muted)]">${epic.description || "Sin descripción."}</p>
+              </div>
+            </div>
         </div>
 
-        <div class="flex items-center justify-between text-xs text-gray-600">
-          <span><span class="text-gray-500">Pts</span> <span class="font-semibold text-gray-900">${completedPoints}/${totalPoints}</span></span>
-          <span><span class="text-gray-500">Prog</span> <span class="font-semibold text-gray-900">${Math.round(progressPercent)}%</span></span>
-          <span><span class="text-gray-500">Tiempo</span> <span class="font-semibold text-gray-900">${timeLabel}</span></span>
-          <span class="${deltaColorClass} font-semibold">${deltaPercent != null ? deltaSign + Math.abs(Math.round(deltaPercent)) + "%" : "—"}</span>
+        <div class="grid grid-cols-4 items-center gap-2 text-xs text-[color:var(--muted)]">
+          <span><span class="text-[color:var(--muted)]">Pts</span> <span class="font-semibold text-[color:var(--text-strong)]">${completedPoints}/${totalPoints}</span></span>
+          <span><span class="text-[color:var(--muted)]">Prog</span> <span class="font-semibold text-[color:var(--text-strong)]">${Math.round(progressPercent)}%</span></span>
+          <span><span class="text-[color:var(--muted)]">Tiempo</span> <span class="font-semibold text-[color:var(--text-strong)]">${timeLabel}</span></span>
+          <span class="inline-flex justify-end"><span class="rounded-full px-2.5 py-1 text-[11px] font-semibold ${deltaBadgeClass}">${deltaPercent != null ? deltaSign + Math.abs(Math.round(deltaPercent)) + "%" : "Sin delta"}</span></span>
         </div>
 
-        <div class="mt-2 w-full bg-gray-200 rounded-full overflow-hidden relative" style="height: 8px;">
+        <div class="mt-3 w-full overflow-hidden rounded-full bg-stone-200/90 relative" style="height: 8px;">
           <div 
             class="h-full transition-all duration-500 ease-out rounded-full"
-            style="width: ${Math.min(progressPercent, 100)}%; background-color: ${barColor};"
+            style="width: ${Math.min(progressPercent, 100)}%; background: linear-gradient(90deg, var(--brand-700) 0%, var(--modal-primary-strong) 100%);"
           ></div>
-          ${percentTimeElapsed != null ? `<div class="absolute top-0" style="left: ${Math.min(percentTimeElapsed, 100)}%; height:100%; width:2px; transform: translateX(-1px); background-color: rgba(0,0,0,0.25)"></div>` : ``}
+          ${percentTimeElapsed != null ? `<div class="absolute top-0" style="left: ${Math.min(percentTimeElapsed, 100)}%; height:100%; width:2px; transform: translateX(-1px); background-color: rgba(31,41,55,0.24)"></div>` : ``}
         </div>
       </div>
 
-      <button data-action="toggle-details" class="w-full py-2 border-t border-gray-200 text-xs font-semibold text-gray-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-2">
+      <button data-action="toggle-details" class="flex w-full items-center justify-center gap-2 border-t border-[color:var(--line-subtle)] py-3 text-xs font-semibold text-[color:var(--muted)] transition-colors hover:bg-[color:var(--surface-secondary)] hover:text-[color:var(--brand-700)]">
           <span>${isExpanded ? "Ocultar objetivos" : "Ver objetivos"}</span>
           <i class="fas fa-chevron-down transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}"></i>
       </button>
 
-      <div class="bg-gray-50 px-4 pb-4 pt-2 space-y-2 animate-fade-in ${isExpanded ? "" : "hidden"}">
-         ${krsListHTML || '<p class="text-xs text-gray-400 italic text-center py-2">Sin KRs definidos.</p>'}
+      <div class="space-y-2 bg-[color:var(--surface-secondary)] px-4 pb-4 pt-3 animate-fade-in ${isExpanded ? "" : "hidden"}">
+         ${krsListHTML || '<p class="py-2 text-center text-xs italic text-[color:var(--muted)]">Sin KRs definidos.</p>'}
       </div>
     `;
 
@@ -1650,10 +1710,22 @@ function buildPersonCapacityBar(metrics, capacity = CYCLE_POINTS_TARGET) {
       </div>
 
       <div class="person-capacity-legend">
-        <span class="person-capacity-chip person-capacity-chip--done"><b>H</b>${fmt(done)}</span>
-        <span class="person-capacity-chip person-capacity-chip--progress"><b>P</b>${fmt(inprogress)}</span>
-        <span class="person-capacity-chip person-capacity-chip--todo"><b>PH</b>${fmt(todo)}</span>
-        <span class="person-capacity-chip person-capacity-chip--free"><b>L</b>${fmt(emptyIn)}</span>
+        <span class="person-capacity-chip person-capacity-chip--done" title="Hecho en este ciclo">
+          <span class="person-capacity-chip-label">Hecho</span>
+          <span class="person-capacity-chip-value">${fmt(done)}</span>
+        </span>
+        <span class="person-capacity-chip person-capacity-chip--progress" title="Trabajo en progreso">
+          <span class="person-capacity-chip-label">Progreso</span>
+          <span class="person-capacity-chip-value">${fmt(inprogress)}</span>
+        </span>
+        <span class="person-capacity-chip person-capacity-chip--todo" title="Trabajo pendiente por hacer">
+          <span class="person-capacity-chip-label">Pendiente</span>
+          <span class="person-capacity-chip-value">${fmt(todo)}</span>
+        </span>
+        <span class="person-capacity-chip person-capacity-chip--free" title="Capacidad disponible">
+          <span class="person-capacity-chip-label">Libre</span>
+          <span class="person-capacity-chip-value">${fmt(emptyIn)}</span>
+        </span>
         ${overflowBadge}
       </div>
     </div>
@@ -2021,7 +2093,7 @@ function renderPersonView(state) {
     .join("");
 
   const controlsDiv = document.createElement("div");
-  controlsDiv.className = "mb-3 bg-white p-3 md:p-4 rounded-xl shadow-sm border border-gray-200";
+  controlsDiv.className = "person-toolbar-shell mb-3";
   controlsDiv.innerHTML = `
     <div class="person-toolbar-main">
       <div class="person-control-field person-control-field--slim">
@@ -2039,8 +2111,8 @@ function renderPersonView(state) {
       <div class="person-control-field person-control-field--slim">
           <label class="person-control-label">Ver</label>
           <div id="person-view-mode" class="person-mode-toggle person-mode-toggle--slim">
-            <button type="button" data-person-mode="current" class="flex-1 h-full rounded-md text-[13px] font-semibold transition-colors ${viewMode === "current" ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-100"}">Actual</button>
-            <button type="button" data-person-mode="history" class="flex-1 h-full rounded-md text-[13px] font-semibold transition-colors ${viewMode === "history" ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-100"}">Histórico</button>
+            <button type="button" data-person-mode="current" class="flex-1 h-full rounded-md text-[13px] font-semibold transition-colors ${viewMode === "current" ? "bg-[color:var(--brand-700)] text-white" : "text-[color:var(--muted)] hover:bg-[color:var(--surface-secondary)]"}">Actual</button>
+            <button type="button" data-person-mode="history" class="flex-1 h-full rounded-md text-[13px] font-semibold transition-colors ${viewMode === "history" ? "bg-[color:var(--brand-700)] text-white" : "text-[color:var(--muted)] hover:bg-[color:var(--surface-secondary)]"}">Histórico</button>
           </div>
       </div>
 
@@ -2181,16 +2253,16 @@ function renderPersonView(state) {
           <h3 class="text-base font-bold text-gray-800">Modo Histórico</h3>
           <p class="text-sm text-gray-500">Consulta la tabla de velocidad quincenal sin perder tus filtros actuales.</p>
         </div>
-        <button id="person-history-open-main" type="button" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-3 rounded-lg text-sm transition-colors">
+        <button id="person-history-open-main" type="button" class="bg-[color:var(--brand-700)] hover:bg-[color:var(--brand-900)] text-white font-semibold py-2 px-3 rounded-lg text-sm transition-colors">
           Ver histórico completo
         </button>
       </div>
       <div class="mt-3 grid grid-cols-2 xl:grid-cols-5 gap-2">
         <div class="person-kpi-pill"><span class="person-kpi-label">Equipo filtrado</span><strong class="person-kpi-value">${summary.people}</strong></div>
         <div class="person-kpi-pill"><span class="person-kpi-label">Tareas visibles</span><strong class="person-kpi-value">${summary.tasks}</strong></div>
-        <div class="person-kpi-pill"><span class="person-kpi-label">Sobrecargados</span><strong class="person-kpi-value ${summary.overloaded > 0 ? "text-red-600" : "text-gray-800"}">${summary.overloaded}</strong></div>
-        <div class="person-kpi-pill"><span class="person-kpi-label">Carga viva</span><strong class="person-kpi-value text-blue-600">${summary.liveLoad} pts</strong></div>
-        <div class="person-kpi-pill"><span class="person-kpi-label">Hecho ciclo</span><strong class="person-kpi-value text-emerald-600">${summary.doneCycle} pts</strong></div>
+        <div class="person-kpi-pill"><span class="person-kpi-label">Sobrecargados</span><strong class="person-kpi-value ${summary.overloaded > 0 ? "text-rose-700" : "text-[color:var(--text-strong)]"}">${summary.overloaded}</strong></div>
+        <div class="person-kpi-pill"><span class="person-kpi-label">Carga viva</span><strong class="person-kpi-value text-[color:var(--brand-700)]">${summary.liveLoad} pts</strong></div>
+        <div class="person-kpi-pill"><span class="person-kpi-label">Hecho ciclo</span><strong class="person-kpi-value text-emerald-700">${summary.doneCycle} pts</strong></div>
       </div>
     `;
     container.appendChild(historyPanel);
@@ -2229,22 +2301,21 @@ function renderPersonView(state) {
         : metrics.risk?.key === "medium"
           ? "person-lane--medium"
           : "person-lane--low";
-    swimlane.className =
-      `mb-3 border border-gray-200 rounded-xl shadow-sm bg-white overflow-hidden transition-shadow duration-200 hover:shadow ${laneToneClass}`;
+    swimlane.className = `person-swimlane ${laneToneClass}`;
 
     const avatarHTML =
       emailKey === "unassigned"
-        ? `<div class="rounded-full bg-gray-100 flex items-center justify-center text-gray-400" style="width:44px; height:44px;"><i class="fas fa-question"></i></div>`
-        : `<img src="${profile.avatar}" class="rounded-full border border-gray-100 object-cover" style="width:44px; height:44px;" alt="${profile.name}">`;
+        ? `<div class="person-avatar person-avatar--placeholder rounded-full bg-[color:var(--surface-secondary)] flex items-center justify-center text-[color:var(--muted)]"><i class="fas fa-question"></i></div>`
+        : `<img src="${profile.avatar}" class="person-avatar rounded-full border border-[color:var(--line-subtle)] object-cover" alt="${profile.name}">`;
 
     swimlane.innerHTML = `
-      <div class="px-3 py-3 md:px-4 md:py-3.5 cursor-pointer hover:bg-gray-50 transition-colors" data-person-toggle="${emailKey}">
+      <div class="person-swimlane-toggle" data-person-toggle="${emailKey}">
         <div class="person-row-header-grid">
           <div class="person-row-identity">
             ${avatarHTML}
             <div class="min-w-0 person-identity-meta">
-              <h3 class="text-[16px] leading-tight font-bold text-gray-800 ${emailKey === "unassigned" ? "italic" : ""} truncate">${profile.name}</h3>
-              <p class="text-[14px] leading-snug text-gray-500 truncate">${metrics.tasksCount || 0} tareas</p>
+              <h3 class="person-name text-[15px] leading-tight font-bold text-[color:var(--text-strong)] ${emailKey === "unassigned" ? "italic" : ""} truncate">${profile.name}</h3>
+              <p class="person-task-count text-[13px] leading-snug text-[color:var(--muted)] truncate">${metrics.tasksCount || 0} tareas</p>
             </div>
           </div>
 
@@ -2259,14 +2330,14 @@ function renderPersonView(state) {
           </div>
 
           <div class="person-row-chevron">
-            <i class="fas fa-chevron-right chevron-icon text-gray-400" style="transform: ${isExpanded ? "rotate(90deg)" : "rotate(0deg)"}"></i>
+            <i class="fas fa-chevron-right chevron-icon" style="transform: ${isExpanded ? "rotate(90deg)" : "rotate(0deg)"}"></i>
           </div>
         </div>
       </div>
     `;
 
     const columnsGrid = document.createElement("div");
-    columnsGrid.className = `grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x border-gray-100 bg-gray-50/50 ${isExpanded ? "" : "hidden"}`;
+    columnsGrid.className = `person-columns-grid ${isExpanded ? "" : "hidden"}`;
 
     ["todo", "inprogress", "done"].forEach((statusKey) => {
       const colDiv = document.createElement("div");
@@ -2315,7 +2386,7 @@ function renderPersonView(state) {
         const historyDone = colTasks.filter((task) => !isDateToday(task.completedAt));
 
         const todayLabel = document.createElement("div");
-        todayLabel.className = "text-[10px] font-bold uppercase tracking-wider text-emerald-700 px-1";
+        todayLabel.className = "kanban-day-label kanban-day-label--compact";
         todayLabel.textContent = `Hecho hoy (${todayDone.length})`;
         dropZone.appendChild(todayLabel);
 
@@ -2330,12 +2401,11 @@ function renderPersonView(state) {
 
         if (historyDone.length > 0) {
           const historyContainer = document.createElement("div");
-          historyContainer.className = "hidden space-y-2 pt-2 border-t border-green-200/60";
+          historyContainer.className = "hidden space-y-2 pt-2 border-t border-[color:var(--line-subtle)]";
           historyDone.forEach((task) => historyContainer.appendChild(createTaskElement(task, "sprint", state)));
 
           const historyBtn = document.createElement("button");
-          historyBtn.className =
-            "w-full flex items-center justify-center gap-2 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 py-1.5 rounded border border-dashed border-gray-300 transition-all";
+          historyBtn.className = "kanban-history-btn kanban-history-btn--compact";
           historyBtn.innerHTML = `<i class="fa-solid fa-history"></i> <span>Historial (${historyDone.length})</span>`;
           historyBtn.onclick = () => {
             const isHidden = historyContainer.classList.contains("hidden");
@@ -3519,6 +3589,7 @@ function handleAppClick(e) {
           status: isChecked ? "completed" : "needsAction",
           kanbanStatus: isChecked ? "done" : "todo",
           completedAt: isChecked ? Timestamp.now() : null,
+          lastMovedAt: Timestamp.now(),
         });
       }
       return;
@@ -5073,8 +5144,10 @@ export function initializeEventListeners(state, actions) {
   function updateTaskStatusLogic(taskId, newStatus, newAssignee) {
     const task = appState.tasks.find((t) => t.id === taskId);
     if (!task) return;
+    if (task.kanbanStatus === newStatus && newAssignee === undefined) return;
 
     const updates = { kanbanStatus: newStatus };
+    if (task.kanbanStatus !== newStatus) updates.lastMovedAt = Timestamp.now();
 
     // Solo actualizamos assignee si se pasó explícitamente (Vista Personas)
     if (newAssignee !== undefined) {
@@ -5685,7 +5758,9 @@ export function renderTaskDetails(task, state) {
   `;
 
   const applyStatusUpdate = (newStatus) => {
+    if (task.kanbanStatus === newStatus) return;
     const updates = { kanbanStatus: newStatus };
+    updates.lastMovedAt = Timestamp.now();
     if (newStatus === "inprogress") {
       if (task.kanbanStatus !== "inprogress") {
         updates.startedAt = Timestamp.now();

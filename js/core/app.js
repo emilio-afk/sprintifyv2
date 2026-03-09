@@ -177,7 +177,7 @@ const actions = {
     } else {
       state.expandedPersonViews.add(email);
     }
-    //requestRender();
+    requestRender();
   },
 
   toggleColumnCollapse(columnId) {
@@ -242,6 +242,7 @@ const actions = {
       status: "needsAction",
       kanbanStatus: "todo",
       createdAt: serverTimestamp(),
+      lastMovedAt: serverTimestamp(),
       createdBy: state.user.email,
       assignee: options.assignee || null, // <--- Usar el assignee si viene
     };
@@ -298,6 +299,7 @@ const actions = {
     const updates = {
       listId: state.backlogId,
       kanbanStatus: "todo",
+      lastMovedAt: Timestamp.now(),
       history: arrayUnion({
         action: "Regresado al Backlog",
         user: state.user.displayName,
@@ -310,7 +312,14 @@ const actions = {
   async moveTasksToSprint(taskIds, sprintId) {
     if (!sprintId || !Array.isArray(taskIds) || taskIds.length === 0) return;
     const batch = writeBatch(db);
-    taskIds.forEach((id) => id && batch.update(doc(tasksCollection, id), { listId: sprintId }));
+    taskIds.forEach(
+      (id) =>
+        id &&
+        batch.update(doc(tasksCollection, id), {
+          listId: sprintId,
+          lastMovedAt: serverTimestamp(),
+        })
+    );
     try {
       await batch.commit();
     } catch (e) {
