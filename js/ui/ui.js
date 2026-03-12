@@ -1669,6 +1669,17 @@ function formatCycleDateDMY(date) {
   return `${d}-${m}-${y}`;
 }
 
+function getCycleTitleDateParts(date) {
+  return {
+    day: date.toLocaleDateString("es-MX", { day: "2-digit" }),
+    month: date
+      .toLocaleDateString("es-MX", { month: "short" })
+      .replace(".", "")
+      .toUpperCase(),
+    year: date.toLocaleDateString("es-MX", { year: "numeric" }),
+  };
+}
+
 function buildPersonCapacityBar(metrics, capacity = CYCLE_POINTS_TARGET) {
   const normalize = (value) => {
     const num = Number(value || 0);
@@ -1748,6 +1759,33 @@ function renderPersonView(state) {
   const cycleEnd = new Date(cycleWindow.endExclusive);
   cycleEnd.setDate(cycleEnd.getDate() - 1);
   const cycleEndLabel = formatCycleDateDMY(cycleEnd);
+  const cycleStartParts = getCycleTitleDateParts(cycleWindow.start);
+  const cycleEndParts = getCycleTitleDateParts(cycleEnd);
+  if (dom.viewTitle) {
+    dom.viewTitle.innerHTML = `
+      Por persona
+      <span class="view-title-cycle" title="Ciclo actual: ${cycleStartLabel} a ${cycleEndLabel}">
+        <span class="view-title-cycle-kicker">Ciclo activo</span>
+        <span class="view-title-cycle-range">
+          <span class="view-title-cycle-date">
+            <span class="view-title-cycle-day">${cycleStartParts.day}</span>
+            <span class="view-title-cycle-date-meta">
+              <span class="view-title-cycle-month">${cycleStartParts.month}</span>
+              <span class="view-title-cycle-year">${cycleStartParts.year}</span>
+            </span>
+          </span>
+          <span class="view-title-cycle-separator" aria-hidden="true">→</span>
+          <span class="view-title-cycle-date">
+            <span class="view-title-cycle-day">${cycleEndParts.day}</span>
+            <span class="view-title-cycle-date-meta">
+              <span class="view-title-cycle-month">${cycleEndParts.month}</span>
+              <span class="view-title-cycle-year">${cycleEndParts.year}</span>
+            </span>
+          </span>
+        </span>
+      </span>
+    `;
+  }
 
   const normalize = (email) => (email ? email.trim().toLowerCase() : "unassigned");
   const getDateValue = (value) => (value?.toDate ? value.toDate() : value ? new Date(value) : null);
