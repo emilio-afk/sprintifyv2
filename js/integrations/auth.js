@@ -2,6 +2,8 @@
 import {
   GoogleAuthProvider,
   onAuthStateChanged,
+  signInWithPopup,
+  signInWithRedirect,
   signOut,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
@@ -10,6 +12,22 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { auth, profilesCollection } from "../core/firebase.js";
+
+let loginPromise = null;
+
+function createGoogleProvider() {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
+  return provider;
+}
+
+function shouldFallbackToRedirect(error) {
+  return new Set([
+    "auth/popup-blocked",
+    "auth/web-storage-unsupported",
+    "auth/operation-not-supported-in-this-environment",
+  ]).has(error?.code);
+}
 
 async function persistUserProfile(user) {
   if (!user) return;
@@ -31,11 +49,11 @@ async function persistUserProfile(user) {
 }
 
 export function handleAuth(state, onLogin, onLogout) {
-  onAuthStateChanged(auth, async (user) => {
+  onAuthStateChanged(auth, (user) => {
     if (user) {
       state.user = user;
-      await persistUserProfile(user);
       onLogin(user);
+      persistUserProfile(user);
     } else {
       state.user = null;
       onLogout();
@@ -43,12 +61,27 @@ export function handleAuth(state, onLogin, onLogout) {
   });
 }
 
-// Login con popup (evita redirect)
 export async function login() {
-  const { signInWithPopup } = await import(
-    "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js"
-  );
-  await signInWithPopup(auth, new GoogleAuthProvider());
+  if (loginPromise) return loginPromise;
+
+  loginPromise = (async () => {
+    const provider = createGoogleProvider();
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      if (shouldFallbackToRedirect(error)) {
+        await signInWithRedirect(auth, provider);
+        return;
+      }
+      throw error;
+    }
+  })();
+
+  try {
+    await loginPromise;
+  } finally {
+    loginPromise = null;
+  }
 }
 
 export function logout() {

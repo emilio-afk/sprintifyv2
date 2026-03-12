@@ -6409,11 +6409,78 @@ export function renderOnlineUsers(onlineUsers) {
     .join("");
 }
 
+function getAuthErrorMessage(error, action) {
+  switch (error?.code) {
+    case "auth/popup-closed-by-user":
+      return "Se cerró la ventana de Google antes de completar la autenticación.";
+    case "auth/popup-blocked":
+      return "El navegador bloqueó la ventana emergente. Intenta permitir popups para este sitio.";
+    case "auth/network-request-failed":
+      return `No se pudo ${action} por un problema de red.`;
+    default:
+      return `No se pudo ${action}. Intenta de nuevo.`;
+  }
+}
+
+function setAuthButtonBusy(button, isBusy, idleText, busyText) {
+  if (!button) return;
+  button.disabled = isBusy;
+  button.setAttribute("aria-busy", String(isBusy));
+  button.classList.toggle("opacity-70", isBusy);
+  button.classList.toggle("pointer-events-none", isBusy);
+  const label = button.querySelector("span");
+  if (label) label.textContent = isBusy ? busyText : idleText;
+}
+
 export function initializeAuthButtons(actions) {
   const loginButton = document.getElementById("login-button");
   const logoutButton = document.getElementById("auth-button");
-  if (loginButton) loginButton.addEventListener("click", actions.login);
-  if (logoutButton) logoutButton.addEventListener("click", actions.logout);
+  let loginInFlight = false;
+  let logoutInFlight = false;
+
+  if (loginButton) {
+    loginButton.addEventListener("click", async (event) => {
+      event.preventDefault();
+      if (loginInFlight) return;
+      loginInFlight = true;
+      setAuthButtonBusy(loginButton, true, "Sign in with Google", "Abriendo Google...");
+      try {
+        await actions.login();
+      } catch (error) {
+        console.error("[AUTH] login error:", error);
+        showModal({
+          title: "No se pudo iniciar sesión",
+          text: getAuthErrorMessage(error, "iniciar sesión"),
+          okText: "Cerrar",
+        });
+      } finally {
+        loginInFlight = false;
+        setAuthButtonBusy(loginButton, false, "Sign in with Google", "Abriendo Google...");
+      }
+    });
+  }
+
+  if (logoutButton) {
+    logoutButton.addEventListener("click", async (event) => {
+      event.preventDefault();
+      if (logoutInFlight) return;
+      logoutInFlight = true;
+      setAuthButtonBusy(logoutButton, true, "Cerrar Sesión", "Cerrando...");
+      try {
+        await actions.logout();
+      } catch (error) {
+        console.error("[AUTH] logout error:", error);
+        showModal({
+          title: "No se pudo cerrar sesión",
+          text: getAuthErrorMessage(error, "cerrar sesión"),
+          okText: "Cerrar",
+        });
+      } finally {
+        logoutInFlight = false;
+        setAuthButtonBusy(logoutButton, false, "Cerrar Sesión", "Cerrando...");
+      }
+    });
+  }
 }
 (() => {
   try {

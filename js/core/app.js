@@ -964,6 +964,7 @@ function onLogin(user) {
 }
 
 function onLogout() {
+  ui.hideModal();
   ui.hideApp();
   state.unsubscribe.forEach((unsub) => {
     try {
