@@ -15,6 +15,7 @@ const MODAL_MODE_CLASSES = [
   "is-theme-form-modal",
   "is-handbook-form-modal",
   "is-simple-modal",
+  "is-points-compact-modal",
 ];
 
 const dom = {
@@ -4732,357 +4733,83 @@ function openCommitmentDateModal(taskId) {
   refreshDueDateUI();
 }
 
-const POINT_ESTIMATION_SCALE = [0, 1, 2, 3, 5, 8, 13, 20];
+const POINT_ASSIGNMENT_OPTIONS = [0, 0.5, 1, 2, 3, 5, 8, 13, 20, 40];
+const POINT_HOURS_REFERENCE = 2;
 
-function scoreToRecommendedPoints(score) {
-  const safeScore = Math.max(0, Math.min(12, Number(score) || 0));
-  if (safeScore <= 1) return 0;
-  if (safeScore <= 2) return 1;
-  if (safeScore <= 4) return 2;
-  if (safeScore <= 5) return 3;
-  if (safeScore <= 6) return 5;
-  if (safeScore <= 8) return 8;
-  if (safeScore <= 10) return 13;
-  return 20;
-}
-
-function pointsToBaselineScore(points) {
+function formatPointUnits(points) {
   const numeric = Number(points);
-  const scoreByPoints = {
-    0: 0,
-    1: 2,
-    2: 4,
-    3: 5,
-    5: 6,
-    8: 8,
-    13: 10,
-    20: 12,
-  };
-  if (Number.isFinite(numeric) && scoreByPoints[numeric] !== undefined) return scoreByPoints[numeric];
-  const nearest = POINT_ESTIMATION_SCALE.reduce((closest, option) =>
-    Math.abs(option - numeric) < Math.abs(closest - numeric) ? option : closest
-  , 0);
-  return scoreByPoints[nearest] ?? 0;
+  if (!Number.isFinite(numeric)) return "0 pts";
+  return `${numeric} ${numeric === 1 ? "pt" : "pts"}`;
 }
 
-function distributeBaselineScore(score) {
-  const safeScore = Math.max(0, Math.min(12, Number(score) || 0));
-  const baseValue = Math.floor(safeScore / 4);
-  let remainder = safeScore % 4;
-  const values = [baseValue, baseValue, baseValue, baseValue].map((v) => Math.min(3, v));
-  for (let i = 0; i < values.length && remainder > 0; i += 1) {
-    if (values[i] < 3) {
-      values[i] += 1;
-      remainder -= 1;
-    }
+function formatPointHourEstimate(points) {
+  const numeric = Number(points);
+  if (!Number.isFinite(numeric) || numeric <= 0) return "Sin estimar";
+  const hours = numeric * POINT_HOURS_REFERENCE;
+  const hoursLabel = Number.isInteger(hours) ? String(hours) : hours.toFixed(1).replace(/\.0$/, "");
+  return `~${hoursLabel} h`;
+}
+
+function getPointOptionLabel(points) {
+  return `${formatPointUnits(points)} · ${formatPointHourEstimate(points)}`;
+}
+
+function getPointHoursHelperText(points) {
+  const estimateLabel = formatPointHourEstimate(points);
+  if (estimateLabel === "Sin estimar") {
+    return `Sin estimar. Referencia: 1 pt ≈ ${POINT_HOURS_REFERENCE} h de trabajo efectivo.`;
   }
-  return {
-    complexity: values[0],
-    uncertainty: values[1],
-    dependencies: values[2],
-    qa: values[3],
-  };
+  return `Equivalencia aprox.: ${estimateLabel}. Referencia: 1 pt ≈ ${POINT_HOURS_REFERENCE} h de trabajo efectivo.`;
 }
 
-function getScaleIndex(points) {
-  return POINT_ESTIMATION_SCALE.indexOf(Number(points));
+function updatePointHoursHint(element, points) {
+  if (!element) return;
+  element.textContent = getPointHoursHelperText(points);
 }
 
-function getConfidenceProfile(factors) {
-  const uncertaintyLoad = factors.uncertainty + factors.dependencies;
-  const qualityLoad = factors.qa;
-  if (uncertaintyLoad >= 5 || (uncertaintyLoad >= 4 && qualityLoad >= 2)) {
-    return {
-      label: "Confianza baja",
-      detail: "Alta variabilidad por incertidumbre/dependencias.",
-      tone: "low",
-    };
-  }
-  if (uncertaintyLoad >= 3 || qualityLoad >= 2) {
-    return {
-      label: "Confianza media",
-      detail: "Existe variación moderada en alcance o validación.",
-      tone: "medium",
-    };
-  }
-  return {
-    label: "Confianza alta",
-    detail: "Supuestos estables y riesgo controlado.",
-    tone: "high",
-  };
-}
-
-function openPointsEstimatorModal(taskId) {
+function openPointsAssignmentModal(taskId) {
   const task = appState.tasks.find((t) => t.id === taskId);
   if (!task) return;
 
-  const baselineScore = pointsToBaselineScore(task.points ?? 0);
-  const baselineFactors = distributeBaselineScore(baselineScore);
   const pointsModalHTML = `
-    <div class="task-modal-shell task-points-modal-shell">
-      <p class="task-modal-subtitle">Evalúa 4 factores (0-3) para estimar con precisión y dejar evidencia de override.</p>
-      <div class="task-points-legend">
-        <div class="task-points-legend__item"><strong>0:</strong> mínimo</div>
-        <div class="task-points-legend__item"><strong>1:</strong> bajo</div>
-        <div class="task-points-legend__item"><strong>2:</strong> medio</div>
-        <div class="task-points-legend__item"><strong>3:</strong> alto</div>
+    <div class="flex flex-col gap-3">
+      <div class="text-sm text-slate-600">
+        <strong class="text-slate-800">${(task.title || "Tarea").replace(/</g, "&lt;")}</strong>
+        <div class="mt-1">Selecciona los puntos de forma directa.</div>
       </div>
-      <div class="task-factor-grid">
-        <div class="task-factor-field">
-          <label for="task-factor-complexity">Complejidad técnica</label>
-          <select id="task-factor-complexity" class="task-modal-input task-modal-select">
-            <option value="0" ${baselineFactors.complexity === 0 ? "selected" : ""}>0 · Flujo directo</option>
-            <option value="1" ${baselineFactors.complexity === 1 ? "selected" : ""}>1 · Cambios acotados</option>
-            <option value="2" ${baselineFactors.complexity === 2 ? "selected" : ""}>2 · Integración moderada</option>
-            <option value="3" ${baselineFactors.complexity === 3 ? "selected" : ""}>3 · Arquitectura compleja</option>
-          </select>
-        </div>
-        <div class="task-factor-field">
-          <label for="task-factor-uncertainty">Incertidumbre</label>
-          <select id="task-factor-uncertainty" class="task-modal-input task-modal-select">
-            <option value="0" ${baselineFactors.uncertainty === 0 ? "selected" : ""}>0 · Requisito cerrado</option>
-            <option value="1" ${baselineFactors.uncertainty === 1 ? "selected" : ""}>1 · Dudas menores</option>
-            <option value="2" ${baselineFactors.uncertainty === 2 ? "selected" : ""}>2 · Decisiones abiertas</option>
-            <option value="3" ${baselineFactors.uncertainty === 3 ? "selected" : ""}>3 · Alcance inestable</option>
-          </select>
-        </div>
-        <div class="task-factor-field">
-          <label for="task-factor-dependencies">Dependencias</label>
-          <select id="task-factor-dependencies" class="task-modal-input task-modal-select">
-            <option value="0" ${baselineFactors.dependencies === 0 ? "selected" : ""}>0 · Sin bloqueos</option>
-            <option value="1" ${baselineFactors.dependencies === 1 ? "selected" : ""}>1 · Un tercero</option>
-            <option value="2" ${baselineFactors.dependencies === 2 ? "selected" : ""}>2 · Varias áreas</option>
-            <option value="3" ${baselineFactors.dependencies === 3 ? "selected" : ""}>3 · Cadena crítica</option>
-          </select>
-        </div>
-        <div class="task-factor-field">
-          <label for="task-factor-qa">Esfuerzo QA</label>
-          <select id="task-factor-qa" class="task-modal-input task-modal-select">
-            <option value="0" ${baselineFactors.qa === 0 ? "selected" : ""}>0 · Verificación rápida</option>
-            <option value="1" ${baselineFactors.qa === 1 ? "selected" : ""}>1 · Casos básicos</option>
-            <option value="2" ${baselineFactors.qa === 2 ? "selected" : ""}>2 · Matriz amplia</option>
-            <option value="3" ${baselineFactors.qa === 3 ? "selected" : ""}>3 · Riesgo alto/regresión</option>
-          </select>
-        </div>
-      </div>
-      <div class="task-points-summary-card">
-        <div class="task-points-summary-main">
-          <span>Score</span>
-          <strong id="task-points-score-value">0/12</strong>
-        </div>
-        <div class="task-points-summary-main">
-          <span>Recomendado</span>
-          <strong id="task-points-recommended-value">0 pts</strong>
-        </div>
-        <div id="task-points-confidence-chip" class="task-confidence-chip">Confianza alta</div>
-      </div>
-      <p id="task-points-confidence-detail" class="task-points-confidence-detail"></p>
-      <div class="task-factor-field task-factor-field--wide">
-        <label for="task-points-final-select">Puntos finales</label>
-        <select id="task-points-final-select" class="task-modal-input task-modal-select">
-          ${POINT_ESTIMATION_SCALE.map((value) => {
+      <div class="flex flex-col gap-2">
+        <label for="task-points-final-select" class="text-sm font-bold text-gray-700">Puntos</label>
+        <select id="task-points-final-select" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+          ${POINT_ASSIGNMENT_OPTIONS.map((value) => {
             const isSelected = Number(task.points ?? 0) === value;
-            return `<option value="${value}" ${isSelected ? "selected" : ""}>${value} pts</option>`;
+            return `<option value="${value}" ${isSelected ? "selected" : ""}>${getPointOptionLabel(value)}</option>`;
           }).join("")}
         </select>
-      </div>
-      <div class="task-factor-field task-factor-field--wide">
-        <label for="task-points-override-reason">Motivo de override</label>
-        <textarea id="task-points-override-reason" class="task-modal-input task-modal-textarea" rows="3" placeholder="Opcional si mantienes la recomendación."></textarea>
-        <p id="task-points-override-hint" class="task-modal-hint">Si te alejas 2 escalones o más, esta justificación será obligatoria.</p>
-      </div>
-      <div id="task-points-quality-alert" class="task-quality-alert hidden" role="status"></div>
-      <p id="task-points-error" class="task-modal-error hidden" role="alert"></p>
-      <p id="task-points-feedback" class="task-modal-feedback hidden" aria-live="polite"></p>
-      <div class="task-modal-inline-actions">
-        <button id="task-points-cancel-btn" type="button" class="task-modal-btn task-modal-btn--ghost">Cancelar</button>
-        <button id="task-points-save-btn" type="button" class="task-modal-btn task-modal-btn--solid">Guardar puntos</button>
+        <p id="task-points-hours-hint" class="text-xs text-gray-500">${getPointHoursHelperText(task.points ?? 0)}</p>
       </div>
     </div>
   `;
 
   showModal({
-    title: "Asignar puntos",
+    title: "Cambiar puntos",
     htmlContent: pointsModalHTML,
-    actionModal: true,
+    okText: "Guardar puntos",
+    compactPointsModal: true,
+    callback: () => {
+      const selectEl = document.getElementById("task-points-final-select");
+      if (!selectEl) return;
+      const selectedPoints = Number(selectEl.value);
+      if (!POINT_ASSIGNMENT_OPTIONS.includes(selectedPoints)) return;
+      if (selectedPoints !== Number(task.points ?? 0)) {
+        appActions.updateTask(taskId, { points: selectedPoints });
+      }
+    },
   });
-
-  const modalFooter = document.getElementById("modal-footer");
-  if (modalFooter) modalFooter.classList.add("hidden");
-
-  const factorIds = ["complexity", "uncertainty", "dependencies", "qa"];
-  const factorElements = factorIds.reduce((acc, key) => {
-    acc[key] = document.getElementById(`task-factor-${key}`);
-    return acc;
-  }, {});
-  const scoreValueEl = document.getElementById("task-points-score-value");
-  const recommendedValueEl = document.getElementById("task-points-recommended-value");
-  const confidenceChipEl = document.getElementById("task-points-confidence-chip");
-  const confidenceDetailEl = document.getElementById("task-points-confidence-detail");
   const finalSelect = document.getElementById("task-points-final-select");
-  const overrideReason = document.getElementById("task-points-override-reason");
-  const overrideHint = document.getElementById("task-points-override-hint");
-  const qualityAlert = document.getElementById("task-points-quality-alert");
-  const errorBox = document.getElementById("task-points-error");
-  const feedbackBox = document.getElementById("task-points-feedback");
-  const cancelBtn = document.getElementById("task-points-cancel-btn");
-  const saveBtn = document.getElementById("task-points-save-btn");
-
-  const setError = (message = "") => {
-    if (!errorBox) return;
-    if (!message) {
-      errorBox.classList.add("hidden");
-      errorBox.textContent = "";
-      return;
-    }
-    errorBox.classList.remove("hidden");
-    errorBox.textContent = message;
-  };
-
-  const setFeedback = (type, message) => {
-    if (!feedbackBox) return;
-    feedbackBox.classList.remove("hidden", "is-loading", "is-success");
-    feedbackBox.textContent = message;
-    if (type === "loading") feedbackBox.classList.add("is-loading");
-    if (type === "success") feedbackBox.classList.add("is-success");
-  };
-
-  const clearFeedback = () => {
-    if (!feedbackBox) return;
-    feedbackBox.classList.add("hidden");
-    feedbackBox.textContent = "";
-    feedbackBox.classList.remove("is-loading", "is-success");
-  };
-
-  const setBusy = (isBusy) => {
-    [...Object.values(factorElements), finalSelect, overrideReason, cancelBtn, saveBtn]
-      .filter(Boolean)
-      .forEach((el) => {
-        el.disabled = isBusy;
-      });
-    if (saveBtn) saveBtn.textContent = isBusy ? "Guardando..." : "Guardar puntos";
-  };
-
-  let manualPointTouched = false;
-  let currentRecommendation = 0;
-  let requiresReason = false;
-
-  const readFactors = () =>
-    factorIds.reduce((acc, key) => {
-      const rawVal = Number(factorElements[key]?.value ?? 0);
-      acc[key] = Math.max(0, Math.min(3, rawVal));
-      return acc;
-    }, {});
-
-  const updateQualityAlert = (finalPoints) => {
-    if (!qualityAlert) return;
-    qualityAlert.classList.remove("hidden", "is-warning", "is-danger");
-    if (finalPoints >= 20) {
-      qualityAlert.classList.add("is-danger");
-      qualityAlert.textContent = "20 pts sugiere tarea demasiado grande. Divide en subtareas antes del sprint.";
-      return;
-    }
-    if (finalPoints >= 13) {
-      qualityAlert.classList.add("is-warning");
-      qualityAlert.textContent = "13 pts o más suele degradar flujo. Revisa posibilidad de split.";
-      return;
-    }
-    qualityAlert.classList.add("hidden");
-    qualityAlert.textContent = "";
-  };
-
-  const updateOverrideState = () => {
-    const selectedPoints = Number(finalSelect?.value ?? 0);
-    const selectedIndex = getScaleIndex(selectedPoints);
-    const recommendedIndex = getScaleIndex(currentRecommendation);
-    const jump = selectedIndex >= 0 && recommendedIndex >= 0 ? Math.abs(selectedIndex - recommendedIndex) : 0;
-    requiresReason = jump >= 2;
-    if (overrideHint) {
-      overrideHint.textContent = requiresReason
-        ? "Override fuerte detectado: agrega una justificación clara."
-        : "Override opcional: puedes añadir contexto si lo consideras útil.";
-      overrideHint.classList.toggle("is-required", requiresReason);
-    }
-    if (overrideReason) {
-      overrideReason.required = requiresReason;
-      overrideReason.classList.toggle("is-required", requiresReason);
-    }
-    updateQualityAlert(selectedPoints);
-  };
-
-  const refreshEstimatorUI = () => {
-    const factors = readFactors();
-    const score = factors.complexity + factors.uncertainty + factors.dependencies + factors.qa;
-    currentRecommendation = scoreToRecommendedPoints(score);
-
-    if (scoreValueEl) scoreValueEl.textContent = `${score}/12`;
-    if (recommendedValueEl) {
-      recommendedValueEl.textContent = `${currentRecommendation} pts`;
-      recommendedValueEl.classList.toggle("is-zero", currentRecommendation === 0);
-    }
-
-    const confidence = getConfidenceProfile(factors);
-    if (confidenceChipEl) {
-      confidenceChipEl.textContent = confidence.label;
-      confidenceChipEl.classList.remove("is-high", "is-medium", "is-low");
-      confidenceChipEl.classList.add(`is-${confidence.tone}`);
-    }
-    if (confidenceDetailEl) confidenceDetailEl.textContent = confidence.detail;
-
-    if (finalSelect && !manualPointTouched) {
-      finalSelect.value = String(currentRecommendation);
-    }
-    updateOverrideState();
-  };
-
-  factorIds.forEach((key) => {
-    factorElements[key]?.addEventListener("change", () => {
-      setError("");
-      clearFeedback();
-      refreshEstimatorUI();
-    });
-  });
-
+  const finalHoursHintEl = document.getElementById("task-points-hours-hint");
   finalSelect?.addEventListener("change", () => {
-    manualPointTouched = true;
-    setError("");
-    clearFeedback();
-    updateOverrideState();
+    updatePointHoursHint(finalHoursHintEl, Number(finalSelect.value));
   });
-
-  overrideReason?.addEventListener("input", () => {
-    setError("");
-  });
-
-  cancelBtn?.addEventListener("click", hideModal);
-
-  saveBtn?.addEventListener("click", async () => {
-    setError("");
-    clearFeedback();
-    const selectedPoints = Number(finalSelect?.value ?? 0);
-    const reason = (overrideReason?.value || "").trim();
-
-    if (!POINT_ESTIMATION_SCALE.includes(selectedPoints)) {
-      setError("Selecciona un valor de puntos válido.");
-      return;
-    }
-
-    if (requiresReason && reason.length < 8) {
-      setError("Agrega una justificación de al menos 8 caracteres para este override.");
-      return;
-    }
-
-    setBusy(true);
-    setFeedback("loading", "Guardando estimación...");
-    await Promise.resolve(appActions.updateTask(taskId, { points: selectedPoints }));
-    setFeedback("success", `Puntos actualizados a ${selectedPoints}.`);
-    setTimeout(() => hideModal(), 620);
-  });
-
-  if (!POINT_ESTIMATION_SCALE.includes(Number(task.points ?? 0)) && finalSelect) {
-    finalSelect.value = String(scoreToRecommendedPoints(baselineScore));
-  }
-  refreshEstimatorUI();
 }
 
 function handleTaskCardAction(action, taskId) {
@@ -5114,7 +4841,7 @@ function handleTaskCardAction(action, taskId) {
       });
       break;
     case "points":
-      openPointsEstimatorModal(taskId);
+      openPointsAssignmentModal(taskId);
       break;
     case "move-to-sprint": {
       const availableSprints = appState.taskLists
@@ -5832,6 +5559,7 @@ export function showModal(config) {
     else if (config.handbookInputs) modalContent.classList.add("is-handbook-form-modal");
     else modalContent.classList.add("is-simple-modal");
     if (config.actionModal) modalContent.classList.add("is-task-action-modal");
+    if (config.compactPointsModal) modalContent.classList.add("is-points-compact-modal");
   }
   if (modal.footer) modal.footer.classList.toggle("hidden", Boolean(config.taskDetails));
   if (modal.closeIcon) modal.closeIcon.classList.remove("hidden");
@@ -6107,12 +5835,11 @@ export function renderTaskDetails(task, state) {
   // --- 2. RENDERIZADO DE USUARIOS Y PUNTOS (EDITABLES) ---
 
   // A) SELECTOR DE PUNTOS
-  const pointOptions = [0, 0.5, 1, 2, 3, 5, 8, 13, 20, 40];
-  let pointsSelectHTML = `<select id="detail-modal-points" class="modal-input-slim font-medium">`;
-  pointOptions.forEach((p) => {
-    pointsSelectHTML += `<option value="${p}" ${task.points == p ? "selected" : ""}>${p}</option>`;
+  let pointsSelectHTML = `<div class="modal-points-field-stack"><select id="detail-modal-points" class="modal-input-slim font-medium">`;
+  POINT_ASSIGNMENT_OPTIONS.forEach((p) => {
+    pointsSelectHTML += `<option value="${p}" ${task.points == p ? "selected" : ""}>${getPointOptionLabel(p)}</option>`;
   });
-  pointsSelectHTML += `</select>`;
+  pointsSelectHTML += `</select><p id="detail-modal-points-hours" class="modal-helper-inline">${getPointHoursHelperText(task.points ?? 0)}</p></div>`;
 
   // Reemplazamos el contenido estático
   els.points.innerHTML = pointsSelectHTML;
@@ -6120,9 +5847,12 @@ export function renderTaskDetails(task, state) {
 
   // Listener para cambio de puntos
   const pointsSelect = document.getElementById("detail-modal-points");
+  const detailPointsHoursHint = document.getElementById("detail-modal-points-hours");
   if (pointsSelect) {
     pointsSelect.addEventListener("change", (e) => {
-      persistTaskUpdate({ points: Number(e.target.value) });
+      const nextPoints = Number(e.target.value);
+      updatePointHoursHint(detailPointsHoursHint, nextPoints);
+      persistTaskUpdate({ points: nextPoints });
       updateRequiredStates();
     });
   }

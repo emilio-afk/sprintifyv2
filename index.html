@@ -4677,6 +4677,9 @@
       #modal-content.is-simple-modal:not(.is-task-action-modal) #modal-text {
         margin: 0;
       }
+      #modal-content.is-points-compact-modal {
+        max-width: 520px;
+      }
       #modal-content.is-epic-form-modal #modal-footer,
       #modal-content.is-theme-form-modal #modal-footer,
       #modal-content.is-handbook-form-modal #modal-footer,
@@ -4852,6 +4855,19 @@
         margin-top: 2px;
         margin-left: 0;
         display: none;
+      }
+
+      .modal-points-field-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .modal-helper-inline {
+        margin: 0;
+        font-size: 0.7rem;
+        line-height: 1.35;
+        color: var(--modal-text-muted);
       }
 
       #modal-task-time-container {
