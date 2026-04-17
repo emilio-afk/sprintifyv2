@@ -435,11 +435,9 @@ function createTaskElement(task, context, state) {
     }
   }
 
-  const compactClass = state.taskCardDensity === "compact" ? "task-card-v3--compact" : "";
-
   const taskCard = document.createElement("div");
   taskCard.id = task.id;
-  taskCard.className = `task-card task-card-v3 ${ageClass} ${wipAlertClass} ${compactClass} group relative rounded-lg ${isCompleted ? "opacity-60" : ""}`;
+  taskCard.className = `task-card task-card-v3 ${ageClass} ${wipAlertClass} group relative rounded-lg ${isCompleted ? "opacity-60" : ""}`;
   taskCard.draggable = true;
   taskCard.dataset.context = context;
   taskCard.style.setProperty("--task-accent", sprintColor);
@@ -853,24 +851,6 @@ function toggleBacklogView(state) {
 // EN js/ui/ui.js - REEMPLAZA LA FUNCIÓN EXISTENTE renderSprintKanban
 
 function renderSprintKanban(state) {
-  // Density toggle toolbar
-  const densityBar = document.getElementById("kanban-density-bar");
-  if (densityBar) {
-    const isCompact = state.taskCardDensity === "compact";
-    densityBar.innerHTML = `
-      <button
-        type="button"
-        class="kanban-density-btn ${isCompact ? "kanban-density-btn--active" : ""}"
-        data-action="toggle-task-density"
-        aria-pressed="${isCompact}"
-        title="${isCompact ? "Vista cómoda" : "Vista compacta"}"
-      >
-        <i class="fa-solid ${isCompact ? "fa-table-cells-large" : "fa-table-cells"}" aria-hidden="true"></i>
-        <span>${isCompact ? "Cómodo" : "Compacto"}</span>
-      </button>
-    `;
-  }
-
   const columns = [
     { key: "todo" },
     { key: "inprogress" },
@@ -2631,15 +2611,11 @@ function renderPersonView(state) {
     .filter(Boolean)
     .join("");
 
-  const densityIsCompact = state.taskCardDensity === "compact";
-
   const controlsDiv = document.createElement("div");
   controlsDiv.className = "person-toolbar-shell mb-3";
   controlsDiv.innerHTML = `
-    <!-- Main toolbar row -->
     <div class="person-toolbar-main">
-      <!-- Scope: Mode toggle + Sprint select always visible -->
-      <div class="person-toolbar-scope">
+      <div class="person-toolbar-primary">
         <div
           id="person-view-mode"
           class="person-mode-toggle person-mode-toggle--slim"
@@ -2650,13 +2626,13 @@ function renderPersonView(state) {
             aria-selected="${viewMode === "current" ? "true" : "false"}"
             aria-controls="person-view-panel-current"
             tabindex="${viewMode === "current" ? "0" : "-1"}"
-            class="flex-1 h-full rounded-md text-[13px] font-semibold transition-colors ${viewMode === "current" ? "bg-[color:var(--brand-700)] text-white" : "text-[color:var(--muted)] hover:bg-[color:var(--surface-secondary)]"}"
+            class="person-mode-toggle__tab ${viewMode === "current" ? "person-mode-toggle__tab--active" : ""}"
           >Actual</button>
           <button id="person-view-tab-history" type="button" role="tab" data-person-mode="history"
             aria-selected="${viewMode === "history" ? "true" : "false"}"
             aria-controls="person-view-panel-history"
             tabindex="${viewMode === "history" ? "0" : "-1"}"
-            class="flex-1 h-full rounded-md text-[13px] font-semibold transition-colors ${viewMode === "history" ? "bg-[color:var(--brand-700)] text-white" : "text-[color:var(--muted)] hover:bg-[color:var(--surface-secondary)]"}"
+            class="person-mode-toggle__tab ${viewMode === "history" ? "person-mode-toggle__tab--active" : ""}"
           >Histórico</button>
         </div>
         <select id="person-view-filter" class="person-control-input person-control-input--slim" aria-label="Sprint o scope">
@@ -2664,9 +2640,6 @@ function renderPersonView(state) {
         </select>
       </div>
 
-      <div class="flex-1 min-w-0"></div>
-
-      <!-- Action buttons -->
       <div class="person-toolbar-actions">
         <button
           id="person-toggle-filters-panel"
@@ -2680,19 +2653,9 @@ function renderPersonView(state) {
           Filtros
           ${activeFilterCount > 0 ? `<span class="person-toolbar-badge">${activeFilterCount}</span>` : ""}
         </button>
-        <button
-          type="button"
-          class="person-toolbar-btn person-toolbar-btn--icon ${densityIsCompact ? "person-toolbar-btn--active" : ""}"
-          data-person-action="toggle-density"
-          title="${densityIsCompact ? "Vista cómoda (clic para activar)" : "Vista compacta (clic para activar)"}"
-          aria-pressed="${densityIsCompact ? "true" : "false"}"
-        >
-          <i class="fa-solid ${densityIsCompact ? "fa-table-cells-large" : "fa-table-cells"}" aria-hidden="true"></i>
-        </button>
       </div>
     </div>
 
-    <!-- Scope summary strip — always visible -->
     <div class="person-scope-strip">
       <span class="person-scope-label">
         <i class="fa-solid fa-calendar-week" aria-hidden="true"></i>
@@ -2791,12 +2754,6 @@ function renderPersonView(state) {
     });
     controlsDiv.querySelectorAll("[data-person-panel]").forEach((btn) => {
       btn.addEventListener("click", () => appActions.togglePersonViewPanel(btn.dataset.personPanel));
-    });
-    controlsDiv.querySelectorAll("[data-person-action='toggle-density']").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const next = state.taskCardDensity === "compact" ? "comfortable" : "compact";
-        appActions.setTaskCardDensity(next);
-      });
     });
     clearAdvancedBtn?.addEventListener("click", () => {
       appActions.resetPersonViewControls();
@@ -4617,12 +4574,6 @@ function handleAppClick(e) {
         message: `Columna «${meta?.title ?? colId}» colapsada`,
         onUndo: () => appActions.toggleColumnCollapse(colId),
       });
-      return;
-    }
-
-    if (action === "toggle-task-density") {
-      const next = appState.taskCardDensity === "compact" ? "comfortable" : "compact";
-      appActions.setTaskCardDensity(next);
       return;
     }
 
