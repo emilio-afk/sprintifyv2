@@ -65,6 +65,7 @@ const state = {
   personViewSortMode: "load_desc",
   personViewQuickFilter: "all",
   personViewMode: "current",
+  personViewOpenPanel: null,
   personViewDensity: "comfortable",
   hasInitializedPersonViews: false, // Para evitar resetear la vista en cada update
   collapsedColumns: new Set(), // Almacena los IDs ('todo', 'inprogress', 'done')
@@ -155,6 +156,16 @@ const actions = {
     requestRender();
   },
 
+  togglePersonViewPanel(value) {
+    const allowed = new Set(["sprint", "filters"]);
+    if (!allowed.has(value)) {
+      state.personViewOpenPanel = null;
+    } else {
+      state.personViewOpenPanel = state.personViewOpenPanel === value ? null : value;
+    }
+    requestRender();
+  },
+
   setPersonViewDensity(value) {
     const allowed = new Set(["comfortable", "compact"]);
     state.personViewDensity = allowed.has(value) ? value : "comfortable";
@@ -163,11 +174,16 @@ const actions = {
 
   resetPersonViewControls() {
     state.personViewPersonFilter = "all";
-    state.personViewSprintFilter = "all";
     state.personViewSearch = "";
     state.personViewSortMode = "load_desc";
     state.personViewQuickFilter = "all";
-    state.personViewMode = "current";
+    state.personViewOpenPanel = null;
+    requestRender();
+  },
+
+  clearPersonViewAdvancedFilters() {
+    state.personViewSortMode = "load_desc";
+    state.personViewQuickFilter = "all";
     requestRender();
   },
 

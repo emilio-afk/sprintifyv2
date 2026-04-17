@@ -1,0 +1,16 @@
+# Ignorar dependencias
+node_modules/
+
+# Ignorar outputs generados
+repomix-output.xml
+styles/output.css
+
+# Ignorar archivos de diseño/referencia pesados
+awesome-ux/
+docs/
+
+# Ignorar builds y configs de herramientas
+package-lock.json
+netlify.toml
+eslint.config.mjs
+tailwind.config.js

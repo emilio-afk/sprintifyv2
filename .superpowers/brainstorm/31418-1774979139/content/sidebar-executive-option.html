@@ -1,0 +1,244 @@
+<style>
+  .executive-wrap {
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+  .sidebar-mock {
+    background: linear-gradient(180deg, #0b3f26 0%, #082f1d 100%);
+    border-radius: 22px;
+    padding: 18px;
+    color: #f4f7f2;
+    box-shadow: 0 18px 40px rgba(8, 26, 16, 0.24);
+  }
+  .brand-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .brand-lockup {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .brand-badge {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    font-size: 17px;
+    font-weight: 900;
+  }
+  .brand-title {
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  .group {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+  }
+  .group:first-of-type {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+  }
+  .group-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: rgba(244,247,242,0.55);
+    margin-bottom: 8px;
+    font-weight: 700;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 42px;
+    padding: 0 12px;
+    border-radius: 14px;
+    color: rgba(244,247,242,0.92);
+    font-size: 14px;
+    font-weight: 650;
+    margin-bottom: 6px;
+    background: transparent;
+  }
+  .nav-item.active {
+    background: rgba(255,255,255,0.11);
+    border: 1px solid rgba(255,255,255,0.12);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+  }
+  .nav-icon {
+    width: 18px;
+    text-align: center;
+    opacity: 0.92;
+    font-size: 15px;
+  }
+  .nav-note {
+    margin-left: auto;
+    font-size: 11px;
+    color: rgba(244,247,242,0.54);
+    font-weight: 700;
+  }
+  .detail-card {
+    background: #fbfbf7;
+    border: 1px solid #dde2da;
+    border-radius: 22px;
+    padding: 20px 22px;
+    box-shadow: 0 10px 24px rgba(20, 26, 33, 0.06);
+  }
+  .detail-card + .detail-card {
+    margin-top: 14px;
+  }
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    padding: 0 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background: #e9f1fb;
+    color: #2e5d93;
+    margin-left: 8px;
+  }
+  .detail-card h3 {
+    margin: 0 0 8px;
+    font-size: 17px;
+    line-height: 1.2;
+    color: #1d231f;
+  }
+  .detail-card p {
+    margin: 0;
+    color: #5d645b;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .mapping {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .mapping-item {
+    background: #ffffff;
+    border: 1px solid #e1e5dd;
+    border-radius: 14px;
+    padding: 12px;
+  }
+  .mapping-item b {
+    display: block;
+    font-size: 12px;
+    color: #1d231f;
+    margin-bottom: 4px;
+  }
+  .mapping-item span {
+    font-size: 13px;
+    color: #5d645b;
+    line-height: 1.5;
+  }
+  @media (max-width: 980px) {
+    .executive-wrap {
+      grid-template-columns: 1fr;
+    }
+    .mapping {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<h2>Sidebar Más Ejecutivo</h2>
+<p class="subtitle">Dirección pensada para una herramienta de operación diaria que necesita sentirse clara, enfocada y menos “taxonómica”. La navegación habla en lenguaje de gestión, no de estructura interna.</p>
+
+<div class="executive-wrap">
+  <div class="sidebar-mock">
+    <div class="brand-row">
+      <div class="brand-lockup">
+        <div class="brand-badge">S</div>
+        <div class="brand-title">Sprintify</div>
+      </div>
+      <div style="opacity:.6">◧</div>
+    </div>
+
+    <div class="group">
+      <div class="group-label">Operación</div>
+      <div class="nav-item active"><span class="nav-icon">⚑</span><span>Sprint</span><span class="nav-note">hoy</span></div>
+      <div class="nav-item"><span class="nav-icon">◫</span><span>Carga</span></div>
+    </div>
+
+    <div class="group">
+      <div class="group-label">Planeación</div>
+      <div class="nav-item"><span class="nav-icon">☰</span><span>Backlog</span></div>
+      <div class="nav-item"><span class="nav-icon">◧</span><span>Iniciativas</span></div>
+    </div>
+
+    <div class="group">
+      <div class="group-label">Seguimiento</div>
+      <div class="nav-item"><span class="nav-icon">⌘</span><span>Resumen</span></div>
+      <div class="nav-item"><span class="nav-icon">◷</span><span>Cronograma</span></div>
+      <div class="nav-item"><span class="nav-icon">⟲</span><span>Historial</span></div>
+    </div>
+
+    <div class="group">
+      <div class="group-label">Sistema</div>
+      <div class="nav-item"><span class="nav-icon">☷</span><span>Manual</span></div>
+      <div class="nav-item"><span class="nav-icon">⚙</span><span>Configuración</span></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="detail-card">
+      <h3>Tono Ejecutivo <span class="tag">Recomendado</span></h3>
+      <p>El sidebar deja de sonar a “módulos del sistema” y empieza a sonar a “qué necesito revisar para dirigir el sprint”. La jerarquía pasa a ser: operar, planificar, dar seguimiento. Eso lo vuelve más útil para líderes y más directo para el uso diario.</p>
+    </div>
+
+    <div class="detail-card">
+      <h3>Arquitectura propuesta</h3>
+      <p><b>Operación</b> sube arriba porque es el centro del uso diario. <b>Sprint</b> se vuelve la home operativa y <b>Carga</b> reemplaza “Por Persona” para que la navegación hable de capacidad, no del formato de visualización.</p>
+      <div class="mapping">
+        <div class="mapping-item">
+          <b>Sprint</b>
+          <span>Antes: “Sprint Activo”. Más corto, más ejecutivo, más natural.</span>
+        </div>
+        <div class="mapping-item">
+          <b>Carga</b>
+          <span>Antes: “Por Persona”. El foco pasa del layout a la decisión de gestión.</span>
+        </div>
+        <div class="mapping-item">
+          <b>Iniciativas</b>
+          <span>Renombre recomendado para “Epics” si quieres lenguaje menos técnico.</span>
+        </div>
+        <div class="mapping-item">
+          <b>Historial</b>
+          <span>Reemplaza “Sprints Archivados”. Más útil como categoría de seguimiento.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-card">
+      <h3>Lucide sugeridos</h3>
+      <p>
+        <b>Sprint:</b> <code>flag</code><br>
+        <b>Carga:</b> <code>users</code> o <code>layout-dashboard</code><br>
+        <b>Backlog:</b> <code>list-todo</code><br>
+        <b>Iniciativas:</b> <code>folder-kanban</code> o <code>book-open</code><br>
+        <b>Resumen:</b> <code>clipboard-list</code><br>
+        <b>Cronograma:</b> <code>calendar-range</code><br>
+        <b>Historial:</b> <code>archive</code><br>
+        <b>Manual:</b> <code>book-copy</code><br>
+        <b>Configuración:</b> <code>settings-2</code>
+      </p>
+    </div>
+  </div>
+</div>

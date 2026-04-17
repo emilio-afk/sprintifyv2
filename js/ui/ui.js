@@ -6,6 +6,8 @@ let modalCallback = null;
 let appState = {};
 let appActions = {};
 let quillInstance = null;
+let activePersonContextTrigger = null;
+let activePersonContextCleanup = null;
 const MODAL_TEXT_BASE_CLASS = "m-4 text-gray-600 hidden";
 const MODAL_MODE_CLASSES = [
   "is-task-modal",
@@ -1631,9 +1633,9 @@ function renderMyTasksListArea(state) {
 }
 // --- EN ui.js ---
 
-const CYCLE_LENGTH_DAYS = 15;
+const CYCLE_LENGTH_DAYS = 14;
 const CYCLE_POINTS_TARGET = 40;
-const CYCLE_ANCHOR_DATE = new Date(2026, 2, 2); // 2026-03-02 (mes 0-indexado)
+const CYCLE_ANCHOR_DATE = new Date(2026, 2, 16); // 2026-03-16 (lunes, mes 0-indexado)
 
 function getCurrentCycleWindow(referenceDate = new Date(), anchorDate = null) {
   const base = new Date(referenceDate);
@@ -1667,6 +1669,11 @@ function formatCycleDateDMY(date) {
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const y = date.getFullYear();
   return `${d}-${m}-${y}`;
+}
+
+function getQuarterLabel(date) {
+  const quarter = Math.floor(date.getMonth() / 3) + 1;
+  return `Q${quarter} ${date.getFullYear()}`;
 }
 
 function getCycleTitleDateParts(date) {
@@ -1709,16 +1716,31 @@ function buildPersonCapacityBar(metrics, capacity = CYCLE_POINTS_TARGET) {
 
   const aria = `Hecho ${fmt(done)} pts, En progreso ${fmt(inprogress)} pts, Por hacer ${fmt(todo)} pts, Total ${fmt(total)} de ${fmt(cap)} puntos`;
 
+  // Separadores para accesibilidad daltonismo: solo en segmentos con ancho > 0 que tengan alguno posterior visible
+  const hasDone = doneIn > 0;
+  const hasProgress = progressIn > 0;
+  const hasTodo = todoIn > 0;
+  const hasEmpty = emptyIn > 0;
+  const doneSep = hasDone && (hasProgress || hasTodo || hasEmpty) ? "person-capacity-segment--has-separator" : "";
+  const progressSep = hasProgress && (hasTodo || hasEmpty) ? "person-capacity-segment--has-separator" : "";
+  const todoSep = hasTodo && hasEmpty ? "person-capacity-segment--has-separator" : "";
+
   return `
     <div class="person-capacity-wrap" title="${aria}">
       <div class="person-capacity-head">
         <span class="person-capacity-title">Capacidad ciclo</span>
       </div>
 
-      <div class="person-capacity-bar" role="img" aria-label="${aria}">
-        <span class="person-capacity-segment person-capacity-segment--done" style="width:${pct(doneIn)}" title="Hecho ${fmt(done)} pts"></span>
-        <span class="person-capacity-segment person-capacity-segment--progress" style="width:${pct(progressIn)}" title="En progreso ${fmt(inprogress)} pts"></span>
-        <span class="person-capacity-segment person-capacity-segment--todo" style="width:${pct(todoIn)}" title="Por hacer ${fmt(todo)} pts"></span>
+      <div class="person-capacity-bar" role="group" aria-label="${aria}">
+        <span class="person-capacity-segment person-capacity-segment--done ${doneSep}"
+              role="meter" aria-label="Hecho" aria-valuenow="${fmt(done)}" aria-valuemin="0" aria-valuemax="${fmt(cap)}"
+              style="width:${pct(doneIn)}" title="Hecho ${fmt(done)} pts"></span>
+        <span class="person-capacity-segment person-capacity-segment--progress ${progressSep}"
+              role="meter" aria-label="En progreso" aria-valuenow="${fmt(inprogress)}" aria-valuemin="0" aria-valuemax="${fmt(cap)}"
+              style="width:${pct(progressIn)}" title="En progreso ${fmt(inprogress)} pts"></span>
+        <span class="person-capacity-segment person-capacity-segment--todo ${todoSep}"
+              role="meter" aria-label="Pendiente" aria-valuenow="${fmt(todo)}" aria-valuemin="0" aria-valuemax="${fmt(cap)}"
+              style="width:${pct(todoIn)}" title="Por hacer ${fmt(todo)} pts"></span>
         <span class="person-capacity-segment person-capacity-segment--empty" style="width:${pct(emptyIn)}" aria-hidden="true"></span>
       </div>
 
@@ -1757,34 +1779,11 @@ function renderPersonView(state) {
   const cycleWindow = getCurrentCycleWindow(new Date());
   const cycleStartLabel = formatCycleDateDMY(cycleWindow.start);
   const cycleEnd = new Date(cycleWindow.endExclusive);
-  cycleEnd.setDate(cycleEnd.getDate() - 1);
+  cycleEnd.setDate(cycleEnd.getDate() - 3); // retrocede al viernes (fin de semana laboral)
   const cycleEndLabel = formatCycleDateDMY(cycleEnd);
-  const cycleStartParts = getCycleTitleDateParts(cycleWindow.start);
-  const cycleEndParts = getCycleTitleDateParts(cycleEnd);
+  const viewMode = state.personViewMode || "current";
   if (dom.viewTitle) {
-    dom.viewTitle.innerHTML = `
-      Por persona
-      <span class="view-title-cycle" title="Ciclo actual: ${cycleStartLabel} a ${cycleEndLabel}">
-        <span class="view-title-cycle-kicker">Ciclo activo</span>
-        <span class="view-title-cycle-range">
-          <span class="view-title-cycle-date">
-            <span class="view-title-cycle-day">${cycleStartParts.day}</span>
-            <span class="view-title-cycle-date-meta">
-              <span class="view-title-cycle-month">${cycleStartParts.month}</span>
-              <span class="view-title-cycle-year">${cycleStartParts.year}</span>
-            </span>
-          </span>
-          <span class="view-title-cycle-separator" aria-hidden="true">→</span>
-          <span class="view-title-cycle-date">
-            <span class="view-title-cycle-day">${cycleEndParts.day}</span>
-            <span class="view-title-cycle-date-meta">
-              <span class="view-title-cycle-month">${cycleEndParts.month}</span>
-              <span class="view-title-cycle-year">${cycleEndParts.year}</span>
-            </span>
-          </span>
-        </span>
-      </span>
-    `;
+    dom.viewTitle.textContent = "Carga";
   }
 
   const normalize = (email) => (email ? email.trim().toLowerCase() : "unassigned");
@@ -1833,12 +1832,28 @@ function renderPersonView(state) {
     return candidates.length ? Math.max(...candidates) : 0;
   };
 
-  let sprintOptions = `<option value="all">Todos los Sprints Activos</option>`;
+  const allSprintOptionLabel =
+    viewMode === "history" ? "Toda la historia disponible" : "Todos los sprints activos";
+  let sprintOptions = `<option value="all">${allSprintOptionLabel}</option>`;
   state.taskLists
-    .filter((l) => !l.isBacklog && !l.isArchived)
-    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
-    .forEach((s) => {
-      sprintOptions += `<option value="${s.id}">${s.title}</option>`;
+    .filter((list) => !list.isBacklog)
+    .sort((a, b) => {
+      if (Boolean(a.isArchived) !== Boolean(b.isArchived)) return Number(a.isArchived) - Number(b.isArchived);
+      const aTime =
+        getDateValue(a.endDate)?.getTime() ||
+        getDateValue(a.startDate)?.getTime() ||
+        getDateValue(a.createdAt)?.getTime() ||
+        0;
+      const bTime =
+        getDateValue(b.endDate)?.getTime() ||
+        getDateValue(b.startDate)?.getTime() ||
+        getDateValue(b.createdAt)?.getTime() ||
+        0;
+      return bTime - aTime;
+    })
+    .forEach((sprint) => {
+      const historySuffix = sprint.isArchived ? " · Histórico" : "";
+      sprintOptions += `<option value="${sprint.id}">${sprint.title}${historySuffix}</option>`;
     });
 
   const uniqueEmails = new Set();
@@ -1852,15 +1867,17 @@ function renderPersonView(state) {
     }
   });
 
-  let tasksToShow = [];
-  if (state.personViewSprintFilter === "all" || !state.personViewSprintFilter) {
-    const activeSprintIds = state.taskLists
-      .filter((l) => !l.isBacklog && !l.isArchived)
-      .map((l) => l.id);
-    tasksToShow = state.tasks.filter((t) => activeSprintIds.includes(t.listId));
-  } else {
-    tasksToShow = state.tasks.filter((t) => t.listId === state.personViewSprintFilter);
-  }
+  const selectedSprintId = state.personViewSprintFilter || "all";
+  const isHistoryScope = viewMode === "history";
+  const selectedSprint = selectedSprintId !== "all" ? sprintMap.get(selectedSprintId) : null;
+  const sprintScopedIds =
+    selectedSprintId === "all"
+      ? state.taskLists
+          .filter((list) => !list.isBacklog && (isHistoryScope || !list.isArchived))
+          .map((list) => list.id)
+      : [selectedSprintId];
+  const scopeTasks = state.tasks.filter((task) => sprintScopedIds.includes(task.listId));
+  const tasksToShow = scopeTasks;
 
   const grouped = { unassigned: [] };
   const profileMap = {};
@@ -1928,32 +1945,42 @@ function renderPersonView(state) {
   const getRiskState = (currentLoad, personCapacity = CYCLE_POINTS_TARGET) => {
     const cap = Math.max(1, Number(personCapacity) || CYCLE_POINTS_TARGET);
     const ratio = currentLoad / cap;
-    if (ratio > 1) {
+    if (ratio > 1.05) {
       return {
-        key: "high",
-        label: "Sobre meta",
-        title: `Carga mayor al 100% de la meta (${cap} pts por ciclo).`,
-        className: "person-risk-text--high",
-        chipClass: "person-risk-chip--high",
+        key: "overloaded",
+        label: "Sobrecargado",
+        title: `Carga mayor al 105% de la meta (${cap} pts por ciclo).`,
+        className: "person-risk-text--overloaded",
+        chipClass: "person-risk-chip--overloaded",
         score: ratio + 1,
       };
     }
-    if (ratio > 0.7) {
+    if (ratio > 0.95) {
       return {
-        key: "medium",
+        key: "at-limit",
         label: "En límite",
-        title: `Carga entre 70% y 100% de la meta (${cap} pts por ciclo).`,
-        className: "person-risk-text--medium",
-        chipClass: "person-risk-chip--medium",
+        title: `Carga entre 95% y 105% de la meta (${cap} pts por ciclo).`,
+        className: "person-risk-text--at-limit",
+        chipClass: "person-risk-chip--at-limit",
         score: ratio + 0.4,
       };
     }
+    if (ratio >= 0.70) {
+      return {
+        key: "optimal",
+        label: "Óptimo",
+        title: `Carga entre 70% y 95% de la meta (${cap} pts por ciclo).`,
+        className: "person-risk-text--optimal",
+        chipClass: "person-risk-chip--optimal",
+        score: ratio + 0.1,
+      };
+    }
     return {
-      key: "low",
-      label: "En rango",
-      title: `Carga menor o igual al 70% de la meta (${cap} pts por ciclo).`,
-      className: "person-risk-text--low",
-      chipClass: "person-risk-chip--low",
+      key: "underloaded",
+      label: "Subutilizado",
+      title: `Carga menor al 70% de la meta (${cap} pts por ciclo).`,
+      className: "person-risk-text--underloaded",
+      chipClass: "person-risk-chip--underloaded",
       score: ratio,
     };
   };
@@ -1987,7 +2014,8 @@ function renderPersonView(state) {
       ptsTodo,
       capacity: personCapacity,
       currentLoad,
-      isOverloaded: currentLoad > personCapacity,
+      isOverloaded: currentLoad > personCapacity * 1.05,
+      completionPct: currentLoad > 0 ? Math.round((ptsDoneThisCycle / currentLoad) * 100) : 0,
       risk,
       riskScore,
     };
@@ -1997,7 +2025,6 @@ function renderPersonView(state) {
   const searchValue = (state.personViewSearch || "").trim().toLowerCase();
   const quickFilter = state.personViewQuickFilter || "all";
   const sortMode = state.personViewSortMode || "load_desc";
-  const viewMode = state.personViewMode || "current";
 
   let visibleKeys = allKeys.filter((k) => (metricsMap[k]?.tasksCount || 0) > 0);
   if (personFilter !== "all") {
@@ -2035,6 +2062,9 @@ function renderPersonView(state) {
   };
 
   visibleKeys.sort((a, b) => {
+    // "Sin Asignar" siempre fijo al tope, independiente del modo de orden
+    if (a === "unassigned") return -1;
+    if (b === "unassigned") return 1;
     const ma = metricsMap[a] || {};
     const mb = metricsMap[b] || {};
     switch (sortMode) {
@@ -2057,31 +2087,40 @@ function renderPersonView(state) {
     }
   });
 
-  const summary = visibleKeys.reduce(
-    (acc, emailKey) => {
-      const m = metricsMap[emailKey];
-      if (!m) return acc;
-      acc.people += emailKey === "unassigned" ? 0 : 1;
-      acc.tasks += m.tasksCount;
-      acc.overloaded += m.isOverloaded ? 1 : 0;
-      acc.unassigned += emailKey === "unassigned" ? m.tasksCount : 0;
-      acc.liveLoad += m.ptsInProgress;
-      acc.doneCycle += m.ptsDoneThisCycle;
-      acc.totalLoad += m.currentLoad;
-      acc.totalCapacity += emailKey === "unassigned" ? 0 : Number(m.capacity) || CYCLE_POINTS_TARGET;
-      return acc;
-    },
-    {
-      people: 0,
-      tasks: 0,
-      overloaded: 0,
-      unassigned: 0,
-      liveLoad: 0,
-      doneCycle: 0,
-      totalLoad: 0,
-      totalCapacity: 0,
-    }
-  );
+  const scopeKeys = allKeys.filter((emailKey) => (metricsMap[emailKey]?.tasksCount || 0) > 0);
+  const buildSummary = (keys) =>
+    keys.reduce(
+      (acc, emailKey) => {
+        const m = metricsMap[emailKey];
+        if (!m) return acc;
+        acc.people += emailKey === "unassigned" ? 0 : 1;
+        acc.tasks += m.tasksCount;
+        acc.overloaded += m.isOverloaded ? 1 : 0;
+        acc.unassigned += emailKey === "unassigned" ? m.tasksCount : 0;
+        acc.liveLoad += m.ptsInProgress;
+        acc.doneCycle += m.ptsDoneThisCycle;
+        acc.totalLoad += m.currentLoad;
+        acc.totalCapacity += emailKey === "unassigned" ? 0 : Number(m.capacity) || CYCLE_POINTS_TARGET;
+        return acc;
+      },
+      {
+        people: 0,
+        tasks: 0,
+        overloaded: 0,
+        unassigned: 0,
+        liveLoad: 0,
+        doneCycle: 0,
+        totalLoad: 0,
+        totalCapacity: 0,
+      }
+    );
+  const cycleSummary = buildSummary(scopeKeys);
+  const filteredSummary = buildSummary(visibleKeys);
+  const visibleKeySet = new Set(visibleKeys);
+  const filteredTasks = tasksToShow.filter((task) => {
+    const assigneeKey = task.assignee ? normalize(task.assignee) : "unassigned";
+    return visibleKeySet.has(assigneeKey);
+  });
 
   const formatCycleKey = (date) => {
     const y = date.getFullYear();
@@ -2098,21 +2137,9 @@ function renderPersonView(state) {
     return dates[0] || null;
   };
 
-  const buildHistoryAnalytics = () => {
-    const relevantSprintIds = new Set(
-      state.personViewSprintFilter && state.personViewSprintFilter !== "all"
-        ? [state.personViewSprintFilter]
-        : state.taskLists.filter((list) => !list.isBacklog).map((list) => list.id)
-    );
-    const visibleKeySet = new Set(visibleKeys.length ? visibleKeys : allKeys);
-    const scopedTasks = state.tasks.filter((task) => {
-      if (!relevantSprintIds.has(task.listId)) return false;
-      const assigneeKey = task.assignee ? normalize(task.assignee) : "unassigned";
-      return visibleKeySet.has(assigneeKey);
-    });
-
-    const cycleKeySet = new Set([formatCycleKey(cycleWindow.start)]);
-    scopedTasks.forEach((task) => {
+  const buildHistoryAnalytics = (historyTasks) => {
+    const cycleKeySet = new Set();
+    historyTasks.forEach((task) => {
       [task.createdAt, task.startedAt, task.completedAt].forEach((value) => {
         const date = getDateValue(value);
         if (!date) return;
@@ -2134,7 +2161,7 @@ function renderPersonView(state) {
       const activePeople = new Set();
       const openLoadByPerson = new Map();
 
-      scopedTasks.forEach((task) => {
+      historyTasks.forEach((task) => {
         const points = Number(task.points) || 0;
         const assigneeKey = task.assignee ? normalize(task.assignee) : "unassigned";
         const entryDate = getTaskEntryDate(task);
@@ -2208,6 +2235,59 @@ function renderPersonView(state) {
     };
   };
 
+  const historyAnalytics = buildHistoryAnalytics(filteredTasks);
+  const selectedSprintLabel = selectedSprint?.title || allSprintOptionLabel;
+
+  const latestMs = tasksToShow.reduce((max, task) => Math.max(max, getLastUpdatedMs(task)), 0);
+  const latestLabel = latestMs
+    ? new Date(latestMs).toLocaleString("es-MX", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "Sin actividad reciente";
+
+  const scopeRangeDates = tasksToShow
+    .flatMap((task) => [task.createdAt, task.startedAt, task.completedAt].map((value) => getDateValue(value)))
+    .filter(Boolean)
+    .sort((a, b) => a.getTime() - b.getTime());
+  const scopeStartDate = scopeRangeDates[0] || null;
+  const scopeEndDate = scopeRangeDates[scopeRangeDates.length - 1] || null;
+  const sprintStartDate = getDateValue(selectedSprint?.startDate);
+  const sprintEndDate = getDateValue(selectedSprint?.endDate);
+  let scopePeriodPillLabel = `Ciclo actual: ${cycleStartLabel} a ${cycleEndLabel}`;
+  if (selectedSprint) {
+    if (sprintStartDate || sprintEndDate) {
+      const startLabel = sprintStartDate ? formatCycleDateDMY(sprintStartDate) : "Sin inicio";
+      const endLabel = sprintEndDate ? formatCycleDateDMY(sprintEndDate) : "Sin cierre";
+      scopePeriodPillLabel = `Sprint: ${startLabel} a ${endLabel}`;
+    } else {
+      scopePeriodPillLabel = "Sprint sin fechas configuradas";
+    }
+  } else if (viewMode === "history") {
+    scopePeriodPillLabel =
+      scopeStartDate && scopeEndDate
+        ? `Historial: ${formatCycleDateDMY(scopeStartDate)} a ${formatCycleDateDMY(scopeEndDate)}`
+        : "Historial acumulado";
+  }
+  const scopeFreshnessPillLabel = latestMs ? `Última actividad: ${latestLabel}` : "Sin actividad reciente";
+
+  const cycleCapacity = Math.max(0, Number(cycleSummary.totalCapacity) || 0);
+  const cycleUtilizationPct =
+    cycleCapacity > 0 ? Math.round((cycleSummary.totalLoad / cycleCapacity) * 100) : 0;
+  const cycleCompletionPct =
+    cycleCapacity > 0 ? Math.round((cycleSummary.doneCycle / cycleCapacity) * 100) : 0;
+  const cycleLivePct =
+    cycleCapacity > 0 ? Math.round((cycleSummary.liveLoad / cycleCapacity) * 100) : 0;
+  const cycleAvailablePts = Math.max(cycleCapacity - cycleSummary.totalLoad, 0);
+  const cycleOverflowPts = Math.max(cycleSummary.totalLoad - cycleCapacity, 0);
+  const cycleAvgCapacity = cycleSummary.people > 0 ? Math.round(cycleCapacity / cycleSummary.people) : 0;
+
+  const filteredCapacity = Math.max(0, Number(filteredSummary.totalCapacity) || 0);
+  const filteredCompletionPct =
+    filteredCapacity > 0 ? Math.round((filteredSummary.doneCycle / filteredCapacity) * 100) : 0;
+
   const mountHistoryCharts = (historyPanel, analytics) => {
     const chartShells = historyPanel.querySelectorAll(".person-history-chart-shell");
     if (!analytics.cycles.length) {
@@ -2230,7 +2310,29 @@ function renderPersonView(state) {
     const textColor = rootStyles.getPropertyValue("--ink").trim() || "#1d231f";
     const mutedColor = rootStyles.getPropertyValue("--muted").trim() || "#5d645b";
     const gridColor = rootStyles.getPropertyValue("--line-default").trim() || "#ccd0bf";
+    const doneColor = rootStyles.getPropertyValue("--person-work-done").trim() || "#476c9b";
+    const liveColor = rootStyles.getPropertyValue("--person-work-live").trim() || "#0f8c76";
+    const todoColor = rootStyles.getPropertyValue("--person-work-todo").trim() || "#c38c47";
+    const neutralColor =
+      rootStyles.getPropertyValue("--person-risk-underloaded-strong").trim() || "#7a7567";
+    const neutralFill = rootStyles.getPropertyValue("--person-work-free").trim() || "#d9ddd2";
+    const riskColor =
+      rootStyles.getPropertyValue("--person-risk-overloaded-strong").trim() || "#a84d57";
+    const limitColor =
+      rootStyles.getPropertyValue("--person-risk-at-limit-strong").trim() || "#7e6f40";
     const fontFamily = rootStyles.getPropertyValue("--font-body").trim() || "Inter, sans-serif";
+    const toRgba = (hex, alpha) => {
+      const value = hex.replace("#", "");
+      if (![3, 6].includes(value.length)) return hex;
+      const normalized =
+        value.length === 3 ? value.split("").map((part) => `${part}${part}`).join("") : value;
+      const bigint = Number.parseInt(normalized, 16);
+      if (Number.isNaN(bigint)) return hex;
+      const r = (bigint >> 16) & 255;
+      const g = (bigint >> 8) & 255;
+      const b = bigint & 255;
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    };
 
     const baseOptions = {
       responsive: true,
@@ -2323,18 +2425,18 @@ function renderPersonView(state) {
               {
                 label: "Hecho",
                 data: analytics.donePoints,
-                borderColor: "#08a95d",
-                backgroundColor: "rgba(8, 169, 93, 0.14)",
+                borderColor: doneColor,
+                backgroundColor: toRgba(doneColor, 0.16),
                 fill: true,
                 tension: 0.32,
                 pointRadius: 3,
                 pointHoverRadius: 4,
-                pointBackgroundColor: "#08a95d",
+                pointBackgroundColor: doneColor,
               },
               {
                 label: "Capacidad",
                 data: analytics.capacity,
-                borderColor: "#a7ad96",
+                borderColor: neutralColor,
                 borderDash: [6, 6],
                 borderWidth: 2,
                 pointRadius: 0,
@@ -2357,7 +2459,7 @@ function renderPersonView(state) {
                 type: "bar",
                 label: "En progreso",
                 data: analytics.inProgressOpen,
-                backgroundColor: "#00592f",
+                backgroundColor: liveColor,
                 borderRadius: 6,
                 stack: "load",
               },
@@ -2365,8 +2467,8 @@ function renderPersonView(state) {
                 type: "bar",
                 label: "Pendiente",
                 data: analytics.todoOpen,
-                backgroundColor: "#d9dbc6",
-                borderColor: "#ccd0bf",
+                backgroundColor: todoColor,
+                borderColor: toRgba(todoColor, 0.5),
                 borderWidth: 1,
                 borderRadius: 6,
                 stack: "load",
@@ -2375,8 +2477,8 @@ function renderPersonView(state) {
                 type: "line",
                 label: "Capacidad",
                 data: analytics.capacity,
-                borderColor: "#08a95d",
-                backgroundColor: "#08a95d",
+                borderColor: neutralColor,
+                backgroundColor: neutralColor,
                 borderWidth: 2,
                 pointRadius: 2,
                 pointHoverRadius: 3,
@@ -2412,19 +2514,19 @@ function renderPersonView(state) {
               {
                 label: "Sobrecargados",
                 data: analytics.overloadedPeople,
-                backgroundColor: "#8d4646",
+                backgroundColor: riskColor,
                 borderRadius: 6,
               },
               {
                 label: "Sin asignar",
                 data: analytics.unassignedOpen,
-                backgroundColor: "#a7ad96",
+                backgroundColor: neutralFill,
                 borderRadius: 6,
               },
               {
                 label: "Sin avance",
                 data: analytics.noProgress,
-                backgroundColor: "#c8ba82",
+                backgroundColor: limitColor,
                 borderRadius: 6,
               },
             ],
@@ -2436,24 +2538,6 @@ function renderPersonView(state) {
 
     state.personHistoryCharts = charts;
   };
-
-  const latestMs = tasksToShow.reduce((max, task) => Math.max(max, getLastUpdatedMs(task)), 0);
-  const latestLabel = latestMs
-    ? new Date(latestMs).toLocaleString("es-MX", {
-        day: "2-digit",
-        month: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : "Sin actividad reciente";
-  const cycleCapacity = Math.max(0, Number(summary.totalCapacity) || 0);
-  const utilizationPct =
-    cycleCapacity > 0 ? Math.round((summary.totalLoad / cycleCapacity) * 100) : 0;
-  const completionPct = cycleCapacity > 0 ? Math.round((summary.doneCycle / cycleCapacity) * 100) : 0;
-  const livePct = cycleCapacity > 0 ? Math.round((summary.liveLoad / cycleCapacity) * 100) : 0;
-  const availablePts = Math.max(cycleCapacity - summary.totalLoad, 0);
-  const overflowPts = Math.max(summary.totalLoad - cycleCapacity, 0);
-  const avgCapacity = summary.people > 0 ? Math.round(cycleCapacity / summary.people) : 0;
 
   const quickChips = [
     { key: "all", label: "Todos" },
@@ -2472,8 +2556,12 @@ function renderPersonView(state) {
   const activeSort = sortOptions.find((option) => option.key === sortMode);
   const hasQuickFilter = quickFilter !== "all";
   const hasCustomSort = sortMode !== "load_desc";
-  const activeFilterCount = Number(hasQuickFilter) + Number(hasCustomSort);
-  const showAdvancedByDefault = hasQuickFilter || hasCustomSort;
+  const activeQuickFilterCount = Number(hasQuickFilter);
+  const openPanel = state.personViewOpenPanel || null;
+  const isSprintPanelOpen = openPanel === "sprint";
+  const isFiltersPanelOpen = openPanel === "filters";
+  const isMobileToolbar =
+    window.matchMedia?.("(max-width: 640px)").matches ?? window.innerWidth <= 640;
   const quickChipsHTML = quickChips
     .map((chip) => {
       const active = quickFilter === chip.key;
@@ -2492,50 +2580,180 @@ function renderPersonView(state) {
 
   const controlsDiv = document.createElement("div");
   controlsDiv.className = "person-toolbar-shell mb-3";
-  controlsDiv.innerHTML = `
-    <div class="person-toolbar-main">
-      <div class="person-control-field person-control-field--slim">
-          <label class="person-control-label">Persona</label>
-          <select id="person-view-people-filter" class="person-control-input person-control-input--slim">${peopleOptions}</select>
-      </div>
-      <div class="person-control-field person-control-field--slim">
-          <label class="person-control-label">Sprint</label>
-          <select id="person-view-filter" class="person-control-input person-control-input--slim">${sprintOptions}</select>
-      </div>
-      <div class="person-control-field person-control-field--slim">
-          <label class="person-control-label">Buscar</label>
-          <input id="person-view-search" type="text" value="${(state.personViewSearch || "").replace(/"/g, "&quot;")}" placeholder="Nombre o email" class="person-control-input person-control-input--slim" />
-      </div>
-      <div class="person-control-field person-control-field--slim">
-          <label class="person-control-label">Ver</label>
-          <div id="person-view-mode" class="person-mode-toggle person-mode-toggle--slim">
-            <button type="button" data-person-mode="current" class="flex-1 h-full rounded-md text-[13px] font-semibold transition-colors ${viewMode === "current" ? "bg-[color:var(--brand-700)] text-white" : "text-[color:var(--muted)] hover:bg-[color:var(--surface-secondary)]"}">Actual</button>
-            <button type="button" data-person-mode="history" class="flex-1 h-full rounded-md text-[13px] font-semibold transition-colors ${viewMode === "history" ? "bg-[color:var(--brand-700)] text-white" : "text-[color:var(--muted)] hover:bg-[color:var(--surface-secondary)]"}">Histórico</button>
-          </div>
-      </div>
-
-      <div class="person-toolbar-actions">
-        <button id="person-toggle-advanced-panel" type="button" class="person-toolbar-btn" aria-expanded="${showAdvancedByDefault ? "true" : "false"}">
-          <i class="fa-solid fa-sliders"></i>
-          Filtros
-          ${activeFilterCount > 0 ? `<span class="person-toolbar-badge">${activeFilterCount}</span>` : ""}
+  const personFieldHTML = `
+    <div class="person-control-field person-control-field--slim">
+      <label class="person-control-label" for="person-view-people-filter">Persona</label>
+      <select id="person-view-people-filter" class="person-control-input person-control-input--slim">${peopleOptions}</select>
+    </div>
+  `;
+  const searchFieldHTML = `
+    <div class="person-control-field person-control-field--slim">
+      <label class="person-control-label" for="person-view-search">Buscar</label>
+      <input
+        id="person-view-search"
+        type="text"
+        value="${(state.personViewSearch || "").replace(/"/g, "&quot;")}"
+        placeholder="Nombre o email"
+        class="person-control-input person-control-input--slim"
+      />
+    </div>
+  `;
+  const modeFieldHTML = `
+    <div class="person-control-field person-control-field--slim">
+      <span class="person-control-label" id="person-view-mode-label">Ver</span>
+      <div
+        id="person-view-mode"
+        class="person-mode-toggle person-mode-toggle--slim"
+        role="tablist"
+        aria-labelledby="person-view-mode-label"
+      >
+        <button
+          id="person-view-tab-current"
+          type="button"
+          role="tab"
+          data-person-mode="current"
+          aria-selected="${viewMode === "current" ? "true" : "false"}"
+          aria-controls="person-view-panel-current"
+          tabindex="${viewMode === "current" ? "0" : "-1"}"
+          class="flex-1 h-full rounded-md text-[13px] font-semibold transition-colors ${viewMode === "current" ? "bg-[color:var(--brand-700)] text-white" : "text-[color:var(--muted)] hover:bg-[color:var(--surface-secondary)]"}"
+        >
+          Actual
         </button>
-        <button id="person-open-history-report" type="button" class="person-history-btn person-history-btn--slim">
-          <i class="fas fa-table"></i> Tabla
+        <button
+          id="person-view-tab-history"
+          type="button"
+          role="tab"
+          data-person-mode="history"
+          aria-selected="${viewMode === "history" ? "true" : "false"}"
+          aria-controls="person-view-panel-history"
+          tabindex="${viewMode === "history" ? "0" : "-1"}"
+          class="flex-1 h-full rounded-md text-[13px] font-semibold transition-colors ${viewMode === "history" ? "bg-[color:var(--brand-700)] text-white" : "text-[color:var(--muted)] hover:bg-[color:var(--surface-secondary)]"}"
+        >
+          Histórico
         </button>
       </div>
     </div>
+  `;
+  const actionButtonsHTML = `
+    <div class="person-toolbar-actions">
+      <button
+        id="person-toggle-sprint-panel"
+        type="button"
+        class="person-toolbar-btn"
+        data-person-panel="sprint"
+        aria-expanded="${isSprintPanelOpen ? "true" : "false"}"
+        aria-controls="person-toolbar-sprint-panel"
+      >
+        <i class="fa-solid fa-calendar-week" aria-hidden="true"></i>
+        Sprint
+      </button>
+      <button
+        id="person-toggle-filters-panel"
+        type="button"
+        class="person-toolbar-btn"
+        data-person-panel="filters"
+        aria-expanded="${isFiltersPanelOpen ? "true" : "false"}"
+        aria-controls="person-toolbar-filters-panel"
+      >
+        <i class="fa-solid fa-sliders" aria-hidden="true"></i>
+        Filtros
+        ${activeQuickFilterCount > 0 ? `<span class="person-toolbar-badge">${activeQuickFilterCount}</span>` : ""}
+      </button>
+    </div>
+  `;
+  const toolbarMainHTML = isMobileToolbar
+    ? `${modeFieldHTML}${personFieldHTML}${searchFieldHTML}${actionButtonsHTML}`
+    : `${personFieldHTML}${searchFieldHTML}${modeFieldHTML}${actionButtonsHTML}`;
+  controlsDiv.innerHTML = `
+    <div class="person-toolbar-main">
+      ${toolbarMainHTML}
+    </div>
 
-    <div id="person-toolbar-collapsible" class="person-toolbar-collapsible ${showAdvancedByDefault ? "" : "u-hidden"}">
-      <div class="person-toolbar-panel">
+    <div id="person-toolbar-collapsible" class="person-toolbar-collapsible ${openPanel ? "" : "u-hidden"}">
+      <section
+        id="person-toolbar-sprint-panel"
+        class="person-toolbar-panel ${isSprintPanelOpen ? "" : "u-hidden"}"
+        role="region"
+        aria-labelledby="person-toggle-sprint-panel"
+      >
+        <div class="person-toolbar-panel-head">
+          <h3>Contexto del ciclo</h3>
+          <span class="person-filter-pill">${selectedSprintLabel}</span>
+        </div>
+        <div class="person-toolbar-bottom-row">
+          <div class="person-toolbar-sort-wrap">
+            <label class="person-control-label" for="person-view-filter">Sprint</label>
+            <select id="person-view-filter" class="person-control-input person-control-input--slim">${sprintOptions}</select>
+          </div>
+          <div class="person-toolbar-active-row">
+            <span class="person-filter-pill">${scopePeriodPillLabel}</span>
+            <span class="person-filter-pill">${scopeFreshnessPillLabel}</span>
+          </div>
+        </div>
+        <div class="person-cycle-bento">
+          <article class="person-cycle-card person-cycle-card--hero">
+            <p class="person-cycle-eyebrow">Scope actual</p>
+            <h4>${selectedSprintLabel}</h4>
+            <p class="person-cycle-subline">Contexto estable del ciclo, independiente de filtros por persona.</p>
+          </article>
+
+          <article class="person-cycle-card person-cycle-card--capacity ${cycleOverflowPts > 0 ? "person-cycle-card--warn" : ""}">
+            <p class="person-cycle-eyebrow">Capacidad del ciclo</p>
+            <h4>${cycleSummary.totalLoad} / ${cycleCapacity} pts</h4>
+            <p class="person-cycle-subline">${cycleUtilizationPct}% de uso · ${cycleOverflowPts > 0 ? `+${cycleOverflowPts} pts sobre capacidad` : `${cycleAvailablePts} pts libres`}</p>
+            <div class="person-cycle-track">
+              <span class="person-cycle-fill person-cycle-fill--load" style="width:${Math.min(cycleUtilizationPct, 100)}%"></span>
+            </div>
+            <div class="person-cycle-track">
+              <span class="person-cycle-fill person-cycle-fill--done" style="width:${Math.min(cycleLivePct, 100)}%"></span>
+            </div>
+            <div class="person-cycle-inline-kpis">
+              <span><b>Hecho:</b> ${cycleSummary.doneCycle} pts (${cycleCompletionPct}%)</span>
+              <span><b>Carga viva:</b> ${cycleSummary.liveLoad} pts (${cycleLivePct}%)</span>
+            </div>
+          </article>
+
+          <article class="person-cycle-card person-cycle-card--risk ${cycleSummary.overloaded > 0 ? "person-cycle-card--alert" : ""}">
+            <p class="person-cycle-eyebrow">Riesgo operativo</p>
+            <h4>${cycleSummary.overloaded} sobrecargados</h4>
+            <p class="person-cycle-subline">${cycleSummary.unassigned} tareas sin asignar · ${cycleSummary.tasks} tareas evaluadas</p>
+          </article>
+
+          <article class="person-cycle-card person-cycle-card--mini">
+            <p class="person-cycle-eyebrow">Equipo</p>
+            <h4>${cycleSummary.people}</h4>
+          </article>
+          <article class="person-cycle-card person-cycle-card--mini">
+            <p class="person-cycle-eyebrow">Tareas</p>
+            <h4>${cycleSummary.tasks}</h4>
+          </article>
+          <article class="person-cycle-card person-cycle-card--mini">
+            <p class="person-cycle-eyebrow">Carga viva</p>
+            <h4>${cycleSummary.liveLoad} pts</h4>
+            <p class="person-cycle-subline">${cycleLivePct}% de capacidad</p>
+          </article>
+          <article class="person-cycle-card person-cycle-card--mini person-cycle-card--accent">
+            <p class="person-cycle-eyebrow">Capacidad acumulada</p>
+            <h4>${cycleCapacity} pts</h4>
+            <p class="person-cycle-subline">Promedio ${cycleAvgCapacity} pts por persona</p>
+          </article>
+        </div>
+      </section>
+
+      <section
+        id="person-toolbar-filters-panel"
+        class="person-toolbar-panel ${isFiltersPanelOpen ? "" : "u-hidden"}"
+        role="region"
+        aria-labelledby="person-toggle-filters-panel"
+      >
         <div class="person-toolbar-panel-head">
           <h3>Filtros específicos</h3>
-          <button id="person-clear-advanced-panel" type="button" class="person-toolbar-clear ${activeFilterCount > 0 ? "" : "u-hidden"}">Limpiar</button>
+          <button id="person-clear-advanced-panel" type="button" class="person-toolbar-clear ${hasQuickFilter || hasCustomSort ? "" : "u-hidden"}">Limpiar</button>
         </div>
         <div id="person-view-quick-filters" class="person-quick-filters">${quickChipsHTML}</div>
         <div class="person-toolbar-bottom-row">
           <div class="person-toolbar-sort-wrap">
-            <label class="person-control-label">Ordenar</label>
+            <label class="person-control-label" for="person-view-sort">Ordenar</label>
             <select id="person-view-sort" class="person-control-input person-control-input--slim">
               <option value="load_desc" ${sortMode === "load_desc" ? "selected" : ""}>Carga total</option>
               <option value="risk_desc" ${sortMode === "risk_desc" ? "selected" : ""}>Riesgo</option>
@@ -2543,134 +2761,109 @@ function renderPersonView(state) {
               <option value="name_asc" ${sortMode === "name_asc" ? "selected" : ""}>A-Z</option>
             </select>
           </div>
-          <div class="person-toolbar-active-row ${activeFilterCount > 0 ? "" : "u-hidden"}">${activePillsHTML}</div>
+          <div class="person-toolbar-active-row ${hasQuickFilter || hasCustomSort ? "" : "u-hidden"}">${activePillsHTML}</div>
         </div>
-      </div>
-
-      <details class="person-toolbar-panel person-toolbar-panel--context">
-        <summary>Contexto del ciclo</summary>
-        <div class="person-cycle-bento">
-          <article class="person-cycle-card person-cycle-card--hero">
-            <p class="person-cycle-eyebrow">Periodo activo</p>
-            <h4>${cycleStartLabel} a ${cycleEndLabel}</h4>
-            <p class="person-cycle-subline">Actualizado: ${latestLabel}</p>
-          </article>
-
-          <article class="person-cycle-card person-cycle-card--capacity ${overflowPts > 0 ? "person-cycle-card--warn" : ""}">
-            <p class="person-cycle-eyebrow">Capacidad del ciclo</p>
-            <h4>${summary.totalLoad} / ${cycleCapacity} pts</h4>
-            <p class="person-cycle-subline">${utilizationPct}% de uso · ${overflowPts > 0 ? `+${overflowPts} pts sobre capacidad` : `${availablePts} pts libres`}</p>
-            <div class="person-cycle-track">
-              <span class="person-cycle-fill person-cycle-fill--load" style="width:${Math.min(utilizationPct, 100)}%"></span>
-            </div>
-            <div class="person-cycle-track">
-              <span class="person-cycle-fill person-cycle-fill--done" style="width:${Math.min(livePct, 100)}%"></span>
-            </div>
-            <div class="person-cycle-inline-kpis">
-              <span><b>Hecho:</b> ${summary.doneCycle} pts (${completionPct}%)</span>
-              <span><b>Carga viva:</b> ${summary.liveLoad} pts (${livePct}%)</span>
-            </div>
-          </article>
-
-          <article class="person-cycle-card person-cycle-card--risk ${summary.overloaded > 0 ? "person-cycle-card--alert" : ""}">
-            <p class="person-cycle-eyebrow">Riesgo operativo</p>
-            <h4>${summary.overloaded} sobrecargados</h4>
-            <p class="person-cycle-subline">${summary.unassigned} tareas sin asignar · ${summary.tasks} tareas evaluadas</p>
-          </article>
-
-          <article class="person-cycle-card person-cycle-card--mini">
-            <p class="person-cycle-eyebrow">Equipo</p>
-            <h4>${summary.people}</h4>
-          </article>
-          <article class="person-cycle-card person-cycle-card--mini">
-            <p class="person-cycle-eyebrow">Tareas</p>
-            <h4>${summary.tasks}</h4>
-          </article>
-          <article class="person-cycle-card person-cycle-card--mini">
-            <p class="person-cycle-eyebrow">Carga viva</p>
-            <h4>${summary.liveLoad} pts</h4>
-            <p class="person-cycle-subline">${livePct}% de capacidad</p>
-          </article>
-          <article class="person-cycle-card person-cycle-card--mini person-cycle-card--accent">
-            <p class="person-cycle-eyebrow">Capacidad acumulada</p>
-            <h4>${cycleCapacity} pts</h4>
-            <p class="person-cycle-subline">Promedio ${avgCapacity} pts por persona</p>
-          </article>
-        </div>
-      </details>
+      </section>
     </div>
   `;
   container.appendChild(controlsDiv);
 
-  const sprintSelect = controlsDiv.querySelector("#person-view-filter");
-  if (sprintSelect) sprintSelect.value = state.personViewSprintFilter || "all";
   const personSelect = controlsDiv.querySelector("#person-view-people-filter");
   if (personSelect) personSelect.value = state.personViewPersonFilter || "all";
   const searchInput = controlsDiv.querySelector("#person-view-search");
   if (searchInput) searchInput.value = state.personViewSearch || "";
+  const sprintSelect = controlsDiv.querySelector("#person-view-filter");
+  if (sprintSelect) sprintSelect.value = state.personViewSprintFilter || "all";
   const sortSelect = controlsDiv.querySelector("#person-view-sort");
   if (sortSelect) sortSelect.value = sortMode;
-  const advancedPanel = controlsDiv.querySelector("#person-toolbar-collapsible");
-  const toggleAdvancedBtn = controlsDiv.querySelector("#person-toggle-advanced-panel");
   const clearAdvancedBtn = controlsDiv.querySelector("#person-clear-advanced-panel");
 
   if (typeof appActions !== "undefined") {
-    sprintSelect?.addEventListener("change", (e) => appActions.setPersonViewSprintFilter(e.target.value));
     personSelect?.addEventListener("change", (e) => appActions.setPersonViewPersonFilter(e.target.value));
     searchInput?.addEventListener("input", (e) => appActions.setPersonViewSearch(e.target.value));
+    sprintSelect?.addEventListener("change", (e) => appActions.setPersonViewSprintFilter(e.target.value));
     sortSelect?.addEventListener("change", (e) => appActions.setPersonViewSortMode(e.target.value));
-    controlsDiv.querySelectorAll("[data-person-mode]").forEach((btn) => {
+    controlsDiv.querySelectorAll("[data-person-mode]").forEach((btn, index, allButtons) => {
       btn.addEventListener("click", () => appActions.setPersonViewMode(btn.dataset.personMode));
+      btn.addEventListener("keydown", (event) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        let nextIndex = index;
+        if (event.key === "ArrowRight") nextIndex = (index + 1) % allButtons.length;
+        if (event.key === "ArrowLeft") nextIndex = (index - 1 + allButtons.length) % allButtons.length;
+        if (event.key === "Home") nextIndex = 0;
+        if (event.key === "End") nextIndex = allButtons.length - 1;
+        allButtons[nextIndex].focus();
+      });
     });
     controlsDiv.querySelectorAll("[data-person-quick]").forEach((btn) => {
       btn.addEventListener("click", () => appActions.setPersonViewQuickFilter(btn.dataset.personQuick));
     });
+    controlsDiv.querySelectorAll("[data-person-panel]").forEach((btn) => {
+      btn.addEventListener("click", () => appActions.togglePersonViewPanel(btn.dataset.personPanel));
+    });
     clearAdvancedBtn?.addEventListener("click", () => {
-      if (quickFilter !== "all") appActions.setPersonViewQuickFilter("all");
-      if (sortMode !== "load_desc") appActions.setPersonViewSortMode("load_desc");
+      appActions.clearPersonViewAdvancedFilters();
     });
   }
 
-  if (advancedPanel && toggleAdvancedBtn) {
-    toggleAdvancedBtn.addEventListener("click", () => {
-      advancedPanel.classList.toggle("u-hidden");
-      const expanded = !advancedPanel.classList.contains("u-hidden");
-      toggleAdvancedBtn.setAttribute("aria-expanded", expanded ? "true" : "false");
-    });
-  }
+  const currentPanel = document.createElement("section");
+  currentPanel.id = "person-view-panel-current";
+  currentPanel.setAttribute("role", "tabpanel");
+  currentPanel.setAttribute("aria-labelledby", "person-view-tab-current");
+  currentPanel.hidden = viewMode !== "current";
+  const historyPanel = document.createElement("section");
+  historyPanel.id = "person-view-panel-history";
+  historyPanel.setAttribute("role", "tabpanel");
+  historyPanel.setAttribute("aria-labelledby", "person-view-tab-history");
+  historyPanel.hidden = viewMode !== "history";
+  container.appendChild(currentPanel);
+  container.appendChild(historyPanel);
 
-  const btnOpenHistory = controlsDiv.querySelector("#person-open-history-report");
-  if (btnOpenHistory) btnOpenHistory.addEventListener("click", () => showVelocityReport(state));
+  if (visibleKeys.length === 0) {
+    const emptyState = document.createElement("div");
+    emptyState.className =
+      "bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center text-gray-500";
+    emptyState.innerHTML = `
+      <p class="text-sm font-semibold text-gray-700">No hay resultados con este alcance.</p>
+      <p class="text-xs mt-1">Ajusta búsqueda, persona o filtros avanzados para continuar.</p>
+      <button id="person-clear-filters" type="button" class="mt-4 px-3 py-2 text-xs font-semibold rounded-lg border border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-700 transition-colors">Restablecer controles</button>
+    `;
+    const emptyTarget = viewMode === "history" ? historyPanel : currentPanel;
+    emptyTarget.appendChild(emptyState);
+    const clearBtn = emptyState.querySelector("#person-clear-filters");
+    if (clearBtn && typeof appActions !== "undefined") {
+      clearBtn.addEventListener("click", () => appActions.resetPersonViewControls());
+    }
+    return;
+  }
 
   if (viewMode === "history") {
-    const historyAnalytics = buildHistoryAnalytics();
-    const historyPanel = document.createElement("div");
+    const historyReport = buildVelocityReportData(filteredTasks, state.allUsers, 6);
     historyPanel.className = "bg-white rounded-xl border border-gray-200 shadow-sm p-4";
     historyPanel.innerHTML = `
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 class="text-base font-bold text-gray-800">Modo Histórico</h3>
-          <p class="text-sm text-gray-500">Consulta la tabla de velocidad quincenal sin perder tus filtros actuales.</p>
+          <p class="text-sm text-gray-500">Tendencia por ciclos quincenales usando el mismo scope activo de la vista.</p>
         </div>
-        <button id="person-history-open-main" type="button" class="bg-[color:var(--brand-700)] hover:bg-[color:var(--brand-900)] text-white font-semibold py-2 px-3 rounded-lg text-sm transition-colors">
-          Ver histórico completo
-        </button>
+        <span class="person-history-chip">Scope: ${selectedSprintLabel}</span>
       </div>
       <div class="mt-3 grid grid-cols-2 xl:grid-cols-5 gap-2">
-        <div class="person-kpi-pill"><span class="person-kpi-label">Equipo filtrado</span><strong class="person-kpi-value">${summary.people}</strong></div>
-        <div class="person-kpi-pill"><span class="person-kpi-label">Tareas visibles</span><strong class="person-kpi-value">${summary.tasks}</strong></div>
-        <div class="person-kpi-pill"><span class="person-kpi-label">Sobrecargados</span><strong class="person-kpi-value ${summary.overloaded > 0 ? "text-rose-700" : "text-[color:var(--text-strong)]"}">${summary.overloaded}</strong></div>
-        <div class="person-kpi-pill"><span class="person-kpi-label">Carga viva</span><strong class="person-kpi-value text-[color:var(--brand-700)]">${summary.liveLoad} pts</strong></div>
-        <div class="person-kpi-pill"><span class="person-kpi-label">Hecho ciclo</span><strong class="person-kpi-value text-emerald-700">${summary.doneCycle} pts</strong></div>
+        <div class="person-kpi-pill"><span class="person-kpi-label">Equipo visible</span><strong class="person-kpi-value">${filteredSummary.people}</strong></div>
+        <div class="person-kpi-pill"><span class="person-kpi-label">Tareas visibles</span><strong class="person-kpi-value">${filteredSummary.tasks}</strong></div>
+        <div class="person-kpi-pill"><span class="person-kpi-label">Sobrecargados</span><strong class="person-kpi-value ${filteredSummary.overloaded > 0 ? "person-kpi-value--risk" : ""}">${filteredSummary.overloaded}</strong></div>
+        <div class="person-kpi-pill"><span class="person-kpi-label">Carga viva</span><strong class="person-kpi-value person-kpi-value--live">${filteredSummary.liveLoad} pts</strong></div>
+        <div class="person-kpi-pill"><span class="person-kpi-label">Hecho ciclo</span><strong class="person-kpi-value person-kpi-value--done">${filteredSummary.doneCycle} pts (${filteredCompletionPct}%)</strong></div>
       </div>
       <div class="person-history-analytics">
         <section class="person-history-card person-history-card--wide">
           <div class="person-history-card-head">
             <div>
               <h4>Velocidad por ciclo</h4>
-              <p>Puntos completados por ciclo quincenal frente a la capacidad del equipo filtrado.</p>
+              <p>Puntos completados por ciclo quincenal frente a la capacidad del equipo visible.</p>
             </div>
-            <span class="person-history-chip">Ultimos ${historyAnalytics.cycles.length} ciclos</span>
+            <span class="person-history-chip">Últimos ${historyAnalytics.cycles.length} ciclos</span>
           </div>
           <div class="person-history-chart-shell">
             <canvas id="person-history-velocity-chart" aria-label="Grafica de velocidad por ciclo"></canvas>
@@ -2700,81 +2893,131 @@ function renderPersonView(state) {
             </div>
           </section>
         </div>
+        <details class="person-history-table-details">
+          <summary>Tabla histórica</summary>
+          <div class="mt-3">${renderVelocityReportTable(historyReport)}</div>
+        </details>
       </div>
     `;
-    container.appendChild(historyPanel);
-    const historyMainButton = historyPanel.querySelector("#person-history-open-main");
-    if (historyMainButton) historyMainButton.addEventListener("click", () => showVelocityReport(state));
     mountHistoryCharts(historyPanel, historyAnalytics);
     return;
   }
 
-  if (visibleKeys.length === 0) {
-    const emptyState = document.createElement("div");
-    emptyState.className =
-      "bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center text-gray-500";
-    emptyState.innerHTML = `
-      <p class="text-sm font-semibold text-gray-700">No hay resultados con estos filtros.</p>
-      <p class="text-xs mt-1">Ajusta búsqueda, persona o quick-filters para continuar.</p>
-      <button id="person-clear-filters" type="button" class="mt-4 px-3 py-2 text-xs font-semibold rounded-lg border border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-700 transition-colors">Limpiar filtros</button>
-    `;
-    container.appendChild(emptyState);
-    const clearBtn = emptyState.querySelector("#person-clear-filters");
-    if (clearBtn && typeof appActions !== "undefined") {
-      clearBtn.addEventListener("click", () => appActions.resetPersonViewControls());
-    }
-    return;
-  }
+  // Header de columnas con ordenamiento clickeable (T2.3)
+  const headerRow = document.createElement("div");
+  headerRow.className = "person-list-header";
+  headerRow.innerHTML = `
+    <div class="person-list-header-inner">
+      <button type="button" class="person-list-header-cell person-list-header-cell--sortable ${sortMode === "name_asc" ? "is-active" : ""}" data-person-sort="name_asc" title="Ordenar por nombre">
+        Persona <i class="fas fa-${sortMode === "name_asc" ? "arrow-up" : "arrow-up-down"} person-sort-icon" aria-hidden="true"></i>
+      </button>
+      <div class="person-list-header-spacer"></div>
+      <button type="button" class="person-list-header-cell person-list-header-cell--sortable ${sortMode === "done_desc" ? "is-active" : ""}" data-person-sort="done_desc" title="Ordenar por completado">
+        Completado <i class="fas fa-${sortMode === "done_desc" ? "arrow-down" : "arrow-up-down"} person-sort-icon" aria-hidden="true"></i>
+      </button>
+      <button type="button" class="person-list-header-cell person-list-header-cell--sortable ${sortMode === "load_desc" ? "is-active" : ""}" data-person-sort="load_desc" title="Ordenar por carga">
+        Carga <i class="fas fa-${sortMode === "load_desc" ? "arrow-down" : "arrow-up-down"} person-sort-icon" aria-hidden="true"></i>
+      </button>
+    </div>
+  `;
+  headerRow.querySelectorAll("[data-person-sort]").forEach((btn) => {
+    btn.addEventListener("click", () => appActions.setPersonViewSortMode(btn.dataset.personSort));
+  });
+  currentPanel.appendChild(headerRow);
 
-  visibleKeys.forEach((emailKey) => {
+  const riskTiers = new Set(["overloaded", "at-limit"]);
+  let zoneDividerInserted = false;
+
+  visibleKeys.forEach((emailKey, index) => {
     const tasks = grouped[emailKey];
     const metrics = metricsMap[emailKey] || {};
     const isExpanded = state.expandedPersonViews.has(emailKey);
+
+    // Separador de zona entre "En riesgo" y "En rango" cuando el sort es por riesgo (T3.3)
+    if (!zoneDividerInserted && sortMode === "risk_desc" && index > 0) {
+      const prevMetrics = metricsMap[visibleKeys[index - 1]] || {};
+      const currKey = metrics.risk?.key;
+      const prevKey = prevMetrics.risk?.key;
+      if (riskTiers.has(prevKey) && !riskTiers.has(currKey)) {
+        const divider = document.createElement("div");
+        divider.className = "person-zone-divider";
+        divider.innerHTML = `<span class="person-zone-divider-label">En rango</span>`;
+        currentPanel.appendChild(divider);
+        zoneDividerInserted = true;
+      }
+    }
     const profile = getProfileDisplay(emailKey);
 
     const swimlane = document.createElement("div");
-    const laneToneClass =
-      metrics.risk?.key === "high"
-        ? "person-lane--high"
-        : metrics.risk?.key === "medium"
-          ? "person-lane--medium"
-          : "person-lane--low";
-    swimlane.className = `person-swimlane ${laneToneClass}`;
+    const laneToneClass = {
+      overloaded: "person-lane--overloaded",
+      "at-limit": "person-lane--at-limit",
+      optimal: "person-lane--optimal",
+      underloaded: "person-lane--underloaded",
+    }[metrics.risk?.key] ?? "person-lane--underloaded";
+    swimlane.className = `person-swimlane ${laneToneClass} ${isExpanded ? "person-swimlane--expanded" : ""} ${emailKey === "unassigned" ? "person-lane--unassigned" : ""}`.trim();
 
     const avatarHTML =
       emailKey === "unassigned"
         ? `<div class="person-avatar person-avatar--placeholder rounded-full bg-[color:var(--surface-secondary)] flex items-center justify-center text-[color:var(--muted)]"><i class="fas fa-question"></i></div>`
         : `<img src="${profile.avatar}" class="person-avatar rounded-full border border-[color:var(--line-subtle)] object-cover" alt="${profile.name}">`;
 
+    const completionBadge = metrics.completionPct > 0
+      ? ` · <span class="person-completion-pct">${metrics.completionPct}%</span>`
+      : "";
+    const unassignedAlert = emailKey === "unassigned" && (metrics.tasksCount || 0) > 0
+      ? `<span class="person-unassigned-alert-badge"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> ${metrics.tasksCount} tarea${metrics.tasksCount !== 1 ? "s" : ""} sin dueño</span>`
+      : "";
+
+    const cap = metrics.capacity || CYCLE_POINTS_TARGET;
+    const loadPct = cap > 0 ? Math.round(((metrics.currentLoad || 0) / cap) * 100) : 0;
+    const riskKey = metrics.risk?.key || "underloaded";
+
     swimlane.innerHTML = `
-      <div class="person-swimlane-toggle" data-person-toggle="${emailKey}">
-        <div class="person-row-header-grid">
-          <div class="person-row-identity">
-            ${avatarHTML}
-            <div class="min-w-0 person-identity-meta">
-              <h3 class="person-name text-[15px] leading-tight font-bold text-[color:var(--text-strong)] ${emailKey === "unassigned" ? "italic" : ""} truncate">${profile.name}</h3>
-              <p class="person-task-count text-[13px] leading-snug text-[color:var(--muted)] truncate">${metrics.tasksCount || 0} tareas</p>
+      <div class="person-swimlane-header-wrap">
+        <button class="person-swimlane-toggle" type="button" data-person-toggle="${emailKey}"
+                aria-expanded="${isExpanded ? "true" : "false"}"
+                aria-controls="person-cols-${emailKey}">
+          <div class="plc">
+
+            <div class="plc-avatar-zone">
+              ${avatarHTML}
+              <span class="plc-status-dot plc-status-dot--${riskKey}" title="${metrics.risk?.title || ""}"></span>
             </div>
-          </div>
 
-          <div class="person-row-stats">${buildPersonCapacityBar(metrics, metrics.capacity || CYCLE_POINTS_TARGET)}</div>
+            <div class="plc-body">
+              <div class="plc-r1">
+                <h3 class="plc-name ${emailKey === "unassigned" ? "italic" : ""} truncate">${profile.name}</h3>
+                <span class="plc-chip ${metrics.risk?.chipClass || "person-risk-chip--underloaded"}">${metrics.risk?.label || "Subutilizado"}</span>
+              </div>
+              <p class="plc-sub truncate">${metrics.tasksCount || 0} tareas${completionBadge}${unassignedAlert ? " · " + unassignedAlert.replace(/(<[^>]+>)/g, " ").trim() : ""}</p>
+              <div class="plc-r3">
+                <div class="plc-bar-wrap">
+                  ${buildPersonCapacityBar(metrics, cap)}
+                </div>
+              </div>
+            </div>
 
-          <div class="person-row-total ${metrics.risk?.className || "person-risk-text--low"}">
-            ${metrics.currentLoad || 0}/${metrics.capacity || CYCLE_POINTS_TARGET} pts
-          </div>
+            <div class="plc-right ${metrics.risk?.className || "person-risk-text--underloaded"}">
+              <span class="plc-load-num">${loadPct}%</span>
+              <span class="plc-load-sub">${metrics.currentLoad || 0}<span class="plc-load-sep" style="opacity:0.4;margin:0 1px">/</span>${cap} pts</span>
+            </div>
 
-          <div class="person-row-risk">
-            <span class="person-risk-chip ${metrics.risk?.chipClass || "person-risk-chip--low"}" title="${metrics.risk?.title || ""}">${metrics.risk?.label || "En rango"}</span>
-          </div>
+            <div class="plc-chevron">
+              <i class="fas fa-chevron-down chevron-icon" style="transform: ${isExpanded ? "rotate(180deg)" : "rotate(0deg)"}"></i>
+            </div>
 
-          <div class="person-row-chevron">
-            <i class="fas fa-chevron-right chevron-icon" style="transform: ${isExpanded ? "rotate(90deg)" : "rotate(0deg)"}"></i>
           </div>
-        </div>
+        </button>
+        <button type="button" class="person-context-btn" data-person-context="${emailKey}"
+                aria-label="Más opciones para ${profile.name}" aria-expanded="false">
+          <i class="fas fa-ellipsis" aria-hidden="true"></i>
+        </button>
       </div>
     `;
 
     const columnsGrid = document.createElement("div");
+    columnsGrid.id = `person-cols-${emailKey}`;
     columnsGrid.className = `person-columns-grid ${isExpanded ? "" : "hidden"}`;
 
     ["todo", "inprogress", "done"].forEach((statusKey) => {
@@ -2863,7 +3106,7 @@ function renderPersonView(state) {
     });
 
     swimlane.appendChild(columnsGrid);
-    container.appendChild(swimlane);
+    currentPanel.appendChild(swimlane);
   });
 }
 
@@ -3686,6 +3929,17 @@ export function handleRouteChange(state) {
       content.classList.add("hidden");
       content.setAttribute("aria-hidden", "true");
     });
+  document
+    .querySelectorAll('.nav-group-button[data-default-open="true"]')
+    .forEach((button) => {
+      const targetId = button.dataset.target;
+      const content = targetId ? document.getElementById(targetId) : null;
+      if (!content) return;
+      button.classList.add("is-open");
+      button.setAttribute("aria-expanded", "true");
+      content.classList.remove("hidden");
+      content.setAttribute("aria-hidden", "false");
+    });
 
   const headerControls = document.getElementById("header-controls");
   if (headerControls) {
@@ -3775,7 +4029,7 @@ export function renderActiveSprintTitle(state) {
   if (!domViewTitle || window.location.hash !== "#sprint") return;
 
   const selectedSprint = state.taskLists.find((l) => l.id === state.currentSprintId);
-  let title = selectedSprint ? selectedSprint.title : "Sprint Activo";
+  let title = selectedSprint ? selectedSprint.title : "Sprint";
 
   const sprintTasks = state.tasks.filter((t) => t.listId === state.currentSprintId);
   const completedPoints = sprintTasks
@@ -3990,6 +4244,101 @@ function setSprintMenuOpen(isOpen) {
   menuContainer.classList.toggle("is-active", isOpen);
   menuButton.setAttribute("aria-expanded", String(isOpen));
   menuContent.setAttribute("aria-hidden", String(!isOpen));
+}
+
+function closePersonContextMenu({ restoreFocus = false } = {}) {
+  const dropdown = document.getElementById("person-context-dropdown");
+  if (dropdown) dropdown.remove();
+  if (activePersonContextCleanup) {
+    activePersonContextCleanup();
+    activePersonContextCleanup = null;
+  }
+  if (activePersonContextTrigger) {
+    activePersonContextTrigger.setAttribute("aria-expanded", "false");
+    activePersonContextTrigger.removeAttribute("aria-controls");
+    if (restoreFocus) activePersonContextTrigger.focus();
+  }
+  activePersonContextTrigger = null;
+}
+
+function openPersonContextMenu(trigger, emailKey) {
+  closePersonContextMenu();
+
+  const rect = trigger.getBoundingClientRect();
+  const dropdown = document.createElement("div");
+  dropdown.id = "person-context-dropdown";
+  dropdown.className = "person-context-dropdown";
+  dropdown.setAttribute("role", "group");
+  dropdown.setAttribute("aria-label", `Acciones para ${emailKey === "unassigned" ? "Sin Asignar" : emailKey}`);
+  dropdown.innerHTML = `
+    <button type="button" class="person-context-item" data-ctx-action="expand-person" data-ctx-key="${emailKey}">
+      <i class="fas fa-list" aria-hidden="true"></i> Ver tareas
+    </button>
+    <button type="button" class="person-context-item" data-ctx-action="add-task-person" data-ctx-key="${emailKey}">
+      <i class="fas fa-plus" aria-hidden="true"></i> Asignar tarea
+    </button>
+  `;
+  document.body.appendChild(dropdown);
+
+  const dropdownWidth = dropdown.offsetWidth || 200;
+  const dropdownHeight = dropdown.offsetHeight || 88;
+  const computedLeft = Math.max(12, Math.min(rect.left, window.innerWidth - dropdownWidth - 12));
+  const computedTop =
+    rect.bottom + dropdownHeight + 12 <= window.innerHeight
+      ? rect.bottom + 4
+      : Math.max(12, rect.top - dropdownHeight - 4);
+  dropdown.style.top = `${computedTop}px`;
+  dropdown.style.left = `${computedLeft}px`;
+
+  trigger.setAttribute("aria-expanded", "true");
+  trigger.setAttribute("aria-controls", "person-context-dropdown");
+  activePersonContextTrigger = trigger;
+
+  const firstItem = dropdown.querySelector(".person-context-item");
+  firstItem?.focus();
+
+  const handleDocumentClick = (event) => {
+    if (!dropdown.contains(event.target) && event.target !== trigger) {
+      closePersonContextMenu();
+    }
+  };
+  const handleDropdownKeydown = (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closePersonContextMenu({ restoreFocus: true });
+    }
+  };
+  const handleFocusOut = () => {
+    requestAnimationFrame(() => {
+      const activeElement = document.activeElement;
+      if (!dropdown.contains(activeElement) && activeElement !== trigger) {
+        closePersonContextMenu();
+      }
+    });
+  };
+
+  document.addEventListener("click", handleDocumentClick, true);
+  dropdown.addEventListener("keydown", handleDropdownKeydown);
+  dropdown.addEventListener("focusout", handleFocusOut);
+  dropdown.querySelectorAll("[data-ctx-action]").forEach((item) => {
+    item.addEventListener("click", () => {
+      closePersonContextMenu();
+      if (item.dataset.ctxAction === "expand-person") appActions.togglePersonView(emailKey);
+      if (item.dataset.ctxAction === "add-task-person") {
+        const addBtn = document.querySelector(
+          `[data-action="quick-add-task-person"][data-assignee="${emailKey}"]`
+        );
+        if (addBtn) addBtn.click();
+        else appActions.togglePersonView(emailKey);
+      }
+    });
+  });
+
+  activePersonContextCleanup = () => {
+    document.removeEventListener("click", handleDocumentClick, true);
+    dropdown.removeEventListener("keydown", handleDropdownKeydown);
+    dropdown.removeEventListener("focusout", handleFocusOut);
+  };
 }
 
 function handleAppClick(e) {
@@ -4473,27 +4822,38 @@ function handleAppClick(e) {
     return;
   }
 
+  // Menú contextual "···" por persona (T2.4)
+  const personContextBtn = target.closest("[data-person-context]");
+  if (personContextBtn && !target.closest("[data-person-toggle]")) {
+    const emailKey = personContextBtn.dataset.personContext;
+    openPersonContextMenu(personContextBtn, emailKey);
+    return;
+  }
+
   const personHeader = target.closest("[data-person-toggle]");
   if (personHeader) {
     const email = personHeader.dataset.personToggle;
 
-    // 1. Elementos (Buscamos 'chevron-icon' para que sea más genérico)
+    // 1. Elementos — usa aria-controls para encontrar el cuerpo (T1.6)
     const chevron = personHeader.querySelector(".chevron-icon");
-    const contentBody = personHeader.nextElementSibling;
+    const chevronLabel = personHeader.querySelector(".person-chevron-label");
+    const contentBody = document.getElementById(personHeader.getAttribute("aria-controls"))
+      || personHeader.closest(".person-swimlane-header-wrap")?.nextElementSibling;
 
-    // 2. Lógica Visual (0 -> 90 grados)
+    // 2. Lógica visual — chevron-down rota 180° al abrir (T2.2)
     if (contentBody) {
       const isHidden = contentBody.classList.contains("hidden");
-
       if (isHidden) {
-        // ABRIR
         contentBody.classList.remove("hidden");
-        if (chevron) chevron.style.transform = "rotate(90deg)"; // <--- 90 GRADOS
+        if (chevron) chevron.style.transform = "rotate(180deg)";
+        if (chevronLabel) chevronLabel.textContent = "Cerrar";
       } else {
-        // CERRAR
         contentBody.classList.add("hidden");
-        if (chevron) chevron.style.transform = "rotate(0deg)"; // <--- 0 GRADOS
+        if (chevron) chevron.style.transform = "rotate(0deg)";
+        if (chevronLabel) chevronLabel.textContent = "Ver tareas";
       }
+      // Actualizar aria-expanded (T1.6)
+      personHeader.setAttribute("aria-expanded", String(!isHidden));
     }
 
     // 3. Guardar estado en silencio
@@ -4563,7 +4923,7 @@ function openCommitmentDateModal(taskId) {
   if (!cycleEndDate) {
     const cycleWindow = getCurrentCycleWindow(new Date());
     cycleEndDate = new Date(cycleWindow.endExclusive);
-    cycleEndDate.setDate(cycleEndDate.getDate() - 1);
+    cycleEndDate.setDate(cycleEndDate.getDate() - 3); // retrocede al viernes
     cycleEndDate = normalizeDateToMidnight(cycleEndDate);
   }
 
@@ -5241,6 +5601,15 @@ export function initializeEventListeners(state, actions) {
   document.addEventListener("click", handleAppClick);
   document.addEventListener("change", handleAppChange);
   document.addEventListener("keydown", (e) => {
+    if (
+      e.key === "Escape" &&
+      activePersonContextTrigger &&
+      (document.getElementById("person-context-dropdown")?.contains(document.activeElement) ||
+        document.activeElement === activePersonContextTrigger)
+    ) {
+      closePersonContextMenu({ restoreFocus: true });
+      return;
+    }
     if (e.key === "Escape" && sidebarShellState.mobileOpen && isMobileSidebarLayout()) {
       setSidebarMobileOpen(false);
       return;
@@ -6293,165 +6662,167 @@ function getNextSequenceForEpic(epicId, state) {
 
 // --- AL FINAL DE ui.js ---
 
-function showVelocityReport(state) {
-  // 1. Obtener todas las tareas completadas
-  const completedTasks = state.tasks.filter(
-    (t) => (t.status === "completed" || t.kanbanStatus === "done") && t.completedAt
+function buildVelocityReportData(tasks, allUsers, cyclesToShow = 6) {
+  const completedTasks = tasks.filter(
+    (task) => (task.status === "completed" || task.kanbanStatus === "done") && task.completedAt
   );
-
-  if (completedTasks.length === 0) {
-    alert("No hay tareas completadas para generar el reporte.");
-    return;
-  }
-
-  // 2. Helpers para agrupar por ciclos de 15 días
-  const getCycleStart = (date) => getCurrentCycleWindow(date).start;
-
-  const formatCycleKey = (date) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, "0");
-    const d = String(date.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  };
-
-  const formatCycleLabel = (key) => {
-    const start = new Date(`${key}T00:00:00`);
-    const end = new Date(start);
-    end.setDate(start.getDate() + CYCLE_LENGTH_DAYS - 1);
-    return `${formatCycleDateDMY(start)} a ${formatCycleDateDMY(end)}`;
-  };
-
-  // 3. Organizar datos: Mapa[Email][Ciclo] = Puntos
+  const relevantAssignees = new Set(tasks.map((task) => task.assignee || "unassigned"));
   const reportData = {};
-  const allCycles = new Set();
   const userNames = {};
+  const allCycles = new Set();
 
-  // Inicializar usuarios
-  state.allUsers.forEach((u) => {
-    const email = u.email;
+  allUsers.forEach((user) => {
+    if (!user.email) return;
+    const email = user.email;
+    if (!relevantAssignees.has(email)) return;
     reportData[email] = {};
-    userNames[email] = u.displayName || email.split("@")[0];
+    userNames[email] = user.displayName || email.split("@")[0];
   });
-  // Agregar opción "Sin Asignar"
-  reportData["unassigned"] = {};
-  userNames["unassigned"] = "Sin Asignar";
 
-  // Rellenar datos
-  completedTasks.forEach((t) => {
-    const date = t.completedAt.toDate ? t.completedAt.toDate() : new Date(t.completedAt);
-    const cycleStart = getCycleStart(date);
-    const cycleKey = formatCycleKey(cycleStart);
-    const assignee = t.assignee || "unassigned";
+  relevantAssignees.forEach((assignee) => {
+    if (!reportData[assignee]) reportData[assignee] = {};
+    if (!userNames[assignee]) {
+      userNames[assignee] = assignee === "unassigned" ? "Sin Asignar" : assignee.split("@")[0];
+    }
+  });
 
+  completedTasks.forEach((task) => {
+    const date = task.completedAt.toDate ? task.completedAt.toDate() : new Date(task.completedAt);
+    const cycleStart = getCurrentCycleWindow(date).start;
+    const cycleKey = `${cycleStart.getFullYear()}-${String(cycleStart.getMonth() + 1).padStart(2, "0")}-${String(cycleStart.getDate()).padStart(2, "0")}`;
+    const assignee = task.assignee || "unassigned";
     allCycles.add(cycleKey);
-
-    if (!reportData[assignee]) reportData[assignee] = {}; // Por si es un usuario borrado
-
-    const currentPts = reportData[assignee][cycleKey] || 0;
-    reportData[assignee][cycleKey] = currentPts + (t.points || 0);
+    if (!reportData[assignee]) reportData[assignee] = {};
+    reportData[assignee][cycleKey] = (reportData[assignee][cycleKey] || 0) + (task.points || 0);
   });
 
-  // 4. Ordenar ciclos (Columnas)
-  const cyclesToShow = 5;
   const sortedCycles = Array.from(allCycles).sort().slice(-cyclesToShow);
-
-  // 5. Métricas globales
   const allPoints = [];
   Object.keys(reportData).forEach((email) => {
-    sortedCycles.forEach((c) => allPoints.push(reportData[email][c] || 0));
+    sortedCycles.forEach((cycleKey) => allPoints.push(reportData[email][cycleKey] || 0));
   });
   const maxPoint = Math.max(1, ...allPoints);
-  const totalPointsGlobal = allPoints.reduce((sum, p) => sum + p, 0);
+  const totalPointsGlobal = allPoints.reduce((sum, points) => sum + points, 0);
   const avgCycleGlobal = (totalPointsGlobal / (sortedCycles.length || 1)).toFixed(1);
-
   const cycleRangeLabel = (() => {
     if (!sortedCycles.length) return "—";
     const firstStart = new Date(`${sortedCycles[0]}T00:00:00`);
     const lastStart = new Date(`${sortedCycles[sortedCycles.length - 1]}T00:00:00`);
     const lastEnd = new Date(lastStart);
-    lastEnd.setDate(lastEnd.getDate() + CYCLE_LENGTH_DAYS - 1);
+    lastEnd.setDate(lastEnd.getDate() + CYCLE_LENGTH_DAYS - 3);
     return `${formatCycleDateDMY(firstStart)} a ${formatCycleDateDMY(lastEnd)}`;
   })();
+
+  return {
+    reportData,
+    userNames,
+    sortedCycles,
+    maxPoint,
+    totalPointsGlobal,
+    avgCycleGlobal,
+    cycleRangeLabel,
+    cyclesToShow,
+  };
+}
+
+function renderVelocityReportTable(report) {
+  if (!report.sortedCycles.length) {
+    return '<div class="person-history-empty">Aún no hay historial suficiente para mostrar una tabla.</div>';
+  }
+
+  const rootStyles = getComputedStyle(document.documentElement);
+  const doneColor = rootStyles.getPropertyValue("--person-work-done").trim() || "#476c9b";
+  const lowAvgColor =
+    rootStyles.getPropertyValue("--person-risk-at-limit-strong").trim() || "#7e6f40";
+  const toRgba = (hex, alpha) => {
+    const value = hex.replace("#", "");
+    if (![3, 6].includes(value.length)) return hex;
+    const normalized =
+      value.length === 3 ? value.split("").map((part) => `${part}${part}`).join("") : value;
+    const bigint = Number.parseInt(normalized, 16);
+    if (Number.isNaN(bigint)) return hex;
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
 
   const formatCycleHeader = (key) => {
     const start = new Date(`${key}T00:00:00`);
     const end = new Date(start);
-    end.setDate(start.getDate() + CYCLE_LENGTH_DAYS - 1);
+    end.setDate(start.getDate() + CYCLE_LENGTH_DAYS - 3);
     return `<span class="block leading-tight">${formatCycleDateDMY(start)}</span><span class="block leading-tight text-[10px] normal-case text-gray-500">${formatCycleDateDMY(end)}</span>`;
   };
 
-  // 6. Construir Tabla HTML
-  let tableHTML = `
-    <div class="space-y-3">
-      <div class="flex flex-wrap items-center gap-1.5 mb-3 text-[11px] text-gray-500">
-        <span class="px-2 py-1 rounded-full bg-gray-50 border border-gray-200">Periodo: ${cycleRangeLabel}</span>
-        <span class="px-2 py-1 rounded-full bg-gray-50 border border-gray-200">Total: <strong class="text-gray-900">${totalPointsGlobal}</strong> pts</span>
-        <span class="px-2 py-1 rounded-full bg-gray-50 border border-gray-200">Prom/ciclo: <strong class="text-gray-900">${avgCycleGlobal}</strong></span>
-        <span class="px-2 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700">Meta: <strong>${CYCLE_POINTS_TARGET} pts</strong></span>
-      </div>
-      <div class="rounded-xl border border-gray-200 overflow-hidden">
-        <table class="w-full table-fixed text-xs text-left text-gray-500 border-collapse">
-            <thead class="text-[10px] text-gray-700 uppercase bg-gray-50 border-b">
-                <tr>
-                    <th class="px-2 py-2 border-r w-[24%]">Miembro</th>
-                    ${sortedCycles
-                      .map((c) => `<th class="px-1.5 py-2 text-center border-r">${formatCycleHeader(c)}</th>`)
-                      .join("")}
-                    <th class="px-1.5 py-2 text-center bg-gray-100 w-[9%]">Total</th>
-                    <th class="px-1.5 py-2 text-center bg-gray-100 w-[9%]">Prom</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white">
-    `;
-
-  // Generar filas por usuario
-  Object.keys(reportData)
-    .sort()
+  let rowsHTML = "";
+  Object.keys(report.reportData)
+    .sort((a, b) => report.userNames[a].localeCompare(report.userNames[b], "es", { sensitivity: "base" }))
     .forEach((email) => {
-      const pointsInPeriod = sortedCycles.map((c) => reportData[email][c] || 0);
-      const totalPoints = pointsInPeriod.reduce((a, b) => a + b, 0);
-      const avg = (totalPoints / (sortedCycles.length || 1)).toFixed(1);
-      const name = userNames[email] || email;
-
+      const pointsInPeriod = report.sortedCycles.map((cycleKey) => report.reportData[email][cycleKey] || 0);
+      const totalPoints = pointsInPeriod.reduce((sum, points) => sum + points, 0);
+      const avg = (totalPoints / (report.sortedCycles.length || 1)).toFixed(1);
+      const name = report.userNames[email] || email;
       let avgColor = "text-gray-600";
-      if (avg >= CYCLE_POINTS_TARGET) avgColor = "text-green-600 font-bold";
-      else if (avg < CYCLE_POINTS_TARGET * 0.5) avgColor = "text-amber-600";
+      if (avg >= CYCLE_POINTS_TARGET) avgColor = "person-history-table-avg--strong font-bold";
+      else if (avg < CYCLE_POINTS_TARGET * 0.5)
+        avgColor = "person-history-table-avg--low font-bold";
 
-      tableHTML += `
-            <tr class="border-b hover:bg-gray-50 transition-colors">
-                <td class="px-2 py-2 font-medium text-gray-900 border-r"><div class="truncate" title="${name}">${name}</div></td>
-                ${pointsInPeriod
-                  .map((pts) => {
-                    const intensity = pts > 0 ? Math.min(1, pts / maxPoint) : 0;
-                    const bg =
-                      pts > 0 ? `rgba(37, 99, 235, ${0.08 + intensity * 0.35})` : "transparent";
-                    const color = pts > 0 ? "#1d4ed8" : "#cbd5e1";
-                    return `
-                      <td class="px-1 py-1.5 text-center border-r">
-                        <div style="height:22px; line-height:22px; border-radius:7px; background:${bg}; color:${color}; font-weight:${pts > 0 ? 600 : 400};">
-                          ${pts > 0 ? pts : "—"}
-                        </div>
-                      </td>
-                    `;
-                  })
-                  .join("")}
-                <td class="px-1.5 py-2 text-center bg-gray-50 font-semibold text-gray-900">${totalPoints}</td>
-                <td class="px-1.5 py-2 text-center bg-gray-50 font-bold ${avgColor}">${avg}</td>
-            </tr>
-        `;
+      rowsHTML += `
+        <tr class="border-b hover:bg-gray-50 transition-colors">
+          <th scope="row" class="px-2 py-2 font-medium text-gray-900 border-r bg-white">
+            <div class="truncate" title="${name}">${name}</div>
+          </th>
+          ${pointsInPeriod
+            .map((pts) => {
+              const intensity = pts > 0 ? Math.min(1, pts / report.maxPoint) : 0;
+              const bg = pts > 0 ? toRgba(doneColor, 0.08 + intensity * 0.35) : "transparent";
+              const color = pts > 0 ? doneColor : "#cbd5e1";
+              return `
+                <td class="px-1 py-1.5 text-center border-r">
+                  <div style="height:22px; line-height:22px; border-radius:7px; background:${bg}; color:${color}; font-weight:${pts > 0 ? 600 : 400};">
+                    ${pts > 0 ? pts : "—"}
+                  </div>
+                </td>
+              `;
+            })
+            .join("")}
+          <td class="px-1.5 py-2 text-center bg-gray-50 font-semibold text-gray-900">${totalPoints}</td>
+          <td class="px-1.5 py-2 text-center bg-gray-50 font-bold ${avgColor}" ${avg < CYCLE_POINTS_TARGET * 0.5 ? `style="color:${lowAvgColor}"` : ""}>${avg}</td>
+        </tr>
+      `;
     });
 
-  tableHTML += `</tbody></table></div>
-      <p class="text-[11px] text-gray-400 mt-2 text-right">* Se muestran los últimos ${cyclesToShow} ciclos de ${CYCLE_LENGTH_DAYS} días con actividad.</p>
-    </div>`;
-
-  // 6. Mostrar Modal
-  showModal({
-    title: "Histórico de Velocidad (Ciclos quincenales globales)",
-    htmlContent: tableHTML,
-    okText: "Cerrar",
-    hideCancel: true,
-  });
+  return `
+    <div class="space-y-3">
+      <div class="flex flex-wrap items-center gap-1.5 mb-3 text-[11px] text-gray-500">
+        <span class="px-2 py-1 rounded-full bg-gray-50 border border-gray-200">Periodo: ${report.cycleRangeLabel}</span>
+        <span class="px-2 py-1 rounded-full bg-gray-50 border border-gray-200">Total: <strong class="text-gray-900">${report.totalPointsGlobal}</strong> pts</span>
+        <span class="px-2 py-1 rounded-full bg-gray-50 border border-gray-200">Prom/ciclo: <strong class="text-gray-900">${report.avgCycleGlobal}</strong></span>
+        <span class="px-2 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700">Meta: <strong>${CYCLE_POINTS_TARGET} pts</strong></span>
+      </div>
+      <div class="rounded-xl border border-gray-200 overflow-x-auto bg-white">
+        <table class="person-history-table min-w-[760px] w-full table-fixed text-xs text-left text-gray-500 border-collapse">
+          <caption class="sr-only">
+            Puntos completados por persona en los últimos ${report.cyclesToShow} ciclos quincenales.
+          </caption>
+          <thead class="text-[10px] text-gray-700 uppercase bg-gray-50 border-b">
+            <tr>
+              <th scope="col" class="px-2 py-2 border-r w-[24%]">Miembro</th>
+              ${report.sortedCycles
+                .map((cycleKey) => `<th scope="col" class="px-1.5 py-2 text-center border-r">${formatCycleHeader(cycleKey)}</th>`)
+                .join("")}
+              <th scope="col" class="px-1.5 py-2 text-center bg-gray-100 w-[9%]">Total</th>
+              <th scope="col" class="px-1.5 py-2 text-center bg-gray-100 w-[9%]">Prom</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white">
+            ${rowsHTML}
+          </tbody>
+        </table>
+      </div>
+      <p class="text-[11px] text-gray-400 mt-2 text-right">* Se muestran los últimos ${report.cyclesToShow} ciclos de ${CYCLE_LENGTH_DAYS} días con actividad.</p>
+    </div>
+  `;
 }
 
 // --- FIN DEL ARCHIVO ui.js ---
