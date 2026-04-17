@@ -6595,29 +6595,40 @@
          espaciado. Color reservado para señal de riesgo, no decoración.
          ============================================================ */
 
-      /* Swimlane: sin caja, sólo acento lateral fino + separador inferior */
+      /* Toolbar shell: deja de ser una caja con fondo y borde */
+      #view-by-person .person-toolbar-shell {
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+        padding: 0;
+        margin-bottom: 1.25rem;
+      }
+
+      /* Swimlane: cada persona es UNA fila aireada. La SEPARACIÓN se hace
+         con whitespace (proximidad), no con líneas. */
       #view-by-person .person-swimlane {
         background: transparent;
         border: 0;
         border-left: 3px solid transparent;
-        border-bottom: 1px solid var(--line-subtle);
         border-radius: 0;
         box-shadow: none;
-        margin-bottom: 0;
-        padding-left: 4px;
+        margin-bottom: 14px;
+        padding-left: 6px;
         transition: background-color 0.18s ease;
       }
+      #view-by-person .person-swimlane:last-child { margin-bottom: 0; }
       #view-by-person .person-swimlane:hover {
-        background: color-mix(in srgb, var(--surface-secondary) 35%, transparent);
+        background: color-mix(in srgb, var(--surface-secondary) 30%, transparent);
         box-shadow: none;
         transform: none;
       }
-      /* Acento lateral SÓLO para riesgo real (no decora "óptimo" / "subutilizado") */
+      /* Acento lateral SÓLO para riesgo real */
       #view-by-person .person-lane--overloaded { border-left-color: var(--person-risk-overloaded-strong); }
       #view-by-person .person-lane--at-limit   { border-left-color: var(--person-risk-at-limit-strong); }
       #view-by-person .person-lane--optimal,
       #view-by-person .person-lane--underloaded { border-left-color: transparent; }
-      #view-by-person .person-swimlane-toggle { padding: 0.7rem 0.5rem; }
+      /* Padding interno generoso: la fila se siente como una unidad sin caja */
+      #view-by-person .person-swimlane-toggle { padding: 14px 10px; }
       #view-by-person .person-swimlane-toggle:hover { background: transparent; }
 
       /* Chips de riesgo: sólo visibles en sobrecarga / límite. El resto en
