@@ -6588,6 +6588,150 @@
       .modal-feature-hidden {
         display: none !important;
       }
+
+      /* ============================================================
+         GESTALT REFINEMENT — vista Carga (by-person)
+         Reduce chrome: menos cajas, más jerarquía tipográfica y
+         espaciado. Color reservado para señal de riesgo, no decoración.
+         ============================================================ */
+
+      /* Swimlane: sin caja, sólo acento lateral fino + separador inferior */
+      #view-by-person .person-swimlane {
+        background: transparent;
+        border: 0;
+        border-left: 3px solid transparent;
+        border-bottom: 1px solid var(--line-subtle);
+        border-radius: 0;
+        box-shadow: none;
+        margin-bottom: 0;
+        padding-left: 4px;
+        transition: background-color 0.18s ease;
+      }
+      #view-by-person .person-swimlane:hover {
+        background: color-mix(in srgb, var(--surface-secondary) 35%, transparent);
+        box-shadow: none;
+        transform: none;
+      }
+      /* Acento lateral SÓLO para riesgo real (no decora "óptimo" / "subutilizado") */
+      #view-by-person .person-lane--overloaded { border-left-color: var(--person-risk-overloaded-strong); }
+      #view-by-person .person-lane--at-limit   { border-left-color: var(--person-risk-at-limit-strong); }
+      #view-by-person .person-lane--optimal,
+      #view-by-person .person-lane--underloaded { border-left-color: transparent; }
+      #view-by-person .person-swimlane-toggle { padding: 0.7rem 0.5rem; }
+      #view-by-person .person-swimlane-toggle:hover { background: transparent; }
+
+      /* Chips de riesgo: sólo visibles en sobrecarga / límite. El resto en
+         texto muted (similitud + reserva de color para señal real) */
+      #view-by-person .plc-chip.person-risk-chip--optimal,
+      #view-by-person .plc-chip.person-risk-chip--underloaded {
+        background: transparent;
+        border: 0;
+        padding: 0;
+        color: var(--muted);
+        font-weight: 500;
+        font-size: 11px;
+        text-transform: lowercase;
+        letter-spacing: 0;
+      }
+
+      /* Columnas Kanban: sin fondos coloreados, sin border-top grueso.
+         La proximidad y la etiqueta hacen el agrupamiento. */
+      #view-by-person .person-column,
+      #view-by-person .person-column--todo,
+      #view-by-person .person-column--inprogress,
+      #view-by-person .person-column--done,
+      #view-by-person .person-column--wip-alert {
+        background: transparent;
+        border-top: 0;
+        box-shadow: none;
+      }
+      #view-by-person .person-column--wip-alert {
+        box-shadow: inset 2px 0 0 #b7791f;
+      }
+
+      /* Scope strip: deja de ser una caja, pasa a ser texto con divisores */
+      #view-by-person .person-scope-strip {
+        background: transparent;
+        border: 0;
+        padding: 4px 0;
+        margin-top: 4px;
+      }
+
+      /* Toolbar buttons: aligerar (menos borde, sin fondo) */
+      #view-by-person .person-toolbar-btn {
+        border-color: transparent;
+        background: transparent;
+      }
+      #view-by-person .person-toolbar-btn:hover {
+        background: var(--surface-secondary);
+      }
+      #view-by-person .person-toolbar-btn--active,
+      #view-by-person .person-toolbar-btn[aria-expanded="true"] {
+        background: var(--surface-secondary);
+        border-color: transparent;
+        color: var(--ink);
+      }
+
+      /* Panel de filtros: sin caja, sólo separador superior */
+      #view-by-person .person-toolbar-panel {
+        background: transparent;
+        border: 0;
+        border-top: 1px solid var(--line-subtle);
+        border-radius: 0;
+        padding: 12px 0 4px;
+      }
+      #view-by-person .person-toolbar-panel-head h3 {
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: 11px;
+      }
+
+      /* Quick chips: peso tipográfico distingue activo, no fondo verde */
+      #view-by-person .person-quick-chip {
+        height: 28px;
+        padding: 0 4px;
+        border: 0 !important;
+        background: transparent !important;
+        font-weight: 500;
+        color: var(--muted);
+        border-radius: 0;
+        border-bottom: 2px solid transparent !important;
+      }
+      #view-by-person .person-quick-chip--active {
+        color: var(--ink) !important;
+        font-weight: 700;
+        border-bottom-color: var(--brand-700) !important;
+      }
+      #view-by-person .person-quick-chip--idle:hover {
+        color: var(--ink);
+        background: transparent !important;
+      }
+
+      /* Mode toggle (Actual/Histórico): aligerar borde */
+      #view-by-person .person-mode-toggle {
+        background: var(--surface-secondary);
+        border-color: transparent;
+      }
+
+      /* Header de columnas (Persona / Completado / Carga): muted */
+      #view-by-person .person-list-header {
+        border-bottom: 1px solid var(--line-subtle);
+        padding-bottom: 6px;
+        margin-bottom: 4px;
+      }
+      #view-by-person .person-list-header-cell {
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: 10px;
+        color: var(--muted);
+        font-weight: 600;
+      }
+
+      /* Avatar: borde más sutil */
+      #view-by-person .person-avatar {
+        border-width: 1px;
+        border-color: var(--line-subtle);
+      }
     </style>
   </head>
   <body class="bg-[var(--bg)] text-gray-800">
