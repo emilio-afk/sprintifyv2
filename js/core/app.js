@@ -70,6 +70,8 @@ const state = {
   hasInitializedPersonViews: false, // Para evitar resetear la vista en cada update
   collapsedColumns: new Set(), // Almacena los IDs ('todo', 'inprogress', 'done')
   expandedEpicIds: new Set(),
+  taskCardDensity: "comfortable", // "comfortable" | "compact"
+  sprintBreakdownOpen: false,
   collapsedBacklogEpics: new Set(), // Épicas colapsadas en vista backlog
   handbookEntries: [],
   triageConfig: null,
@@ -159,7 +161,7 @@ const actions = {
   },
 
   togglePersonViewPanel(value) {
-    const allowed = new Set(["sprint", "filters"]);
+    const allowed = new Set(["filters"]);
     if (!allowed.has(value)) {
       state.personViewOpenPanel = null;
     } else {
@@ -171,6 +173,17 @@ const actions = {
   setPersonViewDensity(value) {
     const allowed = new Set(["comfortable", "compact"]);
     state.personViewDensity = allowed.has(value) ? value : "comfortable";
+    requestRender();
+  },
+
+  setTaskCardDensity(value) {
+    const allowed = new Set(["comfortable", "compact"]);
+    state.taskCardDensity = allowed.has(value) ? value : "comfortable";
+    requestRender();
+  },
+
+  toggleSprintBreakdown() {
+    state.sprintBreakdownOpen = !state.sprintBreakdownOpen;
     requestRender();
   },
 

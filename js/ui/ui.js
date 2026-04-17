@@ -391,6 +391,11 @@ function createTaskElement(task, context, state) {
   const hiddenSummaryTitle = hiddenSummary.join(" • ").replace(/"/g, "&quot;");
   const taskTitle = task.title || "Sin título";
   const shouldClampTitle = taskTitle.length > 90;
+  // 3.1 Aging chip
+  const agingChipHTML = aging.key !== "none" && !isCompleted
+    ? `<div class="task-meta-chip task-meta-chip--label task-meta-chip--aging task-meta-chip--aging-${aging.key}" title="${aging.label}"><i class="fa-regular fa-clock"></i><span>${aging.days}d</span></div>`
+    : "";
+
   const dueDate = getDate(task.dueDate);
   let dueChipHTML = "";
   if (dueDate && !Number.isNaN(dueDate.getTime())) {
@@ -430,9 +435,11 @@ function createTaskElement(task, context, state) {
     }
   }
 
+  const compactClass = state.taskCardDensity === "compact" ? "task-card-v3--compact" : "";
+
   const taskCard = document.createElement("div");
   taskCard.id = task.id;
-  taskCard.className = `task-card task-card-v3 ${ageClass} ${wipAlertClass} group relative rounded-lg ${isCompleted ? "opacity-60" : ""}`;
+  taskCard.className = `task-card task-card-v3 ${ageClass} ${wipAlertClass} ${compactClass} group relative rounded-lg ${isCompleted ? "opacity-60" : ""}`;
   taskCard.draggable = true;
   taskCard.dataset.context = context;
   taskCard.style.setProperty("--task-accent", sprintColor);
@@ -468,6 +475,7 @@ function createTaskElement(task, context, state) {
             <div class="task-meta-zone">
                 ${dueChipHTML}
                 ${inheritedChipHTML}
+                ${agingChipHTML}
             </div>
             <div class="task-actions-zone">
                 <button class="task-action-icon" data-action="open-details" title="Editar detalles"><i class="fa-solid fa-pen-to-square"></i></button>
@@ -845,6 +853,24 @@ function toggleBacklogView(state) {
 // EN js/ui/ui.js - REEMPLAZA LA FUNCIÓN EXISTENTE renderSprintKanban
 
 function renderSprintKanban(state) {
+  // Density toggle toolbar
+  const densityBar = document.getElementById("kanban-density-bar");
+  if (densityBar) {
+    const isCompact = state.taskCardDensity === "compact";
+    densityBar.innerHTML = `
+      <button
+        type="button"
+        class="kanban-density-btn ${isCompact ? "kanban-density-btn--active" : ""}"
+        data-action="toggle-task-density"
+        aria-pressed="${isCompact}"
+        title="${isCompact ? "Vista cómoda" : "Vista compacta"}"
+      >
+        <i class="fa-solid ${isCompact ? "fa-table-cells-large" : "fa-table-cells"}" aria-hidden="true"></i>
+        <span>${isCompact ? "Cómodo" : "Compacto"}</span>
+      </button>
+    `;
+  }
+
   const columns = [
     { key: "todo" },
     { key: "inprogress" },
@@ -899,6 +925,9 @@ function renderSprintKanban(state) {
     wrapper.className =
       `kanban-column kanban-column--${col.key} ${inProgressAlertClass}`;
     wrapper.removeAttribute("data-action");
+    // 3.4 — accessibility
+    wrapper.setAttribute("role", "region");
+    wrapper.setAttribute("aria-label", KANBAN_COLUMN_META[col.key]?.title ?? col.key);
     wrapper.innerHTML = `
       ${buildKanbanHeader({
         statusKey: col.key,
@@ -908,7 +937,7 @@ function renderSprintKanban(state) {
         includeCollapse: true,
         collapseColumnKey: col.key,
       })}
-      <div id="kanban-${col.key}" class="min-h-[200px] space-y-2 flex-grow swimlane-drop-zone" data-status="${col.key}"></div>
+      <div id="kanban-${col.key}" class="min-h-[200px] space-y-2 flex-grow swimlane-drop-zone" data-status="${col.key}" aria-label="Tareas ${KANBAN_COLUMN_META[col.key]?.title ?? col.key}"></div>
     `;
     const container = wrapper.querySelector(`#kanban-${col.key}`);
     if (!container) return;
@@ -2580,12 +2609,12 @@ function renderPersonView(state) {
   const activeSort = sortOptions.find((option) => option.key === sortMode);
   const hasQuickFilter = quickFilter !== "all";
   const hasCustomSort = sortMode !== "load_desc";
-  const activeQuickFilterCount = Number(hasQuickFilter);
-  const openPanel = state.personViewOpenPanel || null;
-  const isSprintPanelOpen = openPanel === "sprint";
+  const hasPerson = personFilter !== "all";
+  const hasSearch = searchValue.length > 0;
+  const hasAnyFilter = hasPerson || hasSearch || hasQuickFilter || hasCustomSort;
+  const activeFilterCount = [hasPerson, hasSearch, hasQuickFilter, hasCustomSort].filter(Boolean).length;
+  const openPanel = state.personViewOpenPanel === "sprint" ? null : (state.personViewOpenPanel || null);
   const isFiltersPanelOpen = openPanel === "filters";
-  const isMobileToolbar =
-    window.matchMedia?.("(max-width: 640px)").matches ?? window.innerWidth <= 640;
   const quickChipsHTML = quickChips
     .map((chip) => {
       const active = quickFilter === chip.key;
@@ -2594,176 +2623,94 @@ function renderPersonView(state) {
     })
     .join("");
   const activePillsHTML = [
-    hasQuickFilter && activeQuick
-      ? `<span class="person-filter-pill">Estado: ${activeQuick.label}</span>`
-      : "",
+    hasPerson ? `<span class="person-filter-pill">Persona: ${(state.personViewPersonFilter || "").split("@")[0]}</span>` : "",
+    hasSearch ? `<span class="person-filter-pill">Buscar: &ldquo;${searchValue}&rdquo;</span>` : "",
+    hasQuickFilter && activeQuick ? `<span class="person-filter-pill">Estado: ${activeQuick.label}</span>` : "",
     hasCustomSort && activeSort ? `<span class="person-filter-pill">Orden: ${activeSort.label}</span>` : "",
   ]
     .filter(Boolean)
     .join("");
 
+  const densityIsCompact = state.taskCardDensity === "compact";
+
   const controlsDiv = document.createElement("div");
   controlsDiv.className = "person-toolbar-shell mb-3";
-  const personFieldHTML = `
-    <div class="person-control-field person-control-field--slim">
-      <label class="person-control-label" for="person-view-people-filter">Persona</label>
-      <select id="person-view-people-filter" class="person-control-input person-control-input--slim">${peopleOptions}</select>
-    </div>
-  `;
-  const searchFieldHTML = `
-    <div class="person-control-field person-control-field--slim">
-      <label class="person-control-label" for="person-view-search">Buscar</label>
-      <input
-        id="person-view-search"
-        type="text"
-        value="${(state.personViewSearch || "").replace(/"/g, "&quot;")}"
-        placeholder="Nombre o email"
-        class="person-control-input person-control-input--slim"
-      />
-    </div>
-  `;
-  const modeFieldHTML = `
-    <div class="person-control-field person-control-field--slim">
-      <span class="person-control-label" id="person-view-mode-label">Ver</span>
-      <div
-        id="person-view-mode"
-        class="person-mode-toggle person-mode-toggle--slim"
-        role="tablist"
-        aria-labelledby="person-view-mode-label"
-      >
-        <button
-          id="person-view-tab-current"
-          type="button"
-          role="tab"
-          data-person-mode="current"
-          aria-selected="${viewMode === "current" ? "true" : "false"}"
-          aria-controls="person-view-panel-current"
-          tabindex="${viewMode === "current" ? "0" : "-1"}"
-          class="flex-1 h-full rounded-md text-[13px] font-semibold transition-colors ${viewMode === "current" ? "bg-[color:var(--brand-700)] text-white" : "text-[color:var(--muted)] hover:bg-[color:var(--surface-secondary)]"}"
+  controlsDiv.innerHTML = `
+    <!-- Main toolbar row -->
+    <div class="person-toolbar-main">
+      <!-- Scope: Mode toggle + Sprint select always visible -->
+      <div class="person-toolbar-scope">
+        <div
+          id="person-view-mode"
+          class="person-mode-toggle person-mode-toggle--slim"
+          role="tablist"
+          aria-label="Modo de vista"
         >
-          Actual
+          <button id="person-view-tab-current" type="button" role="tab" data-person-mode="current"
+            aria-selected="${viewMode === "current" ? "true" : "false"}"
+            aria-controls="person-view-panel-current"
+            tabindex="${viewMode === "current" ? "0" : "-1"}"
+            class="flex-1 h-full rounded-md text-[13px] font-semibold transition-colors ${viewMode === "current" ? "bg-[color:var(--brand-700)] text-white" : "text-[color:var(--muted)] hover:bg-[color:var(--surface-secondary)]"}"
+          >Actual</button>
+          <button id="person-view-tab-history" type="button" role="tab" data-person-mode="history"
+            aria-selected="${viewMode === "history" ? "true" : "false"}"
+            aria-controls="person-view-panel-history"
+            tabindex="${viewMode === "history" ? "0" : "-1"}"
+            class="flex-1 h-full rounded-md text-[13px] font-semibold transition-colors ${viewMode === "history" ? "bg-[color:var(--brand-700)] text-white" : "text-[color:var(--muted)] hover:bg-[color:var(--surface-secondary)]"}"
+          >Histórico</button>
+        </div>
+        <select id="person-view-filter" class="person-control-input person-control-input--slim" aria-label="Sprint o scope">
+          ${sprintOptions}
+        </select>
+      </div>
+
+      <div class="flex-1 min-w-0"></div>
+
+      <!-- Action buttons -->
+      <div class="person-toolbar-actions">
+        <button
+          id="person-toggle-filters-panel"
+          type="button"
+          class="person-toolbar-btn ${isFiltersPanelOpen ? "person-toolbar-btn--active" : ""}"
+          data-person-panel="filters"
+          aria-expanded="${isFiltersPanelOpen ? "true" : "false"}"
+          aria-controls="person-toolbar-filters-panel"
+        >
+          <i class="fa-solid fa-sliders" aria-hidden="true"></i>
+          Filtros
+          ${activeFilterCount > 0 ? `<span class="person-toolbar-badge">${activeFilterCount}</span>` : ""}
         </button>
         <button
-          id="person-view-tab-history"
           type="button"
-          role="tab"
-          data-person-mode="history"
-          aria-selected="${viewMode === "history" ? "true" : "false"}"
-          aria-controls="person-view-panel-history"
-          tabindex="${viewMode === "history" ? "0" : "-1"}"
-          class="flex-1 h-full rounded-md text-[13px] font-semibold transition-colors ${viewMode === "history" ? "bg-[color:var(--brand-700)] text-white" : "text-[color:var(--muted)] hover:bg-[color:var(--surface-secondary)]"}"
+          class="person-toolbar-btn person-toolbar-btn--icon ${densityIsCompact ? "person-toolbar-btn--active" : ""}"
+          data-person-action="toggle-density"
+          title="${densityIsCompact ? "Vista cómoda (clic para activar)" : "Vista compacta (clic para activar)"}"
+          aria-pressed="${densityIsCompact ? "true" : "false"}"
         >
-          Histórico
+          <i class="fa-solid ${densityIsCompact ? "fa-table-cells-large" : "fa-table-cells"}" aria-hidden="true"></i>
         </button>
       </div>
     </div>
-  `;
-  const actionButtonsHTML = `
-    <div class="person-toolbar-actions">
-      <button
-        id="person-toggle-sprint-panel"
-        type="button"
-        class="person-toolbar-btn"
-        data-person-panel="sprint"
-        aria-expanded="${isSprintPanelOpen ? "true" : "false"}"
-        aria-controls="person-toolbar-sprint-panel"
-      >
+
+    <!-- Scope summary strip — always visible -->
+    <div class="person-scope-strip">
+      <span class="person-scope-label">
         <i class="fa-solid fa-calendar-week" aria-hidden="true"></i>
-        Sprint
-      </button>
-      <button
-        id="person-toggle-filters-panel"
-        type="button"
-        class="person-toolbar-btn"
-        data-person-panel="filters"
-        aria-expanded="${isFiltersPanelOpen ? "true" : "false"}"
-        aria-controls="person-toolbar-filters-panel"
-      >
-        <i class="fa-solid fa-sliders" aria-hidden="true"></i>
-        Filtros
-        ${activeQuickFilterCount > 0 ? `<span class="person-toolbar-badge">${activeQuickFilterCount}</span>` : ""}
-      </button>
-    </div>
-  `;
-  const toolbarMainHTML = isMobileToolbar
-    ? `${modeFieldHTML}${personFieldHTML}${searchFieldHTML}${actionButtonsHTML}`
-    : `${personFieldHTML}${searchFieldHTML}${modeFieldHTML}${actionButtonsHTML}`;
-  controlsDiv.innerHTML = `
-    <div class="person-toolbar-main">
-      ${toolbarMainHTML}
+        ${selectedSprintLabel}
+      </span>
+      <span class="person-scope-divider" aria-hidden="true">·</span>
+      <span class="person-scope-stat">${cycleSummary.people} personas</span>
+      <span class="person-scope-divider" aria-hidden="true">·</span>
+      <span class="person-scope-stat">${cycleSummary.tasks} tareas</span>
+      <span class="person-scope-divider" aria-hidden="true">·</span>
+      <span class="person-scope-stat">${cycleSummary.totalLoad}/${cycleCapacity} pts <span class="person-scope-pct">(${cycleUtilizationPct}%)</span></span>
+      <span class="person-scope-divider" aria-hidden="true">·</span>
+      <span class="person-scope-stat person-scope-stat--done">${cycleSummary.doneCycle} pts hecho</span>
+      ${cycleSummary.overloaded > 0 ? `<span class="person-scope-divider" aria-hidden="true">·</span><span class="person-scope-stat person-scope-stat--alert"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> ${cycleSummary.overloaded} sobrecargado${cycleSummary.overloaded > 1 ? "s" : ""}</span>` : ""}
     </div>
 
+    <!-- Collapsible: unified filters panel -->
     <div id="person-toolbar-collapsible" class="person-toolbar-collapsible ${openPanel ? "" : "u-hidden"}">
-      <section
-        id="person-toolbar-sprint-panel"
-        class="person-toolbar-panel ${isSprintPanelOpen ? "" : "u-hidden"}"
-        role="region"
-        aria-labelledby="person-toggle-sprint-panel"
-      >
-        <div class="person-toolbar-panel-head">
-          <h3>Contexto del ciclo</h3>
-          <span class="person-filter-pill">${selectedSprintLabel}</span>
-        </div>
-        <div class="person-toolbar-bottom-row">
-          <div class="person-toolbar-sort-wrap">
-            <label class="person-control-label" for="person-view-filter">Sprint</label>
-            <select id="person-view-filter" class="person-control-input person-control-input--slim">${sprintOptions}</select>
-          </div>
-          <div class="person-toolbar-active-row">
-            <span class="person-filter-pill">${scopePeriodPillLabel}</span>
-            <span class="person-filter-pill">${scopeFreshnessPillLabel}</span>
-          </div>
-        </div>
-        <div class="person-cycle-bento">
-          <article class="person-cycle-card person-cycle-card--hero">
-            <p class="person-cycle-eyebrow">Scope actual</p>
-            <h4>${selectedSprintLabel}</h4>
-            <p class="person-cycle-subline">Contexto estable del ciclo, independiente de filtros por persona.</p>
-          </article>
-
-          <article class="person-cycle-card person-cycle-card--capacity ${cycleOverflowPts > 0 ? "person-cycle-card--warn" : ""}">
-            <p class="person-cycle-eyebrow">Capacidad del ciclo</p>
-            <h4>${cycleSummary.totalLoad} / ${cycleCapacity} pts</h4>
-            <p class="person-cycle-subline">${cycleUtilizationPct}% de uso · ${cycleOverflowPts > 0 ? `+${cycleOverflowPts} pts sobre capacidad` : `${cycleAvailablePts} pts libres`}</p>
-            <div class="person-cycle-track">
-              <span class="person-cycle-fill person-cycle-fill--load" style="width:${Math.min(cycleUtilizationPct, 100)}%"></span>
-            </div>
-            <div class="person-cycle-track">
-              <span class="person-cycle-fill person-cycle-fill--done" style="width:${Math.min(cycleLivePct, 100)}%"></span>
-            </div>
-            <div class="person-cycle-inline-kpis">
-              <span><b>Hecho:</b> ${cycleSummary.doneCycle} pts (${cycleCompletionPct}%)</span>
-              <span><b>Carga viva:</b> ${cycleSummary.liveLoad} pts (${cycleLivePct}%)</span>
-            </div>
-          </article>
-
-          <article class="person-cycle-card person-cycle-card--risk ${cycleSummary.overloaded > 0 ? "person-cycle-card--alert" : ""}">
-            <p class="person-cycle-eyebrow">Riesgo operativo</p>
-            <h4>${cycleSummary.overloaded} sobrecargados</h4>
-            <p class="person-cycle-subline">${cycleSummary.unassigned} tareas sin asignar · ${cycleSummary.tasks} tareas evaluadas</p>
-          </article>
-
-          <article class="person-cycle-card person-cycle-card--mini">
-            <p class="person-cycle-eyebrow">Equipo</p>
-            <h4>${cycleSummary.people}</h4>
-          </article>
-          <article class="person-cycle-card person-cycle-card--mini">
-            <p class="person-cycle-eyebrow">Tareas</p>
-            <h4>${cycleSummary.tasks}</h4>
-          </article>
-          <article class="person-cycle-card person-cycle-card--mini">
-            <p class="person-cycle-eyebrow">Carga viva</p>
-            <h4>${cycleSummary.liveLoad} pts</h4>
-            <p class="person-cycle-subline">${cycleLivePct}% de capacidad</p>
-          </article>
-          <article class="person-cycle-card person-cycle-card--mini person-cycle-card--accent">
-            <p class="person-cycle-eyebrow">Capacidad acumulada</p>
-            <h4>${cycleCapacity} pts</h4>
-            <p class="person-cycle-subline">Promedio ${cycleAvgCapacity} pts por persona</p>
-          </article>
-        </div>
-      </section>
-
       <section
         id="person-toolbar-filters-panel"
         class="person-toolbar-panel ${isFiltersPanelOpen ? "" : "u-hidden"}"
@@ -2771,10 +2718,29 @@ function renderPersonView(state) {
         aria-labelledby="person-toggle-filters-panel"
       >
         <div class="person-toolbar-panel-head">
-          <h3>Filtros específicos</h3>
-          <button id="person-clear-advanced-panel" type="button" class="person-toolbar-clear ${hasQuickFilter || hasCustomSort ? "" : "u-hidden"}">Limpiar</button>
+          <h3>Filtros y orden</h3>
+          <button id="person-clear-advanced-panel" type="button" class="person-toolbar-clear ${hasAnyFilter ? "" : "u-hidden"}">Limpiar todo</button>
         </div>
+        <!-- Person + Search in same row -->
+        <div class="person-filters-inline-row">
+          <div class="person-control-field person-control-field--slim">
+            <label class="person-control-label" for="person-view-people-filter">Persona</label>
+            <select id="person-view-people-filter" class="person-control-input person-control-input--slim">${peopleOptions}</select>
+          </div>
+          <div class="person-control-field person-control-field--slim">
+            <label class="person-control-label" for="person-view-search">Buscar</label>
+            <input
+              id="person-view-search"
+              type="text"
+              value="${(state.personViewSearch || "").replace(/"/g, "&quot;")}"
+              placeholder="Nombre o email"
+              class="person-control-input person-control-input--slim"
+            />
+          </div>
+        </div>
+        <!-- Quick filter chips -->
         <div id="person-view-quick-filters" class="person-quick-filters">${quickChipsHTML}</div>
+        <!-- Sort + active pills -->
         <div class="person-toolbar-bottom-row">
           <div class="person-toolbar-sort-wrap">
             <label class="person-control-label" for="person-view-sort">Ordenar</label>
@@ -2785,7 +2751,7 @@ function renderPersonView(state) {
               <option value="name_asc" ${sortMode === "name_asc" ? "selected" : ""}>A-Z</option>
             </select>
           </div>
-          <div class="person-toolbar-active-row ${hasQuickFilter || hasCustomSort ? "" : "u-hidden"}">${activePillsHTML}</div>
+          ${hasAnyFilter ? `<div class="person-toolbar-active-row">${activePillsHTML}</div>` : ""}
         </div>
       </section>
     </div>
@@ -2826,8 +2792,14 @@ function renderPersonView(state) {
     controlsDiv.querySelectorAll("[data-person-panel]").forEach((btn) => {
       btn.addEventListener("click", () => appActions.togglePersonViewPanel(btn.dataset.personPanel));
     });
+    controlsDiv.querySelectorAll("[data-person-action='toggle-density']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const next = state.taskCardDensity === "compact" ? "comfortable" : "compact";
+        appActions.setTaskCardDensity(next);
+      });
+    });
     clearAdvancedBtn?.addEventListener("click", () => {
-      appActions.clearPersonViewAdvancedFilters();
+      appActions.resetPersonViewControls();
     });
   }
 
@@ -4208,8 +4180,83 @@ export function renderActiveSprintTitle(state) {
   const myPoints = sprintTasks
     .filter((t) => t.assignee === state.user.email)
     .reduce((sum, task) => sum + (task.points || 0), 0);
+  const pct = totalPoints > 0 ? Math.round((completedPoints / totalPoints) * 100) : 0;
+  const isOpen = state.sprintBreakdownOpen;
 
-  domViewTitle.innerHTML = `${title}<span class="view-title-stats">Hechos: ${completedPoints} / Total: ${totalPoints} | Míos: ${myPoints} Pts</span>`;
+  domViewTitle.innerHTML = `${title}<button
+    type="button"
+    class="view-title-stats"
+    data-action="toggle-sprint-breakdown"
+    title="${isOpen ? "Cerrar desglose" : "Ver desglose del sprint"}"
+    aria-expanded="${isOpen}"
+  >Hecho: ${pct}% · ${completedPoints}/${totalPoints} pts<i class="fa-solid ${isOpen ? "fa-chevron-up" : "fa-chevron-down"}" style="font-size:11px;margin-left:5px;"></i></button>`;
+
+  renderSprintBreakdown(state, sprintTasks);
+}
+
+function renderSprintBreakdown(state, sprintTasks) {
+  const panel = document.getElementById("sprint-breakdown-panel");
+  if (!panel) return;
+
+  if (!state.sprintBreakdownOpen) {
+    panel.classList.add("u-hidden");
+    return;
+  }
+  panel.classList.remove("u-hidden");
+
+  const todoTasks     = sprintTasks.filter((t) => resolveKanbanStatus(t) === "todo");
+  const inProgTasks   = sprintTasks.filter((t) => resolveKanbanStatus(t) === "inprogress");
+  const doneTasks     = sprintTasks.filter((t) => resolveKanbanStatus(t) === "done");
+  const pts = (arr) => arr.reduce((s, t) => s + (t.points || 0), 0);
+  const total = pts(sprintTasks);
+  const donePts = pts(doneTasks);
+  const pct = total > 0 ? Math.round((donePts / total) * 100) : 0;
+
+  // Group by assignee
+  const assigneeMap = new Map();
+  sprintTasks.forEach((t) => {
+    const key = t.assignee || "__unassigned__";
+    if (!assigneeMap.has(key)) assigneeMap.set(key, { tasks: 0, pts: 0 });
+    const entry = assigneeMap.get(key);
+    entry.tasks += 1;
+    entry.pts += t.points || 0;
+  });
+  const assigneeRows = Array.from(assigneeMap.entries())
+    .sort((a, b) => b[1].pts - a[1].pts)
+    .slice(0, 6)
+    .map(([email, data]) => {
+      const user = state.allUsers.find((u) => u.email === email);
+      const name = email === "__unassigned__" ? "Sin asignar" : (user?.displayName || email.split("@")[0]);
+      const avatar = email === "__unassigned__"
+        ? `<span style="width:18px;height:18px;border-radius:50%;background:var(--surface-secondary);display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:var(--muted)"><i class="fa-solid fa-user"></i></span>`
+        : `<img src="${user?.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&size=36`}" alt="${name}">`;
+      return `<div class="sprint-breakdown-assignee">${avatar}<strong>${name}</strong>${data.pts} pts · ${data.tasks} t</div>`;
+    })
+    .join("");
+
+  panel.innerHTML = `
+    <div class="sprint-breakdown-progress" title="${pct}% completado">
+      <div class="sprint-breakdown-progress__fill" style="width:${pct}%"></div>
+    </div>
+    <div class="sprint-breakdown-grid">
+      <div class="sprint-breakdown-card sprint-breakdown-card--todo">
+        <div class="sprint-breakdown-card__label"><i class="fa-regular fa-circle"></i> Por hacer</div>
+        <div class="sprint-breakdown-card__count">${todoTasks.length}</div>
+        <div class="sprint-breakdown-card__pts">${pts(todoTasks)} pts</div>
+      </div>
+      <div class="sprint-breakdown-card sprint-breakdown-card--inprogress">
+        <div class="sprint-breakdown-card__label"><i class="fa-solid fa-spinner"></i> En progreso</div>
+        <div class="sprint-breakdown-card__count">${inProgTasks.length}</div>
+        <div class="sprint-breakdown-card__pts">${pts(inProgTasks)} pts</div>
+      </div>
+      <div class="sprint-breakdown-card sprint-breakdown-card--done">
+        <div class="sprint-breakdown-card__label"><i class="fa-solid fa-check-circle"></i> Hecho · ${pct}%</div>
+        <div class="sprint-breakdown-card__count">${doneTasks.length}</div>
+        <div class="sprint-breakdown-card__pts">${donePts} pts</div>
+      </div>
+    </div>
+    ${assigneeRows ? `<div class="sprint-breakdown-people">${assigneeRows}</div>` : ""}
+  `;
 }
 
 export function renderSprintSelector(state) {
@@ -4564,7 +4611,23 @@ function handleAppClick(e) {
 
     if (action === "collapse-column") {
       const colId = actionTarget.dataset.col;
+      const meta = KANBAN_COLUMN_META[colId];
       appActions.toggleColumnCollapse(colId);
+      showToast({
+        message: `Columna «${meta?.title ?? colId}» colapsada`,
+        onUndo: () => appActions.toggleColumnCollapse(colId),
+      });
+      return;
+    }
+
+    if (action === "toggle-task-density") {
+      const next = appState.taskCardDensity === "compact" ? "comfortable" : "compact";
+      appActions.setTaskCardDensity(next);
+      return;
+    }
+
+    if (action === "toggle-sprint-breakdown") {
+      appActions.toggleSprintBreakdown();
       return;
     }
 
@@ -6048,6 +6111,38 @@ export function hideApp() {
   document.getElementById("sidebar")?.classList.remove("flex");
   document.getElementById("sidebar")?.classList.add("hidden");
   document.getElementById("welcome-message")?.classList.remove("hidden");
+}
+
+// 3.2 — Undo toast system
+function showToast({ message, undoLabel = "Deshacer", onUndo = null, duration = 4000 } = {}) {
+  const container = document.getElementById("toast-container");
+  if (!container) return;
+
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  toast.setAttribute("role", "status");
+  toast.innerHTML = `
+    <span class="toast__msg">${message}</span>
+    ${onUndo ? `<button type="button" class="toast__undo">${undoLabel}</button>` : ""}
+    <button type="button" class="toast__close" aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+  `;
+
+  const dismiss = () => {
+    toast.classList.add("toast--out");
+    toast.addEventListener("animationend", () => toast.remove(), { once: true });
+  };
+
+  if (onUndo) {
+    toast.querySelector(".toast__undo")?.addEventListener("click", () => {
+      onUndo();
+      dismiss();
+    });
+  }
+  toast.querySelector(".toast__close")?.addEventListener("click", dismiss);
+
+  container.appendChild(toast);
+  if (duration > 0) setTimeout(dismiss, duration);
+  return { dismiss };
 }
 
 export function showModal(config) {
