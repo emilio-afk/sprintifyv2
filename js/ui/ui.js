@@ -22,6 +22,7 @@ const MODAL_MODE_CLASSES = [
 
 const dom = {
   viewTitle: document.getElementById("view-title"),
+  breadcrumb: document.getElementById("view-breadcrumb"),
   backlogTasksContainer: document.getElementById("backlog-tasks-container"),
   backlogMatrixContainer: document.getElementById("backlog-matrix-container"),
   toggleBacklogViewBtn: document.getElementById("toggle-backlog-view"),
@@ -418,9 +419,20 @@ function createTaskElement(task, context, state) {
 
   const ageClass =
     aging.key === "danger" ? "task-card-v3--aging-danger" : aging.key === "warn" ? "task-card-v3--aging-warn" : "";
+
+  let wipAlertClass = "";
+  if (context === "sprint" && resolveKanbanStatus(task) === "inprogress" && task.listId === state.currentSprintId) {
+    const inProgressCount = state.tasks.filter(
+      (t) => t.listId === state.currentSprintId && resolveKanbanStatus(t) === "inprogress"
+    ).length;
+    if (getWipState("inprogress", inProgressCount).isOverLimit) {
+      wipAlertClass = "task-card-v3--wip-alert";
+    }
+  }
+
   const taskCard = document.createElement("div");
   taskCard.id = task.id;
-  taskCard.className = `task-card task-card-v3 ${ageClass} group relative rounded-lg ${isCompleted ? "opacity-60" : ""}`;
+  taskCard.className = `task-card task-card-v3 ${ageClass} ${wipAlertClass} group relative rounded-lg ${isCompleted ? "opacity-60" : ""}`;
   taskCard.draggable = true;
   taskCard.dataset.context = context;
   taskCard.style.setProperty("--task-accent", sprintColor);
@@ -627,8 +639,12 @@ function renderBacklog(state) {
   const backlogTasks = state.tasks.filter((t) => t.listId === state.backlogId);
 
   if (backlogTasks.length === 0) {
-    dom.backlogTasksContainer.innerHTML =
-      '<p class="text-gray-500 text-center col-span-full py-8">El backlog está vacío.</p>';
+    dom.backlogTasksContainer.innerHTML = buildEmptyState({
+      icon: "inbox",
+      title: "El backlog está vacío",
+      hint: "Añade la primera tarea para empezar a planear tu próximo sprint.",
+      cta: { label: "Añadir Tarea al Backlog", action: "add-task-to-backlog" },
+    });
     return;
   }
 
@@ -934,6 +950,14 @@ function renderSprintKanban(state) {
         container.appendChild(historyToggle);
         container.appendChild(historyContainer);
       }
+      return;
+    }
+
+    if (colTasks.length === 0) {
+      const emptyCopy = col.key === "todo"
+        ? { icon: "list-check", title: "Nada pendiente", hint: "Arrastra tareas desde el Backlog o crea una nueva." }
+        : { icon: "play", title: "Sin tareas en progreso", hint: "Mueve aquí lo que esté en ejecución." };
+      container.innerHTML = buildEmptyState(emptyCopy);
       return;
     }
 
@@ -3143,23 +3167,18 @@ function renderActivityView(state) {
   const visibleItems = filterMode === "all" ? items : items.filter((i) => !i.isRead);
   const hasUnread = items.some((i) => !i.isRead);
 
-  const filters = [
+  const activityFilters = [
     { key: "unread", label: "No leídas" },
     { key: "all", label: "Todas" },
   ];
   container.innerHTML = `
-    <div class="flex items-center justify-between mb-4">
-      <div class="flex items-center gap-2">
-        ${filters
-          .map((f) => {
-            const isActive = filterMode === f.key;
-            const classes = isActive
-              ? "bg-[#0b56c6] text-white font-semibold"
-              : "bg-white hover:bg-gray-100 text-gray-700";
-            return `<button data-action="set-activity-filter" data-filter="${f.key}" class="py-1.5 px-3 rounded-lg text-xs shadow-sm border transition-colors ${classes}">${f.label}</button>`;
-          })
-          .join("")}
-      </div>
+    <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
+      ${buildFilterBar({
+        items: activityFilters,
+        activeKey: filterMode,
+        action: "set-activity-filter",
+        ariaLabel: "Filtros de actividad",
+      })}
       <button data-action="mark-all-as-read" ${
         hasUnread ? "" : "disabled"
       } class="text-xs border border-gray-200 rounded px-2 py-1 bg-white shadow-sm ${
@@ -3173,10 +3192,11 @@ function renderActivityView(state) {
   if (!list) return;
 
   if (visibleItems.length === 0) {
-    list.innerHTML =
+    list.innerHTML = buildEmptyState(
       filterMode === "all"
-        ? '<p class="text-center text-gray-500">No hay notificaciones.</p>'
-        : '<p class="text-center text-gray-500">No tienes notificaciones nuevas.</p>';
+        ? { icon: "bell-slash", title: "Sin actividad reciente", hint: "Cuando haya comentarios en tus tareas aparecerán aquí." }
+        : { icon: "check-double", title: "Todo al día", hint: "No tienes notificaciones nuevas." }
+    );
     return;
   }
 
@@ -3202,21 +3222,17 @@ function renderActivityView(state) {
 function renderSprintsSummary(state) {
   const filterContainer = document.getElementById("sprints-summary-filter-container");
   if (filterContainer) {
-    const filters = [
-      { key: "all", label: "Todos" },
-      { key: "active", label: "En Progreso" },
-      { key: "future", label: "Futuros" },
-      { key: "archived", label: "Archivados" },
-    ];
-    filterContainer.innerHTML = filters
-      .map((f) => {
-        const isActive = state.sprintsSummaryFilter === f.key;
-        const classes = isActive
-          ? "bg-[#0b56c6] text-white font-semibold"
-          : "bg-white hover:bg-gray-100 text-gray-700";
-        return `<button data-action="set-sprints-summary-filter" data-filter="${f.key}" class="py-2 px-4 rounded-lg text-sm shadow-sm border transition-colors ${classes}">${f.label}</button>`;
-      })
-      .join("");
+    filterContainer.innerHTML = buildFilterBar({
+      items: [
+        { key: "all", label: "Todos" },
+        { key: "active", label: "En Progreso" },
+        { key: "future", label: "Futuros" },
+        { key: "archived", label: "Archivados" },
+      ],
+      activeKey: state.sprintsSummaryFilter,
+      action: "set-sprints-summary-filter",
+      ariaLabel: "Filtros de sprints",
+    });
   }
   const tableBody = document.getElementById("summary-table-body");
   if (!tableBody) return;
@@ -3339,6 +3355,15 @@ function renderSprintsSummary(state) {
     fragment.appendChild(detailsRow);
   });
   tableBody.appendChild(fragment);
+  if (sprints.length === 0) {
+    const emptyRow = document.createElement("tr");
+    emptyRow.innerHTML = `<td colspan="7" class="p-6">${buildEmptyState({
+      icon: "flag-checkered",
+      title: "Sin sprints en este filtro",
+      hint: "Cambia el filtro o crea un nuevo sprint para empezar.",
+    })}</td>`;
+    tableBody.appendChild(emptyRow);
+  }
   sprints.forEach((sprint) => {
     if (!sprint.startDate || !sprint.endDate) return;
     const canvas = document.getElementById(`burndown-chart-${sprint.id}`);
@@ -3891,6 +3916,146 @@ function renderSettingsView(state) {
 // SECCIÓN 3: FUNCIONES RESTAURADAS Y CORREGIDAS
 // =================================================================================
 
+export function buildEmptyState({ icon = "inbox", title = "Sin elementos", hint = "", cta = null } = {}) {
+  const ctaHTML = cta
+    ? `<button type="button" class="empty-state__cta" data-action="${cta.action}"${cta.value ? ` data-value="${cta.value}"` : ""}>${escapeBreadcrumbLabel(cta.label)}</button>`
+    : "";
+  return `
+    <div class="empty-state" role="status">
+      <div class="empty-state__icon" aria-hidden="true"><i class="fa-solid fa-${icon}"></i></div>
+      <h4 class="empty-state__title">${escapeBreadcrumbLabel(title)}</h4>
+      ${hint ? `<p class="empty-state__hint">${escapeBreadcrumbLabel(hint)}</p>` : ""}
+      ${ctaHTML}
+    </div>
+  `;
+}
+
+export function buildSkeletonCards(count = 3) {
+  const cards = Array.from({ length: count })
+    .map(
+      () => `
+      <div class="skeleton-card" aria-hidden="true">
+        <div class="skeleton-line skeleton-line--sm"></div>
+        <div class="skeleton-line skeleton-line--lg"></div>
+        <div class="skeleton-line skeleton-line--md"></div>
+        <div class="skeleton-row">
+          <div class="skeleton-dot"></div>
+          <div class="skeleton-line skeleton-line--xs"></div>
+        </div>
+      </div>`
+    )
+    .join("");
+  return `<div class="skeleton-stack" role="status" aria-label="Cargando">${cards}</div>`;
+}
+
+export function renderLoadingSkeletons() {
+  ["col-todo-wrapper", "col-inprogress-wrapper", "col-done-wrapper"].forEach((id) => {
+    const wrapper = document.getElementById(id);
+    if (!wrapper) return;
+    const key = id.replace("col-", "").replace("-wrapper", "");
+    wrapper.className = `kanban-column kanban-column--${key}`;
+    wrapper.innerHTML = `
+      <div class="kanban-column-meta">
+        <span class="skeleton-chip"></span>
+      </div>
+      ${buildSkeletonCards(3)}
+    `;
+  });
+  const backlog = document.getElementById("backlog-tasks-container");
+  if (backlog) backlog.innerHTML = buildSkeletonCards(4);
+  const summary = document.getElementById("summary-table-body");
+  if (summary) {
+    summary.innerHTML = Array.from({ length: 4 })
+      .map(
+        () => `<tr><td colspan="100" class="p-3"><div class="skeleton-line skeleton-line--lg"></div></td></tr>`
+      )
+      .join("");
+  }
+}
+
+export function buildFilterBar({ items = [], activeKey, action, dataKey = "filter", ariaLabel = "Filtros" } = {}) {
+  if (!items.length) return "";
+  const chips = items
+    .map((item) => {
+      const isActive = item.key === activeKey;
+      const activeClass = isActive ? " filter-chip--active" : "";
+      const attrs = [
+        `type="button"`,
+        action ? `data-action="${action}"` : "",
+        `data-${dataKey}="${item.key}"`,
+        `class="filter-chip${activeClass}"`,
+        `aria-pressed="${isActive ? "true" : "false"}"`,
+      ]
+        .filter(Boolean)
+        .join(" ");
+      return `<button ${attrs}>${escapeBreadcrumbLabel(item.label)}</button>`;
+    })
+    .join("");
+  return `<div class="filter-bar" role="group" aria-label="${ariaLabel}">${chips}</div>`;
+}
+
+function renderBreadcrumb(state, hash, activeLink) {
+  const container = dom.breadcrumb || document.getElementById("view-breadcrumb");
+  if (!container) return;
+
+  if (!activeLink) {
+    container.innerHTML = "";
+    return;
+  }
+
+  const crumbs = [{ label: "Workspace", href: "#sprint" }];
+
+  const navGroup = activeLink.closest(".nav-group");
+  const groupTitle = navGroup?.querySelector("h3")?.textContent?.trim();
+  const groupButton = navGroup?.querySelector(".nav-group-button");
+  if (groupTitle) {
+    crumbs.push({
+      label: groupTitle,
+      action: groupButton ? "toggle-nav-group" : null,
+      target: groupButton?.dataset?.target || null,
+    });
+  }
+
+  const viewLabel = activeLink.querySelector("span")?.textContent?.trim() || "";
+  const context = getBreadcrumbContext(state, hash);
+  crumbs.push({ label: viewLabel, href: hash, current: !context });
+  if (context) {
+    crumbs.push({ label: context, current: true });
+  }
+
+  container.innerHTML = crumbs
+    .map((c, i) => {
+      const isLast = i === crumbs.length - 1;
+      const currentClass = c.current || isLast ? " view-breadcrumb__crumb--current" : "";
+      const tag = c.href && !(c.current || isLast) ? "a" : "span";
+      const hrefAttr = tag === "a" ? ` href="${c.href}"` : "";
+      const ariaCurrent = c.current || isLast ? ' aria-current="page"' : "";
+      const sep = i > 0
+        ? '<span class="view-breadcrumb__separator" aria-hidden="true">/</span>'
+        : "";
+      return `${sep}<${tag} class="view-breadcrumb__crumb${currentClass}"${hrefAttr}${ariaCurrent}>${escapeBreadcrumbLabel(c.label)}</${tag}>`;
+    })
+    .join("");
+}
+
+function getBreadcrumbContext(state, hash) {
+  if (hash === "#sprint") {
+    const sprint = state?.taskLists?.find((l) => l.id === state.currentSprintId);
+    return sprint?.title || null;
+  }
+  if (hash === "#by-person" && state?.personViewPersonFilter && state.personViewPersonFilter !== "all") {
+    return state.personViewPersonFilter;
+  }
+  return null;
+}
+
+function escapeBreadcrumbLabel(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 export function handleRouteChange(state) {
   const views = {
     "#themes": document.getElementById("view-themes"),
@@ -3974,6 +4139,10 @@ export function handleRouteChange(state) {
       } else {
         dom.viewTitle.textContent = title;
       }
+
+      renderBreadcrumb(state, hash, activeLink);
+    } else {
+      renderBreadcrumb(state, hash, null);
     }
 
     switch (hash) {

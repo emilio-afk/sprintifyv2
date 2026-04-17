@@ -93,6 +93,8 @@ function requestRender() {
       ui.renderActiveSprintTitle(state);
       ui.updateSprintCapacityInput(state);
       checkUnreadActivity();
+    } else if (state.user) {
+      ui.renderLoadingSkeletons(state);
     }
   });
 }
@@ -975,6 +977,8 @@ const actions = {
 // ------------------ Carga de datos / presencia ------------------
 function onLogin(user) {
   ui.showApp(user);
+  state.user = user;
+  requestRender();
   setupPresenceSystem(user);
   loadData();
 }
