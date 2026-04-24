@@ -1,2 +1,19 @@
+# Dependencies
 node_modules/
+
+# Local worktrees
 .worktrees/
+
+# macOS metadata
+.DS_Store
+
+# Generated repo snapshots
+repomix-output.xml
+
+# Local agent artifacts and checkpoints
+.codex-checkpoints/
+.superpowers/
+.claude/settings.local.json
+
+# External reference repos should live outside this project
+awesome-ux/
