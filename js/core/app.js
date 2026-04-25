@@ -208,7 +208,8 @@ const actions = {
     } else {
       state.expandedPersonViews.add(email);
     }
-    requestRender();
+    // State is updated silently — the DOM toggle in the click handler already
+    // handles the visual expand/collapse without a full re-render.
   },
 
   toggleColumnCollapse(columnId) {
@@ -774,7 +775,7 @@ const actions = {
     state.expandedEpicIds.has(id)
       ? state.expandedEpicIds.delete(id)
       : state.expandedEpicIds.add(id);
-    requestRender();
+    // State updated silently — DOM toggle handled directly in handleEpicCardAction.
   },
 
   // ---- Calendar / Auth ----

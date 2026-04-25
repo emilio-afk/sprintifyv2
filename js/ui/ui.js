@@ -6,8 +6,6 @@ let modalCallback = null;
 let appState = {};
 let appActions = {};
 let quillInstance = null;
-let activePersonContextTrigger = null;
-let activePersonContextCleanup = null;
 const MODAL_TEXT_BASE_CLASS = "m-4 text-gray-600 hidden";
 const MODAL_MODE_CLASSES = [
   "is-task-modal",
@@ -1080,35 +1078,28 @@ function renderEpics(state) {
   const toolbar = document.getElementById("epics-toolbar");
   if (toolbar) {
     toolbar.innerHTML = `
-      <div class="rounded-2xl border border-[var(--border)] bg-[color:var(--surface)]/92 p-4 shadow-sm backdrop-blur-sm">
-        <div class="flex items-center gap-3">
-          <input type="text" id="epics-search" placeholder="Buscar epics por nombre..." 
-            class="rounded-xl border border-[var(--line-default)] bg-[color:var(--surface)] px-4 text-sm text-[color:var(--ink)] outline-none transition-shadow focus:ring-2 focus:ring-[color:var(--line-focus)]"
-            style="width: 260px; height: 40px;"
-            value="${state.epicsSearch}">
-
-          <select id="epics-status-filter" class="rounded-xl border border-[var(--line-default)] bg-[color:var(--surface)] py-2 px-3 text-sm text-[color:var(--ink)] outline-none focus:ring-2 focus:ring-[color:var(--line-focus)]" style="height: 40px;">
-            <option value="">Todos los Estados</option>
-            <option value="Por Empezar" ${state.epicsStatusFilter === "Por Empezar" ? "selected" : ""}>Por Empezar</option>
-            <option value="En Progreso" ${state.epicsStatusFilter === "En Progreso" ? "selected" : ""}>En Progreso</option>
-            <option value="Completado" ${state.epicsStatusFilter === "Completado" ? "selected" : ""}>Completado</option>
-          </select>
-
-          <select id="epics-sort" class="rounded-xl border border-[var(--line-default)] bg-[color:var(--surface)] py-2 px-3 text-sm text-[color:var(--ink)] outline-none focus:ring-2 focus:ring-[color:var(--line-focus)]" style="height: 40px;">
-            <option value="recent" ${state.epicsSortMode === "recent" ? "selected" : ""}>Recientes primero</option>
-            <option value="progress_asc" ${state.epicsSortMode === "progress_asc" ? "selected" : ""}>Progreso (menor %)</option>
-            <option value="progress_desc" ${state.epicsSortMode === "progress_desc" ? "selected" : ""}>Progreso (mayor %)</option>
-            <option value="points_asc" ${state.epicsSortMode === "points_asc" ? "selected" : ""}>Puntos (menor)</option>
-            <option value="points_desc" ${state.epicsSortMode === "points_desc" ? "selected" : ""}>Puntos (mayor)</option>
-          </select>
-
-          <button
-            data-action="new-epic"
-            class="flex items-center gap-2 rounded-xl bg-[color:var(--brand-700)] py-2 px-4 font-semibold text-white transition-colors hover:bg-[color:var(--brand-900)]"
-            style="height: 40px;"
-          >
-            <i class="fa-solid fa-plus fa-fw inline-block w-4 h-4 text-current"></i>
-            Nuevo Epic
+      <div class="epic-control-shell">
+        <div class="epic-control-main">
+          <input type="text" id="epics-search" placeholder="Buscar iniciativas…"
+            class="epic-search-input"
+            value="${state.epicsSearch || ""}">
+          <div class="epic-control-group">
+            <select id="epics-status-filter" class="epic-select">
+              <option value="">Todos los estados</option>
+              <option value="Por Empezar" ${state.epicsStatusFilter === "Por Empezar" ? "selected" : ""}>Por Empezar</option>
+              <option value="En Progreso" ${state.epicsStatusFilter === "En Progreso" ? "selected" : ""}>En Progreso</option>
+              <option value="Completado" ${state.epicsStatusFilter === "Completado" ? "selected" : ""}>Completado</option>
+            </select>
+            <select id="epics-sort" class="epic-select">
+              <option value="recent" ${state.epicsSortMode === "recent" ? "selected" : ""}>Recientes</option>
+              <option value="progress_asc" ${state.epicsSortMode === "progress_asc" ? "selected" : ""}>Progreso ↑</option>
+              <option value="progress_desc" ${state.epicsSortMode === "progress_desc" ? "selected" : ""}>Progreso ↓</option>
+              <option value="points_desc" ${state.epicsSortMode === "points_desc" ? "selected" : ""}>Puntos ↓</option>
+              <option value="points_asc" ${state.epicsSortMode === "points_asc" ? "selected" : ""}>Puntos ↑</option>
+            </select>
+          </div>
+          <button data-action="new-epic" class="epic-new-btn">
+            <i class="fa-solid fa-plus"></i> Nueva Iniciativa
           </button>
         </div>
       </div>
@@ -1116,35 +1107,34 @@ function renderEpics(state) {
   }
 
   if (state.epics.length === 0) {
-    container.innerHTML = `<div class="col-span-full text-center py-12 bg-white rounded-xl border-2 border-dashed border-gray-300">
-      <div class="text-gray-300 mb-3"><i class="fas fa-book-atlas text-5xl"></i></div>
-      <p class="text-gray-500 font-medium">No hay Epics definidos aún.</p>
-    </div>`;
+    container.innerHTML = `
+      <div class="epic-empty-state">
+        <i class="fas fa-book-atlas"></i>
+        <p>No hay iniciativas definidas aún.</p>
+        <button data-action="new-epic" class="epic-new-btn" style="margin-top:14px;">
+          <i class="fa-solid fa-plus"></i> Nueva Iniciativa
+        </button>
+      </div>
+    `;
     return;
   }
 
-  // Attach listeners (se llama a actions, no manipula DOM directamente)
   const searchInput = document.getElementById("epics-search");
   const statusSelect = document.getElementById("epics-status-filter");
   const sortSelect = document.getElementById("epics-sort");
 
-  if (searchInput && typeof appActions !== "undefined") {
+  if (searchInput && typeof appActions !== "undefined")
     searchInput.addEventListener("input", (e) => appActions.setEpicsSearch(e.target.value));
-  }
-  if (statusSelect && typeof appActions !== "undefined") {
+  if (statusSelect && typeof appActions !== "undefined")
     statusSelect.addEventListener("change", (e) => appActions.setEpicsStatusFilter(e.target.value));
-  }
-  if (sortSelect && typeof appActions !== "undefined") {
+  if (sortSelect && typeof appActions !== "undefined")
     sortSelect.addEventListener("change", (e) => appActions.setEpicsSortMode(e.target.value));
-  }
 
-  // Aplicar filtros desde state
   const applyFilters = () => {
-    const searchVal = state.epicsSearch.toLowerCase();
+    const searchVal = (state.epicsSearch || "").toLowerCase();
     const statusFilter = state.epicsStatusFilter;
     const sortMode = state.epicsSortMode;
 
-    // Filtrado
     let filtered = state.epics.filter((epic) => {
       const matchesSearch =
         epic.title.toLowerCase().includes(searchVal) ||
@@ -1153,43 +1143,56 @@ function renderEpics(state) {
       return matchesSearch && matchesStatus;
     });
 
-    // Ordenamiento
     filtered.sort((a, b) => {
       const getProgress = (e) => {
         const epicTasks = state.tasks.filter((t) => t.epicId === e.id);
-        const totalPoints = epicTasks.reduce((sum, t) => sum + (t.points || 0), 0);
-        const completedPoints = epicTasks
+        const total = epicTasks.reduce((s, t) => s + (t.points || 0), 0);
+        const done = epicTasks
           .filter((t) => t.status === "completed" || t.kanbanStatus === "done")
-          .reduce((sum, t) => sum + (t.points || 0), 0);
-        return totalPoints > 0 ? completedPoints / totalPoints : 0;
+          .reduce((s, t) => s + (t.points || 0), 0);
+        return total > 0 ? done / total : 0;
       };
-
-      const getTotalPoints = (e) => {
-        const epicTasks = state.tasks.filter((t) => t.epicId === e.id);
-        return epicTasks.reduce((sum, t) => sum + (t.points || 0), 0);
-      };
+      const getTotalPoints = (e) =>
+        state.tasks.filter((t) => t.epicId === e.id).reduce((s, t) => s + (t.points || 0), 0);
 
       switch (sortMode) {
-        case "progress_asc":
-          return getProgress(a) - getProgress(b);
-        case "progress_desc":
-          return getProgress(b) - getProgress(a);
-        case "points_asc":
-          return getTotalPoints(a) - getTotalPoints(b);
-        case "points_desc":
-          return getTotalPoints(b) - getTotalPoints(a);
-        case "recent":
-        default:
-          return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
+        case "progress_asc":  return getProgress(a) - getProgress(b);
+        case "progress_desc": return getProgress(b) - getProgress(a);
+        case "points_asc":    return getTotalPoints(a) - getTotalPoints(b);
+        case "points_desc":   return getTotalPoints(b) - getTotalPoints(a);
+        default:              return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
       }
     });
 
-    // Renderizar tarjetas
     renderEpicCards(filtered, state);
   };
 
-  // Llamar filtros al renderizar
   applyFilters();
+}
+
+function computeEpicHealth(epic, progressPercent, percentTimeElapsed) {
+  if (epic.status === "Completado") return { key: "done", label: "Completado" };
+  if (epic.status === "Por Empezar" && progressPercent === 0) return { key: "idle", label: "Por Empezar" };
+  if (percentTimeElapsed === null) return { key: "ok", label: "En curso" };
+  const delta = progressPercent - percentTimeElapsed;
+  if (delta <= -10) return { key: "late", label: "Atrasado" };
+  if (delta < 0)    return { key: "risk", label: "En riesgo" };
+  return { key: "ok", label: "En curso" };
+}
+
+function buildEpicProgressBar(progressPct, timePct, healthKey, rowIdx) {
+  const clamped = Math.min(Math.max(progressPct, 0), 100);
+  const delay = 120 + (rowIdx || 0) * 25;
+  const marker = timePct != null
+    ? `<div class="epic-bar-time-marker" style="left:${Math.min(timePct, 100)}%"></div>`
+    : "";
+  return `
+    <div class="epic-bar-track" role="progressbar" aria-valuenow="${Math.round(clamped)}">
+      <div class="epic-bar-fill epic-bar-fill--${healthKey}"
+           style="--bar-w:${clamped}%;--bar-delay:${delay}ms"></div>
+      ${marker}
+    </div>
+  `;
 }
 
 function toRgba(color, alpha, fallback = `rgba(15, 118, 110, ${alpha})`) {
@@ -1213,199 +1216,171 @@ function toRgba(color, alpha, fallback = `rgba(15, 118, 110, ${alpha})`) {
 
 function renderEpicCards(epics, state) {
   const container = document.getElementById("epics-container");
-
-  // Encontrar o crear contenedor de tarjetas
-  let cardsContainer = container.querySelector("#epics-cards-wrapper");
-  if (!cardsContainer) {
-    cardsContainer = document.createElement("div");
-    cardsContainer.id = "epics-cards-wrapper";
-    container.appendChild(cardsContainer);
+  let wrapper = container.querySelector("#epics-cards-wrapper");
+  if (!wrapper) {
+    wrapper = document.createElement("div");
+    wrapper.id = "epics-cards-wrapper";
+    container.appendChild(wrapper);
   }
-
-  cardsContainer.className = "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start";
-  cardsContainer.innerHTML = ""; // Limpiar
+  wrapper.innerHTML = "";
 
   if (epics.length === 0) {
-    cardsContainer.innerHTML = `<div class="col-span-full text-center py-8 text-gray-500">No se encontraron epics.</div>`;
+    wrapper.innerHTML = `<div class="epic-empty-state" style="padding:32px 0;"><p>No se encontraron iniciativas.</p></div>`;
     return;
   }
 
+  // --- Stats for the summary strip ---
+  let totalPts = 0, donePts = 0, lateCount = 0, riskCount = 0, noDateCount = 0;
   epics.forEach((epic) => {
-    // --- CÁLCULOS ---
     const epicTasks = state.tasks.filter((t) => t.epicId === epic.id);
-    const totalPoints = epicTasks.reduce((sum, t) => sum + (t.points || 0), 0);
+    const ep = epicTasks.reduce((s, t) => s + (t.points || 0), 0);
+    const dp = epicTasks
+      .filter((t) => t.status === "completed" || t.kanbanStatus === "done")
+      .reduce((s, t) => s + (t.points || 0), 0);
+    totalPts += ep;
+    donePts += dp;
+    const prog = ep > 0 ? (dp / ep) * 100 : 0;
+    let timePct = null;
+    if (epic.startDate && epic.endDate) {
+      const s = epic.startDate.toDate ? epic.startDate.toDate() : new Date(epic.startDate);
+      const e = epic.endDate.toDate   ? epic.endDate.toDate()   : new Date(epic.endDate);
+      s.setHours(0,0,0,0); e.setHours(23,59,59,999);
+      const today = new Date(); today.setHours(0,0,0,0);
+      const dur = e - s;
+      timePct = dur > 0 ? (Math.max(0, Math.min(today - s, dur)) / dur) * 100 : 0;
+    } else {
+      noDateCount++;
+    }
+    const h = computeEpicHealth(epic, prog, timePct);
+    if (h.key === "late") lateCount++;
+    else if (h.key === "risk") riskCount++;
+  });
+
+  const lateBadge = lateCount > 0
+    ? `<span class="epic-stats-badge epic-stats-badge--late"><i class="fa-solid fa-circle-exclamation" style="font-size:.65rem"></i> ${lateCount} Atrasada${lateCount > 1 ? "s" : ""}</span>`
+    : "";
+  const riskBadge = riskCount > 0
+    ? `<span class="epic-stats-badge epic-stats-badge--risk"><i class="fa-solid fa-triangle-exclamation" style="font-size:.65rem"></i> ${riskCount} En riesgo</span>`
+    : "";
+  const noDatePart = noDateCount > 0
+    ? `<span class="epic-stats-sep">·</span><span class="epic-stats-item">${noDateCount} sin fecha</span>`
+    : "";
+
+  const statsEl = document.createElement("div");
+  statsEl.className = "epic-stats-strip";
+  statsEl.innerHTML = `
+    <span class="epic-stats-item"><span class="epic-stats-num">${epics.length}</span> iniciativa${epics.length !== 1 ? "s" : ""}</span>
+    <span class="epic-stats-sep">·</span>
+    <span class="epic-stats-item"><span class="epic-stats-num">${donePts}</span> / <span class="epic-stats-num">${totalPts}</span> pts completados</span>
+    ${noDatePart}${lateBadge}${riskBadge}
+  `;
+  wrapper.appendChild(statsEl);
+
+  // --- Board ---
+  const board = document.createElement("div");
+  board.className = "epic-board";
+
+  const headerEl = document.createElement("div");
+  headerEl.className = "epic-list-header";
+  headerEl.setAttribute("aria-hidden", "true");
+  headerEl.innerHTML = `<span>Iniciativa</span><span>Estado</span><span>Progreso</span><span>Pts</span><span></span>`;
+  board.appendChild(headerEl);
+
+  epics.forEach((epic, index) => {
+    const epicTasks = state.tasks.filter((t) => t.epicId === epic.id);
+    const totalPoints = epicTasks.reduce((s, t) => s + (t.points || 0), 0);
     const completedPoints = epicTasks
       .filter((t) => t.status === "completed" || t.kanbanStatus === "done")
-      .reduce((sum, t) => sum + (t.points || 0), 0);
+      .reduce((s, t) => s + (t.points || 0), 0);
     const progressPercent = totalPoints > 0 ? (completedPoints / totalPoints) * 100 : 0;
 
-    let timeLabel = "Sin fecha";
-    let daysRemaining = 0;
-    if (epic.startDate && epic.endDate) {
-      const start = epic.startDate.toDate ? epic.startDate.toDate() : new Date(epic.startDate);
-      const end = epic.endDate.toDate ? epic.endDate.toDate() : new Date(epic.endDate);
-      const today = new Date();
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
-      today.setHours(0, 0, 0, 0);
-
-      const totalDuration = end - start;
-      const elapsed = today - start;
-      const totalDays = Math.ceil(totalDuration / (1000 * 60 * 60 * 24));
-      const daysPassed = Math.ceil(elapsed / (1000 * 60 * 60 * 24));
-      daysRemaining = totalDays - daysPassed;
-
-      if (daysPassed < 0) timeLabel = `En ${Math.abs(daysPassed)} días`;
-      else if (daysPassed > totalDays) timeLabel = `Fin hace ${daysPassed - totalDays}d`;
-      else timeLabel = `Día ${daysPassed}/${totalDays}`;
-    }
-
-    // --- HEALTH INDICATOR ---
-    let healthLabel = "En curso";
-    let healthTone = "bg-emerald-50 text-emerald-800 border border-emerald-200";
-    // --- TIME-BASED PROGRESS ---
     let percentTimeElapsed = null;
-    let deltaPercent = null;
+    let timeLabel = "Sin fecha";
     if (epic.startDate && epic.endDate) {
       const start = epic.startDate.toDate ? epic.startDate.toDate() : new Date(epic.startDate);
-      const end = epic.endDate.toDate ? epic.endDate.toDate() : new Date(epic.endDate);
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const totalDuration = end - start;
+      const end   = epic.endDate.toDate   ? epic.endDate.toDate()   : new Date(epic.endDate);
+      start.setHours(0,0,0,0); end.setHours(23,59,59,999);
+      const today = new Date(); today.setHours(0,0,0,0);
+      const totalDur = end - start;
       const rawElapsed = today - start;
-      const elapsedMs = Math.max(0, Math.min(rawElapsed, totalDuration));
-      percentTimeElapsed = totalDuration > 0 ? (elapsedMs / totalDuration) * 100 : 0;
-      deltaPercent = progressPercent - percentTimeElapsed;
+      percentTimeElapsed = totalDur > 0
+        ? (Math.max(0, Math.min(rawElapsed, totalDur)) / totalDur) * 100
+        : 0;
+      const totalDays = Math.ceil(totalDur / 86400000);
+      const daysPassed = Math.ceil(rawElapsed / 86400000);
+      const daysLeft = totalDays - daysPassed;
+      if (daysPassed < 0) timeLabel = `Inicia en ${Math.abs(daysPassed)}d`;
+      else if (daysPassed > totalDays) timeLabel = `Finalizó hace ${daysPassed - totalDays}d`;
+      else timeLabel = `${daysLeft}d restantes`;
     }
 
-    if (totalPoints > 0) {
-      const expectedProgress = percentTimeElapsed != null ? percentTimeElapsed : 100;
-      if (progressPercent < expectedProgress * 0.7) {
-        healthLabel = "Atrasado";
-        healthTone = "bg-rose-50 text-rose-800 border border-rose-200";
-      } else if (progressPercent < expectedProgress) {
-        healthLabel = "En riesgo";
-        healthTone = "bg-amber-50 text-amber-800 border border-amber-200";
-      }
-    }
+    const health = computeEpicHealth(epic, progressPercent, percentTimeElapsed);
+    const epicColor = epic.color || "#3b82f6";
+    const isExpanded = state.expandedEpicIds.has(epic.id);
 
     const definedKRs = epic.keyResults || [];
     const completedIndices = epic.completedKrIndices || [];
-    const validCompletedCount = completedIndices.filter((idx) => idx < definedKRs.length).length;
-    const totalDefined = definedKRs.length;
-    const krProgress = totalDefined > 0 ? (validCompletedCount / totalDefined) * 100 : 0;
-    const isExpanded = state.expandedEpicIds.has(epic.id);
-
-    // HTML KRs
-    const krsListHTML = definedKRs
-      .map((kr, index) => {
-        const isChecked = completedIndices.includes(index);
-        return `
-        <div class="flex items-start gap-2 rounded-xl border bg-[color:var(--surface)] p-2.5 text-xs transition-colors ${isChecked ? "border-emerald-200 bg-emerald-50/45" : "border-[color:var(--line-subtle)]"}">
-          <input type="checkbox" 
-                 class="epic-kr-checkbox mt-0.5 h-4 w-4 flex-shrink-0 cursor-pointer rounded border-gray-300 text-[color:var(--brand-700)] focus:ring-[color:var(--line-focus)]"
-                 data-epic-id="${epic.id}"
-                 data-index="${index}"
-                 ${isChecked ? "checked" : ""}>
-          <span class="leading-snug text-[color:var(--text-strong)] ${isChecked ? "line-through opacity-50" : ""}">${kr}</span>
+    const krsListHTML = definedKRs.map((kr, i) => {
+      const isChecked = completedIndices.includes(i);
+      return `
+        <div class="epic-kr-item ${isChecked ? "epic-kr-item--done" : ""}">
+          <input type="checkbox" class="epic-kr-checkbox"
+            data-epic-id="${epic.id}" data-index="${i}" ${isChecked ? "checked" : ""}>
+          <span class="epic-kr-text ${isChecked ? "epic-kr-text--done" : ""}">${kr}</span>
         </div>`;
-      })
-      .join("");
+    }).join("");
 
-    const statusConfig = {
-      "Por Empezar": {
-        class: "border border-stone-200 bg-stone-100 text-stone-700",
-        icon: "fa-hourglass-start",
-      },
-      "En Progreso": {
-        class: "border border-teal-200 bg-teal-50 text-teal-800",
-        icon: "fa-person-running",
-      },
-      Completado: {
-        class: "border border-emerald-200 bg-emerald-50 text-emerald-800",
-        icon: "fa-check-circle",
-      },
-    };
-    const statusStyle = statusConfig[epic.status] || statusConfig["Por Empezar"];
-    const epicColor = epic.color || "#3b82f6";
-    const epicAccentSoft = toRgba(epicColor, 0.14);
-    const epicAccentStrong = toRgba(epicColor, 0.45);
-
-    // Delta badge color based on how far ahead/behind the epic is relative to time
-    let deltaBadgeClass = "border border-stone-200 bg-stone-100 text-stone-600";
-    if (deltaPercent != null) {
-      if (deltaPercent >= 10)
-        deltaBadgeClass = "border border-emerald-200 bg-emerald-50 text-emerald-800";
-      else if (deltaPercent <= -10)
-        deltaBadgeClass = "border border-rose-200 bg-rose-50 text-rose-800";
-      else deltaBadgeClass = "border border-amber-200 bg-amber-50 text-amber-800";
-    }
-    const deltaSign =
-      deltaPercent == null ? "" : deltaPercent > 0 ? "+" : deltaPercent < 0 ? "-" : "";
-
-    // --- RENDERIZADO ---
-    const epicCard = document.createElement("div");
-    epicCard.className =
-      "epic-card group relative h-fit overflow-hidden rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] shadow-sm transition-all duration-200";
-    epicCard.dataset.id = epic.id;
-    epicCard.style.boxShadow = `inset 0 3px 0 ${epicAccentStrong}`;
-
-    epicCard.innerHTML = `
-      <div class="p-4">
-        <div class="mb-3 flex items-center justify-between gap-3">
-            <div class="flex items-center gap-2">
-              <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${statusStyle.class}">
-                  <i class="fa-solid ${statusStyle.icon}" style="font-size: 10px;"></i> ${epic.status}
-              </span>
-              <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${healthTone}">${healthLabel}</span>
-            </div>
-            <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button data-action="edit-epic" class="text-stone-400 transition-colors hover:text-[color:var(--brand-700)]"><i class="fas fa-pencil"></i></button>
-                <button data-action="delete-epic" class="text-stone-400 transition-colors hover:text-rose-700"><i class="fas fa-trash-can"></i></button>
-            </div>
-        </div>
-
-        <div class="mb-3">
-            <div class="mb-2 flex items-start gap-2">
-              <span class="mt-1 h-2.5 w-2.5 flex-shrink-0 rounded-full border border-white/70" style="background-color: ${epicAccentStrong}; box-shadow: 0 0 0 4px ${epicAccentSoft};"></span>
-              <div class="min-w-0">
-                <h3 class="truncate text-[16px] font-semibold text-[color:var(--text-strong)]" title="${epic.title}">${epic.title}</h3>
-                <p class="truncate text-xs text-[color:var(--muted)]">${epic.description || "Sin descripción."}</p>
-              </div>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-4 items-center gap-2 text-xs text-[color:var(--muted)]">
-          <span><span class="text-[color:var(--muted)]">Pts</span> <span class="font-semibold text-[color:var(--text-strong)]">${completedPoints}/${totalPoints}</span></span>
-          <span><span class="text-[color:var(--muted)]">Prog</span> <span class="font-semibold text-[color:var(--text-strong)]">${Math.round(progressPercent)}%</span></span>
-          <span><span class="text-[color:var(--muted)]">Tiempo</span> <span class="font-semibold text-[color:var(--text-strong)]">${timeLabel}</span></span>
-          <span class="inline-flex justify-end"><span class="rounded-full px-2.5 py-1 text-[11px] font-semibold ${deltaBadgeClass}">${deltaPercent != null ? deltaSign + Math.abs(Math.round(deltaPercent)) + "%" : "Sin delta"}</span></span>
-        </div>
-
-        <div class="mt-3 w-full overflow-hidden rounded-full bg-stone-200/90 relative" style="height: 8px;">
-          <div 
-            class="h-full transition-all duration-500 ease-out rounded-full"
-            style="width: ${Math.min(progressPercent, 100)}%; background: linear-gradient(90deg, var(--brand-700) 0%, var(--modal-primary-strong) 100%);"
-          ></div>
-          ${percentTimeElapsed != null ? `<div class="absolute top-0" style="left: ${Math.min(percentTimeElapsed, 100)}%; height:100%; width:2px; transform: translateX(-1px); background-color: rgba(31,41,55,0.24)"></div>` : ``}
+    const row = document.createElement("div");
+    row.className = `epic-row epic-row--${health.key}`;
+    row.dataset.epicId = epic.id;
+    row.style.setProperty("--row-idx", String(index));
+    row.innerHTML = `
+      <div class="epic-row-identity">
+        <div class="epic-row-dot" style="background:${epicColor};box-shadow:0 0 0 3px ${toRgba(epicColor, 0.15)}"></div>
+        <div class="epic-row-text">
+          <span class="epic-row-title" title="${epic.title}">${epic.title}</span>
+          <span class="epic-row-desc">${epic.description || "Sin descripción"}</span>
         </div>
       </div>
-
-      <button data-action="toggle-details" class="flex w-full items-center justify-center gap-2 border-t border-[color:var(--line-subtle)] py-3 text-xs font-semibold text-[color:var(--muted)] transition-colors hover:bg-[color:var(--surface-secondary)] hover:text-[color:var(--brand-700)]">
-          <span>${isExpanded ? "Ocultar objetivos" : "Ver objetivos"}</span>
-          <i class="fas fa-chevron-down transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}"></i>
+      <div class="epic-row-state">
+        <span class="epic-chip epic-chip--${health.key}">${health.label}</span>
+      </div>
+      <div class="epic-row-bar">
+        ${buildEpicProgressBar(progressPercent, percentTimeElapsed, health.key, index)}
+        <div class="epic-bar-legend">${timeLabel}</div>
+      </div>
+      <div class="epic-row-metric">
+        <span class="epic-metric-pts">${completedPoints}<span class="epic-metric-sep">/</span>${totalPoints} pts</span>
+        <span class="epic-metric-pct">${Math.round(progressPercent)}%</span>
+      </div>
+      <button class="epic-row-chevron" data-action="toggle-details" aria-expanded="${isExpanded}">
+        <i class="fas fa-chevron-down"></i>
       </button>
+    `;
 
-      <div class="space-y-2 bg-[color:var(--surface-secondary)] px-4 pb-4 pt-3 animate-fade-in ${isExpanded ? "" : "hidden"}">
-         ${krsListHTML || '<p class="py-2 text-center text-xs italic text-[color:var(--muted)]">Sin KRs definidos.</p>'}
+    const detail = document.createElement("div");
+    detail.className = `epic-row-detail${isExpanded ? "" : " epic-collapsed"}`;
+    detail.dataset.epicDetail = epic.id;
+    detail.innerHTML = `
+      <div class="epic-row-detail-inner">
+        <div class="epic-detail-meta">
+          <span class="epic-detail-tasks-count">${epicTasks.length} tarea${epicTasks.length !== 1 ? "s" : ""}</span>
+          <div class="epic-detail-actions">
+            <button data-action="edit-epic" class="epic-detail-btn"><i class="fas fa-pencil"></i> Editar</button>
+            <button data-action="delete-epic" class="epic-detail-btn epic-detail-btn--danger"><i class="fas fa-trash-can"></i> Eliminar</button>
+          </div>
+        </div>
+        <div class="epic-krs-list">
+          ${krsListHTML || '<p class="epic-krs-empty">Sin objetivos definidos.</p>'}
+        </div>
       </div>
     `;
 
-    cardsContainer.appendChild(epicCard);
+    board.appendChild(row);
+    board.appendChild(detail);
   });
+
+  wrapper.appendChild(board);
 }
 
 // --- EN ui.js (Reemplaza la función renderMyTasks completa) ---
@@ -1740,6 +1715,34 @@ function getCycleTitleDateParts(date) {
   };
 }
 
+function buildInlineBar(metrics, capacity, laneIndex) {
+  const norm = (v) => Math.max(0, Number(v || 0));
+  const cap = Math.max(1, Number(capacity) || CYCLE_POINTS_TARGET);
+  const done = norm(metrics.ptsDoneThisCycle);
+  const inprogress = norm(metrics.ptsInProgress);
+  const todo = norm(metrics.ptsTodo);
+  const doneIn = Math.min(done, cap);
+  const progressIn = Math.min(inprogress, Math.max(cap - doneIn, 0));
+  const todoIn = Math.min(todo, Math.max(cap - doneIn - progressIn, 0));
+  const pct = (v) => `${((v / cap) * 100).toFixed(2)}%`;
+  const base = 120 + (laneIndex || 0) * 30;
+  const aria = `Hecho ${Math.round(done)}, En progreso ${Math.round(inprogress)}, Pendiente ${Math.round(todo)} de ${cap} pts`;
+  return `
+    <div class="carga-bar-track" role="group" aria-label="${aria}">
+      <div class="carga-bar-seg carga-bar-seg--done"
+           style="--bar-w:${pct(doneIn)};--bar-delay:${base}ms"
+           title="Hecho: ${Math.round(done)} pts"></div>
+      <div class="carga-bar-seg carga-bar-seg--progress"
+           style="--bar-w:${pct(progressIn)};--bar-delay:${base + 70}ms"
+           title="En progreso: ${Math.round(inprogress)} pts"></div>
+      <div class="carga-bar-seg carga-bar-seg--todo"
+           style="--bar-w:${pct(todoIn)};--bar-delay:${base + 140}ms"
+           title="Pendiente: ${Math.round(todo)} pts"></div>
+      <div class="carga-bar-seg carga-bar-seg--free"></div>
+    </div>
+  `;
+}
+
 function buildPersonCapacityBar(metrics, capacity = CYCLE_POINTS_TARGET) {
   const normalize = (value) => {
     const num = Number(value || 0);
@@ -2011,7 +2014,7 @@ function renderPersonView(state) {
     if (ratio > 0.95) {
       return {
         key: "at-limit",
-        label: "En límite",
+        label: "Al límite",
         title: `Carga entre 95% y 105% de la meta (${cap} pts por ciclo).`,
         className: "person-risk-text--at-limit",
         chipClass: "person-risk-chip--at-limit",
@@ -2021,7 +2024,7 @@ function renderPersonView(state) {
     if (ratio >= 0.70) {
       return {
         key: "optimal",
-        label: "Óptimo",
+        label: "En rango",
         title: `Carga entre 70% y 95% de la meta (${cap} pts por ciclo).`,
         className: "person-risk-text--optimal",
         chipClass: "person-risk-chip--optimal",
@@ -2631,130 +2634,133 @@ function renderPersonView(state) {
     .filter(Boolean)
     .join("");
 
-  const densityIsCompact = state.taskCardDensity === "compact";
+  const scopeLabel = selectedSprintLabel || allSprintOptionLabel;
+  const alertCount = cycleSummary.overloaded + (cycleSummary.unassigned > 0 ? 1 : 0);
 
   const controlsDiv = document.createElement("div");
-  controlsDiv.className = "person-toolbar-shell mb-3";
+  controlsDiv.className = "workload-view-shell";
   controlsDiv.innerHTML = `
-    <!-- Main toolbar row -->
-    <div class="person-toolbar-main">
-      <!-- Scope: Mode toggle + Sprint select always visible -->
-      <div class="person-toolbar-scope">
-        <div
-          id="person-view-mode"
-          class="person-mode-toggle person-mode-toggle--slim"
-          role="tablist"
-          aria-label="Modo de vista"
-        >
+    <section class="workload-control-shell">
+      <div class="workload-control-main">
+        <div class="workload-mode-switch" id="person-view-mode" role="tablist" aria-label="Modo de vista">
           <button id="person-view-tab-current" type="button" role="tab" data-person-mode="current"
             aria-selected="${viewMode === "current" ? "true" : "false"}"
             aria-controls="person-view-panel-current"
             tabindex="${viewMode === "current" ? "0" : "-1"}"
-            class="flex-1 h-full rounded-md text-[13px] font-semibold transition-colors ${viewMode === "current" ? "bg-[color:var(--brand-700)] text-white" : "text-[color:var(--muted)] hover:bg-[color:var(--surface-secondary)]"}"
+            class="workload-mode-option ${viewMode === "current" ? "is-active" : ""}"
           >Actual</button>
           <button id="person-view-tab-history" type="button" role="tab" data-person-mode="history"
             aria-selected="${viewMode === "history" ? "true" : "false"}"
             aria-controls="person-view-panel-history"
             tabindex="${viewMode === "history" ? "0" : "-1"}"
-            class="flex-1 h-full rounded-md text-[13px] font-semibold transition-colors ${viewMode === "history" ? "bg-[color:var(--brand-700)] text-white" : "text-[color:var(--muted)] hover:bg-[color:var(--surface-secondary)]"}"
+            class="workload-mode-option ${viewMode === "history" ? "is-active" : ""}"
           >Histórico</button>
         </div>
-        <select id="person-view-filter" class="person-control-input person-control-input--slim" aria-label="Sprint o scope">
-          ${sprintOptions}
-        </select>
+
+        <label class="workload-control-block workload-control-block--primary">
+          <select id="person-view-filter" class="person-control-input person-control-input--slim" aria-label="Sprint o scope">
+            ${sprintOptions}
+          </select>
+        </label>
+
+        <label class="workload-control-block workload-control-block--compact">
+          <select id="person-view-sort" class="person-control-input person-control-input--slim" aria-label="Ordenar por">
+            <option value="load_desc" ${sortMode === "load_desc" ? "selected" : ""}>Carga</option>
+            <option value="risk_desc" ${sortMode === "risk_desc" ? "selected" : ""}>Prioridad</option>
+            <option value="done_desc" ${sortMode === "done_desc" ? "selected" : ""}>Hecho</option>
+            <option value="name_asc" ${sortMode === "name_asc" ? "selected" : ""}>Nombre</option>
+          </select>
+        </label>
+
+        <div class="workload-secondary-controls">
+          <button
+            id="person-toggle-filters-panel"
+            type="button"
+            class="person-toolbar-btn ${isFiltersPanelOpen ? "person-toolbar-btn--active" : ""}"
+            data-person-panel="filters"
+            aria-expanded="${isFiltersPanelOpen ? "true" : "false"}"
+            aria-controls="person-toolbar-filters-panel"
+          >
+            <i class="fa-solid fa-sliders" aria-hidden="true"></i>
+            Filtros
+            ${activeFilterCount > 0 ? `<span class="person-toolbar-badge">${activeFilterCount}</span>` : ""}
+          </button>
+        </div>
       </div>
 
-      <div class="flex-1 min-w-0"></div>
-
-      <!-- Action buttons -->
-      <div class="person-toolbar-actions">
-        <button
-          id="person-toggle-filters-panel"
-          type="button"
-          class="person-toolbar-btn ${isFiltersPanelOpen ? "person-toolbar-btn--active" : ""}"
-          data-person-panel="filters"
-          aria-expanded="${isFiltersPanelOpen ? "true" : "false"}"
-          aria-controls="person-toolbar-filters-panel"
-        >
-          <i class="fa-solid fa-sliders" aria-hidden="true"></i>
-          Filtros
-          ${activeFilterCount > 0 ? `<span class="person-toolbar-badge">${activeFilterCount}</span>` : ""}
-        </button>
-        <button
-          type="button"
-          class="person-toolbar-btn person-toolbar-btn--icon ${densityIsCompact ? "person-toolbar-btn--active" : ""}"
-          data-person-action="toggle-density"
-          title="${densityIsCompact ? "Vista cómoda (clic para activar)" : "Vista compacta (clic para activar)"}"
-          aria-pressed="${densityIsCompact ? "true" : "false"}"
-        >
-          <i class="fa-solid ${densityIsCompact ? "fa-table-cells-large" : "fa-table-cells"}" aria-hidden="true"></i>
-        </button>
+      <div class="carga-stats-strip" aria-label="Resumen del ciclo">
+        <span class="carga-stats-item">${scopeLabel}</span>
+        <span class="carga-stats-sep" aria-hidden="true">·</span>
+        <span class="carga-stats-item">
+          <strong class="carga-stats-num">${cycleSummary.people}</strong> personas
+        </span>
+        <span class="carga-stats-sep" aria-hidden="true">·</span>
+        <span class="carga-stats-item">
+          <strong class="carga-stats-num">${cycleSummary.tasks}</strong> tareas
+        </span>
+        <span class="carga-stats-sep" aria-hidden="true">·</span>
+        <span class="carga-stats-item">
+          <strong class="carga-stats-num">${cycleSummary.totalLoad}/${cycleCapacity}</strong> pts
+        </span>
+        <span class="carga-stats-sep" aria-hidden="true">·</span>
+        <span class="carga-stats-item">
+          <strong class="carga-stats-num">${cycleUtilizationPct}%</strong> utilizado
+        </span>
+        ${cycleSummary.doneCycle > 0 ? `
+        <span class="carga-stats-sep" aria-hidden="true">·</span>
+        <span class="carga-stats-item carga-stats-badge carga-stats-badge--done">
+          <i class="fas fa-check" aria-hidden="true"></i>
+          <strong class="carga-stats-num">${cycleSummary.doneCycle}</strong> pts hecho
+        </span>` : ""}
+        ${cycleSummary.overloaded > 0 ? `
+        <span class="carga-stats-sep" aria-hidden="true">·</span>
+        <span class="carga-stats-item carga-stats-badge carga-stats-badge--alert">
+          <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+          ${cycleSummary.overloaded} sobrecargado${cycleSummary.overloaded > 1 ? "s" : ""}
+        </span>` : ""}
+        ${cycleSummary.unassigned > 0 ? `
+        <span class="carga-stats-sep" aria-hidden="true">·</span>
+        <span class="carga-stats-item carga-stats-badge carga-stats-badge--warn">
+          <i class="fas fa-user-slash" aria-hidden="true"></i>
+          ${cycleSummary.unassigned} sin dueño
+        </span>` : ""}
       </div>
-    </div>
 
-    <!-- Scope summary strip — always visible -->
-    <div class="person-scope-strip">
-      <span class="person-scope-label">
-        <i class="fa-solid fa-calendar-week" aria-hidden="true"></i>
-        ${selectedSprintLabel}
-      </span>
-      <span class="person-scope-divider" aria-hidden="true">·</span>
-      <span class="person-scope-stat">${cycleSummary.people} personas</span>
-      <span class="person-scope-divider" aria-hidden="true">·</span>
-      <span class="person-scope-stat">${cycleSummary.tasks} tareas</span>
-      <span class="person-scope-divider" aria-hidden="true">·</span>
-      <span class="person-scope-stat">${cycleSummary.totalLoad}/${cycleCapacity} pts <span class="person-scope-pct">(${cycleUtilizationPct}%)</span></span>
-      <span class="person-scope-divider" aria-hidden="true">·</span>
-      <span class="person-scope-stat person-scope-stat--done">${cycleSummary.doneCycle} pts hecho</span>
-      ${cycleSummary.overloaded > 0 ? `<span class="person-scope-divider" aria-hidden="true">·</span><span class="person-scope-stat person-scope-stat--alert"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> ${cycleSummary.overloaded} sobrecargado${cycleSummary.overloaded > 1 ? "s" : ""}</span>` : ""}
-    </div>
+      <div class="workload-secondary-controls" style="display:none">
+      </div>
 
-    <!-- Collapsible: unified filters panel -->
-    <div id="person-toolbar-collapsible" class="person-toolbar-collapsible ${openPanel ? "" : "u-hidden"}">
-      <section
-        id="person-toolbar-filters-panel"
-        class="person-toolbar-panel ${isFiltersPanelOpen ? "" : "u-hidden"}"
-        role="region"
-        aria-labelledby="person-toggle-filters-panel"
-      >
-        <div class="person-toolbar-panel-head">
-          <h3>Filtros y orden</h3>
-          <button id="person-clear-advanced-panel" type="button" class="person-toolbar-clear ${hasAnyFilter ? "" : "u-hidden"}">Limpiar todo</button>
-        </div>
-        <!-- Person + Search in same row -->
-        <div class="person-filters-inline-row">
-          <div class="person-control-field person-control-field--slim">
-            <label class="person-control-label" for="person-view-people-filter">Persona</label>
-            <select id="person-view-people-filter" class="person-control-input person-control-input--slim">${peopleOptions}</select>
+      <div id="person-toolbar-collapsible" class="person-toolbar-collapsible ${openPanel ? "" : "u-hidden"}">
+        <section
+          id="person-toolbar-filters-panel"
+          class="person-toolbar-panel ${isFiltersPanelOpen ? "" : "u-hidden"}"
+          role="region"
+          aria-labelledby="person-toggle-filters-panel"
+        >
+          <div class="person-toolbar-panel-head">
+            <h3>Filtros y orden</h3>
+            <button id="person-clear-advanced-panel" type="button" class="person-toolbar-clear ${hasAnyFilter ? "" : "u-hidden"}">Limpiar todo</button>
           </div>
-          <div class="person-control-field person-control-field--slim">
-            <label class="person-control-label" for="person-view-search">Buscar</label>
-            <input
-              id="person-view-search"
-              type="text"
-              value="${(state.personViewSearch || "").replace(/"/g, "&quot;")}"
-              placeholder="Nombre o email"
-              class="person-control-input person-control-input--slim"
-            />
+          <div class="person-filters-inline-row">
+            <div class="person-control-field person-control-field--slim">
+              <label class="person-control-label" for="person-view-people-filter">Persona</label>
+              <select id="person-view-people-filter" class="person-control-input person-control-input--slim">${peopleOptions}</select>
+            </div>
+            <div class="person-control-field person-control-field--slim">
+              <label class="person-control-label" for="person-view-search">Buscar</label>
+              <input
+                id="person-view-search"
+                type="text"
+                value="${(state.personViewSearch || "").replace(/"/g, "&quot;")}"
+                placeholder="Nombre o email"
+                class="person-control-input person-control-input--slim"
+              />
+            </div>
           </div>
-        </div>
-        <!-- Quick filter chips -->
-        <div id="person-view-quick-filters" class="person-quick-filters">${quickChipsHTML}</div>
-        <!-- Sort + active pills -->
-        <div class="person-toolbar-bottom-row">
-          <div class="person-toolbar-sort-wrap">
-            <label class="person-control-label" for="person-view-sort">Ordenar</label>
-            <select id="person-view-sort" class="person-control-input person-control-input--slim">
-              <option value="load_desc" ${sortMode === "load_desc" ? "selected" : ""}>Carga total</option>
-              <option value="risk_desc" ${sortMode === "risk_desc" ? "selected" : ""}>Riesgo</option>
-              <option value="done_desc" ${sortMode === "done_desc" ? "selected" : ""}>Hecho ciclo</option>
-              <option value="name_asc" ${sortMode === "name_asc" ? "selected" : ""}>A-Z</option>
-            </select>
-          </div>
+          <div id="person-view-quick-filters" class="person-quick-filters">${quickChipsHTML}</div>
           ${hasAnyFilter ? `<div class="person-toolbar-active-row">${activePillsHTML}</div>` : ""}
-        </div>
-      </section>
-    </div>
+        </section>
+      </div>
+    </section>
   `;
   container.appendChild(controlsDiv);
 
@@ -2899,6 +2905,17 @@ function renderPersonView(state) {
     return;
   }
 
+  // Team health bar — shows overall cycle completion at a glance
+  const teamBar = document.createElement("div");
+  teamBar.className = "carga-team-bar";
+  teamBar.setAttribute("role", "progressbar");
+  teamBar.setAttribute("aria-valuenow", String(cycleCompletionPct));
+  teamBar.setAttribute("aria-valuemin", "0");
+  teamBar.setAttribute("aria-valuemax", "100");
+  teamBar.setAttribute("aria-label", `Ciclo ${cycleCompletionPct}% completado`);
+  teamBar.innerHTML = `<div class="carga-team-bar-fill" style="--bar-w:${cycleCompletionPct}%"></div>`;
+  currentPanel.appendChild(teamBar);
+
   // Header de columnas con ordenamiento clickeable (T2.3)
   const headerRow = document.createElement("div");
   headerRow.className = "person-list-header";
@@ -2907,13 +2924,13 @@ function renderPersonView(state) {
       <button type="button" class="person-list-header-cell person-list-header-cell--sortable ${sortMode === "name_asc" ? "is-active" : ""}" data-person-sort="name_asc" title="Ordenar por nombre">
         Persona <i class="fas fa-${sortMode === "name_asc" ? "arrow-up" : "arrow-up-down"} person-sort-icon" aria-hidden="true"></i>
       </button>
-      <div class="person-list-header-spacer"></div>
-      <button type="button" class="person-list-header-cell person-list-header-cell--sortable ${sortMode === "done_desc" ? "is-active" : ""}" data-person-sort="done_desc" title="Ordenar por completado">
-        Completado <i class="fas fa-${sortMode === "done_desc" ? "arrow-down" : "arrow-up-down"} person-sort-icon" aria-hidden="true"></i>
+      <button type="button" class="person-list-header-cell person-list-header-cell--sortable ${sortMode === "risk_desc" ? "is-active" : ""}" data-person-sort="risk_desc" title="Ordenar por riesgo">
+        Capacidad <i class="fas fa-${sortMode === "risk_desc" ? "arrow-down" : "arrow-up-down"} person-sort-icon" aria-hidden="true"></i>
       </button>
       <button type="button" class="person-list-header-cell person-list-header-cell--sortable ${sortMode === "load_desc" ? "is-active" : ""}" data-person-sort="load_desc" title="Ordenar por carga">
-        Carga <i class="fas fa-${sortMode === "load_desc" ? "arrow-down" : "arrow-up-down"} person-sort-icon" aria-hidden="true"></i>
+        Trabajo <i class="fas fa-${sortMode === "load_desc" ? "arrow-down" : "arrow-up-down"} person-sort-icon" aria-hidden="true"></i>
       </button>
+      <span class="person-list-header-cell">Señal</span>
     </div>
   `;
   headerRow.querySelectorAll("[data-person-sort]").forEach((btn) => {
@@ -2951,63 +2968,95 @@ function renderPersonView(state) {
       optimal: "person-lane--optimal",
       underloaded: "person-lane--underloaded",
     }[metrics.risk?.key] ?? "person-lane--underloaded";
-    swimlane.className = `person-swimlane ${laneToneClass} ${isExpanded ? "person-swimlane--expanded" : ""} ${emailKey === "unassigned" ? "person-lane--unassigned" : ""}`.trim();
+    swimlane.className = `person-swimlane person-lane ${laneToneClass} ${isExpanded ? "person-swimlane--expanded" : ""} ${emailKey === "unassigned" ? "person-lane--unassigned person-lane-exception" : ""}`.trim();
 
     const avatarHTML =
       emailKey === "unassigned"
         ? `<div class="person-avatar person-avatar--placeholder rounded-full bg-[color:var(--surface-secondary)] flex items-center justify-center text-[color:var(--muted)]"><i class="fas fa-question"></i></div>`
         : `<img src="${profile.avatar}" class="person-avatar rounded-full border border-[color:var(--line-subtle)] object-cover" alt="${profile.name}">`;
 
-    const completionBadge = metrics.completionPct > 0
-      ? ` · <span class="person-completion-pct">${metrics.completionPct}%</span>`
-      : "";
-    const unassignedAlert = emailKey === "unassigned" && (metrics.tasksCount || 0) > 0
-      ? `<span class="person-unassigned-alert-badge"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> ${metrics.tasksCount} tarea${metrics.tasksCount !== 1 ? "s" : ""} sin dueño</span>`
-      : "";
-
     const cap = metrics.capacity || CYCLE_POINTS_TARGET;
     const loadPct = cap > 0 ? Math.round(((metrics.currentLoad || 0) / cap) * 100) : 0;
     const riskKey = metrics.risk?.key || "underloaded";
+    const isUnassigned = emailKey === "unassigned";
+    const fmtPts = (value) => {
+      const rounded = Math.round(Number(value || 0) * 10) / 10;
+      return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+    };
+    const taskCountLabel = `${metrics.tasksCount || 0} tarea${metrics.tasksCount !== 1 ? "s" : ""}`;
+    const personSubline =
+      isUnassigned
+        ? `${taskCountLabel} sin dueño`
+        : `${taskCountLabel}${metrics.completionPct > 0 ? ` · ${metrics.completionPct}% completado` : ""}`;
+    const capacityUsed = Number(metrics.currentLoad || 0);
+    const freePts = Math.max(cap - capacityUsed, 0);
+    const overCapacityPts = Math.max(capacityUsed - cap, 0);
+    const loadPrimaryLabel = `${fmtPts(capacityUsed)} / ${fmtPts(cap)} pts`;
+    const loadSecondaryLabel = `${loadPct}% usado`;
+    const inProgressCount = tasks.filter((task) => resolveKanbanStatus(task) === "inprogress").length;
+    const wipState = getWipState("inprogress", inProgressCount);
+    const statusLabel = isUnassigned ? "Atención" : (metrics.risk?.label || "Subutilizado");
+    const statusChipClass = isUnassigned
+      ? "person-risk-chip--unassigned"
+      : (metrics.risk?.chipClass || "person-risk-chip--underloaded");
+    const executionSignalLabel = isUnassigned
+      ? "Sin owner"
+      : overCapacityPts > 0
+        ? `+${fmtPts(overCapacityPts)} pts sobre cap`
+        : inProgressCount > 0
+          ? `WIP ${inProgressCount}/${wipState.limit}`
+          : capacityUsed <= 0
+            ? "Sin trabajo activo"
+            : `${fmtPts(freePts)} pts libres`;
+    const executionSignalDetail = isUnassigned
+      ? personSubline
+      : overCapacityPts > 0
+        ? "Rebalancear carga"
+        : inProgressCount > 0
+          ? `${fmtPts(metrics.ptsInProgress || 0)} pts en progreso`
+          : capacityUsed <= 0
+            ? "Disponible para tomar trabajo"
+            : `${loadPct}% de capacidad usada`;
 
+    swimlane.style.setProperty("--lane-idx", String(index));
     swimlane.innerHTML = `
       <div class="person-swimlane-header-wrap">
         <button class="person-swimlane-toggle" type="button" data-person-toggle="${emailKey}"
                 aria-expanded="${isExpanded ? "true" : "false"}"
                 aria-controls="person-cols-${emailKey}">
-          <div class="plc">
+          <div class="person-status-strip person-lane-strip">
 
-            <div class="plc-avatar-zone">
-              ${avatarHTML}
-              <span class="plc-status-dot plc-status-dot--${riskKey}" title="${metrics.risk?.title || ""}"></span>
-            </div>
-
-            <div class="plc-body">
-              <div class="plc-r1">
-                <h3 class="plc-name ${emailKey === "unassigned" ? "italic" : ""} truncate">${profile.name}</h3>
-                <span class="plc-chip ${metrics.risk?.chipClass || "person-risk-chip--underloaded"}">${metrics.risk?.label || "Subutilizado"}</span>
+            <div class="person-status-identity person-lane-identity">
+              <div class="plc-avatar-zone carga-avatar-ring carga-avatar-ring--${riskKey}">
+                ${avatarHTML}
+                <span class="plc-status-dot plc-status-dot--${riskKey}" title="${metrics.risk?.title || ""}"></span>
               </div>
-              <p class="plc-sub truncate">${metrics.tasksCount || 0} tareas${completionBadge}${unassignedAlert ? " · " + unassignedAlert.replace(/(<[^>]+>)/g, " ").trim() : ""}</p>
-              <div class="plc-r3">
-                <div class="plc-bar-wrap">
-                  ${buildPersonCapacityBar(metrics, cap)}
-                </div>
+              <div class="person-workload-identity">
+                <h3 class="plc-name ${isUnassigned ? "italic" : ""} truncate">${profile.name}</h3>
+                <p class="plc-sub truncate">${personSubline}</p>
               </div>
             </div>
 
-            <div class="plc-right ${metrics.risk?.className || "person-risk-text--underloaded"}">
-              <span class="plc-load-num">${loadPct}%</span>
-              <span class="plc-load-sub">${metrics.currentLoad || 0}<span class="plc-load-sep" style="opacity:0.4;margin:0 1px">/</span>${cap} pts</span>
+            <div class="person-status-capacity person-lane-capacity">
+              <span class="plc-chip ${statusChipClass}">${statusLabel}</span>
             </div>
 
-            <div class="plc-chevron">
+            <div class="person-status-mix person-lane-work">
+              ${buildInlineBar(metrics, cap, index)}
+            </div>
+
+            <div class="person-status-signal person-lane-signal">
+              <div class="carga-metric-block">
+                <span class="carga-metric-pts ${metrics.risk?.className || "person-risk-text--underloaded"}">${loadPrimaryLabel}</span>
+                <span class="carga-metric-pct">${loadPct}%</span>
+              </div>
+            </div>
+
+            <div class="person-status-chevron plc-chevron">
               <i class="fas fa-chevron-down chevron-icon" style="transform: ${isExpanded ? "rotate(180deg)" : "rotate(0deg)"}"></i>
             </div>
 
           </div>
-        </button>
-        <button type="button" class="person-context-btn" data-person-context="${emailKey}"
-                aria-label="Más opciones para ${profile.name}" aria-expanded="false">
-          <i class="fas fa-ellipsis" aria-hidden="true"></i>
         </button>
       </div>
     `;
@@ -4462,101 +4511,6 @@ function setSprintMenuOpen(isOpen) {
   menuContent.setAttribute("aria-hidden", String(!isOpen));
 }
 
-function closePersonContextMenu({ restoreFocus = false } = {}) {
-  const dropdown = document.getElementById("person-context-dropdown");
-  if (dropdown) dropdown.remove();
-  if (activePersonContextCleanup) {
-    activePersonContextCleanup();
-    activePersonContextCleanup = null;
-  }
-  if (activePersonContextTrigger) {
-    activePersonContextTrigger.setAttribute("aria-expanded", "false");
-    activePersonContextTrigger.removeAttribute("aria-controls");
-    if (restoreFocus) activePersonContextTrigger.focus();
-  }
-  activePersonContextTrigger = null;
-}
-
-function openPersonContextMenu(trigger, emailKey) {
-  closePersonContextMenu();
-
-  const rect = trigger.getBoundingClientRect();
-  const dropdown = document.createElement("div");
-  dropdown.id = "person-context-dropdown";
-  dropdown.className = "person-context-dropdown";
-  dropdown.setAttribute("role", "group");
-  dropdown.setAttribute("aria-label", `Acciones para ${emailKey === "unassigned" ? "Sin Asignar" : emailKey}`);
-  dropdown.innerHTML = `
-    <button type="button" class="person-context-item" data-ctx-action="expand-person" data-ctx-key="${emailKey}">
-      <i class="fas fa-list" aria-hidden="true"></i> Ver tareas
-    </button>
-    <button type="button" class="person-context-item" data-ctx-action="add-task-person" data-ctx-key="${emailKey}">
-      <i class="fas fa-plus" aria-hidden="true"></i> Asignar tarea
-    </button>
-  `;
-  document.body.appendChild(dropdown);
-
-  const dropdownWidth = dropdown.offsetWidth || 200;
-  const dropdownHeight = dropdown.offsetHeight || 88;
-  const computedLeft = Math.max(12, Math.min(rect.left, window.innerWidth - dropdownWidth - 12));
-  const computedTop =
-    rect.bottom + dropdownHeight + 12 <= window.innerHeight
-      ? rect.bottom + 4
-      : Math.max(12, rect.top - dropdownHeight - 4);
-  dropdown.style.top = `${computedTop}px`;
-  dropdown.style.left = `${computedLeft}px`;
-
-  trigger.setAttribute("aria-expanded", "true");
-  trigger.setAttribute("aria-controls", "person-context-dropdown");
-  activePersonContextTrigger = trigger;
-
-  const firstItem = dropdown.querySelector(".person-context-item");
-  firstItem?.focus();
-
-  const handleDocumentClick = (event) => {
-    if (!dropdown.contains(event.target) && event.target !== trigger) {
-      closePersonContextMenu();
-    }
-  };
-  const handleDropdownKeydown = (event) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      closePersonContextMenu({ restoreFocus: true });
-    }
-  };
-  const handleFocusOut = () => {
-    requestAnimationFrame(() => {
-      const activeElement = document.activeElement;
-      if (!dropdown.contains(activeElement) && activeElement !== trigger) {
-        closePersonContextMenu();
-      }
-    });
-  };
-
-  document.addEventListener("click", handleDocumentClick, true);
-  dropdown.addEventListener("keydown", handleDropdownKeydown);
-  dropdown.addEventListener("focusout", handleFocusOut);
-  dropdown.querySelectorAll("[data-ctx-action]").forEach((item) => {
-    item.addEventListener("click", () => {
-      closePersonContextMenu();
-      if (item.dataset.ctxAction === "expand-person") appActions.togglePersonView(emailKey);
-      if (item.dataset.ctxAction === "add-task-person") {
-        const addBtn = document.querySelector(
-          `[data-action="quick-add-task-person"][data-assignee="${emailKey}"]`
-        );
-        if (addBtn) addBtn.click();
-        else appActions.togglePersonView(emailKey);
-      }
-    });
-  });
-
-  activePersonContextCleanup = () => {
-    document.removeEventListener("click", handleDocumentClick, true);
-    dropdown.removeEventListener("keydown", handleDropdownKeydown);
-    dropdown.removeEventListener("focusout", handleFocusOut);
-  };
-}
-
 function handleAppClick(e) {
   const target = e.target;
   const actionTarget = target.closest("[data-action]");
@@ -5044,21 +4998,13 @@ function handleAppClick(e) {
     return;
   }
 
-  const epicCard = target.closest(".epic-card");
-  if (epicCard && actionTarget) {
-    const epicId = epicCard.dataset.id;
+  const epicRow = target.closest(".epic-row") || target.closest(".epic-row-detail");
+  if (epicRow && actionTarget) {
+    const epicId = epicRow.dataset.epicId || epicRow.dataset.epicDetail;
     const action = actionTarget.dataset.action;
     if (epicId && action) {
       handleEpicCardAction(action, epicId);
     }
-    return;
-  }
-
-  // Menú contextual "···" por persona (T2.4)
-  const personContextBtn = target.closest("[data-person-context]");
-  if (personContextBtn && !target.closest("[data-person-toggle]")) {
-    const emailKey = personContextBtn.dataset.personContext;
-    openPersonContextMenu(personContextBtn, emailKey);
     return;
   }
 
@@ -5591,6 +5537,13 @@ function handleTaskCardAction(action, taskId) {
 function handleEpicCardAction(action, epicId) {
   if (action === "toggle-details") {
     appActions.toggleEpicDetails(epicId);
+    const detail = document.querySelector(`.epic-row-detail[data-epic-detail="${epicId}"]`);
+    const chevron = document.querySelector(`.epic-row[data-epic-id="${epicId}"] .epic-row-chevron`);
+    if (detail) {
+      detail.classList.toggle("epic-collapsed");
+      const expanded = !detail.classList.contains("epic-collapsed");
+      if (chevron) chevron.setAttribute("aria-expanded", String(expanded));
+    }
   } else if (action === "edit-epic") {
     const epic = appState.epics.find((p) => p.id === epicId);
     if (!epic) return;
@@ -5833,15 +5786,6 @@ export function initializeEventListeners(state, actions) {
   document.addEventListener("click", handleAppClick);
   document.addEventListener("change", handleAppChange);
   document.addEventListener("keydown", (e) => {
-    if (
-      e.key === "Escape" &&
-      activePersonContextTrigger &&
-      (document.getElementById("person-context-dropdown")?.contains(document.activeElement) ||
-        document.activeElement === activePersonContextTrigger)
-    ) {
-      closePersonContextMenu({ restoreFocus: true });
-      return;
-    }
     if (e.key === "Escape" && sidebarShellState.mobileOpen && isMobileSidebarLayout()) {
       setSidebarMobileOpen(false);
       return;
