@@ -13,6 +13,8 @@ repomix-output.xml
 # Local agent artifacts and checkpoints
 .codex-checkpoints/
 .superpowers/
+.roo/
+.claude/
 .claude/settings.local.json
 
 # External reference repos should live outside this project
