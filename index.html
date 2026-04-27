@@ -573,9 +573,70 @@
 
       /* ---- Kanban density bar (2.2) ---- */
       .kanban-density-bar {
-        display: flex;
-        justify-content: flex-end;
         margin-bottom: 0.5rem;
+      }
+      .kanban-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .kanban-filter-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .kanban-filter-label {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-right: 2px;
+      }
+      .kanban-filter-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 9px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--muted);
+        background: var(--surface-secondary);
+        border: 1px solid var(--line-default);
+        border-radius: 99px;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s, border-color 0.15s;
+      }
+      .kanban-filter-chip:hover {
+        background: var(--line-subtle);
+        color: var(--ink);
+      }
+      .kanban-filter-chip--active {
+        background: color-mix(in srgb, var(--brand-700) 12%, white);
+        color: var(--brand-700);
+        border-color: color-mix(in srgb, var(--brand-700) 40%, transparent);
+        font-weight: 700;
+      }
+      .kanban-filter-avatar-img {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        object-fit: cover;
+      }
+      .kanban-filter-avatar-initial {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: var(--brand-700);
+        color: white;
+        font-size: 9px;
+        font-weight: 800;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
       }
       .kanban-density-btn {
         display: inline-flex;
@@ -604,99 +665,129 @@
         opacity: 0.9;
       }
 
-      /* ---- Sprint breakdown panel (2.4) ---- */
+      /* ---- Sprint HUD (panel permanente) ---- */
       .sprint-breakdown-panel {
         margin-bottom: 0.75rem;
-        padding: 12px 16px;
+        padding: 10px 16px;
         background: var(--surface-elevated, #fff);
         border: 1px solid var(--line-default);
         border-radius: 12px;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-        animation: breakdown-in 0.18s ease;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
       }
-      @keyframes breakdown-in {
-        from { opacity: 0; transform: translateY(-6px); }
-        to   { opacity: 1; transform: translateY(0); }
+      .sprint-hud {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
       }
-      .sprint-breakdown-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
+      .sprint-hud-progress-row {
+        display: flex;
+        align-items: center;
         gap: 10px;
-        margin-bottom: 10px;
       }
-      .sprint-breakdown-card {
-        padding: 10px 14px;
-        border-radius: 8px;
-        border: 1px solid var(--line-subtle);
-        background: var(--surface-secondary);
-      }
-      .sprint-breakdown-card__label {
-        font-size: 11px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: var(--muted);
-        margin-bottom: 4px;
-      }
-      .sprint-breakdown-card__count {
-        font-size: 22px;
-        font-weight: 800;
-        line-height: 1;
-        color: var(--ink);
-      }
-      .sprint-breakdown-card__pts {
-        font-size: 12px;
-        color: var(--muted);
-        margin-top: 2px;
-      }
-      .sprint-breakdown-card--todo .sprint-breakdown-card__count { color: var(--muted); }
-      .sprint-breakdown-card--inprogress .sprint-breakdown-card__count { color: #2563eb; }
-      .sprint-breakdown-card--done .sprint-breakdown-card__count { color: #16a34a; }
-      .sprint-breakdown-progress {
-        height: 8px;
+      .sprint-hud-progress-bar {
+        flex: 1;
+        height: 6px;
         border-radius: 99px;
         background: var(--surface-secondary);
         overflow: hidden;
-        margin-bottom: 10px;
       }
-      .sprint-breakdown-progress__fill {
+      .sprint-hud-progress-fill {
         height: 100%;
         border-radius: 99px;
         background: linear-gradient(to right, #16a34a, #22c55e);
-        transition: width 0.35s ease;
+        transition: width 0.4s ease;
       }
-      .sprint-breakdown-people {
+      .sprint-hud-pct {
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--ink);
+        min-width: 36px;
+        text-align: right;
+      }
+      .sprint-hud-meta {
         display: flex;
         flex-wrap: wrap;
-        gap: 6px;
+        align-items: center;
+        gap: 8px;
       }
-      .sprint-breakdown-assignee {
-        display: flex;
+      /* Health badge */
+      .sprint-hud-health {
+        display: inline-flex;
         align-items: center;
         gap: 5px;
-        font-size: 12px;
-        color: var(--muted);
-        padding: 3px 8px;
-        background: var(--surface-secondary);
+        font-size: 11px;
+        font-weight: 700;
+        padding: 3px 9px;
+        border-radius: 99px;
+        border: 1px solid transparent;
+        letter-spacing: 0.01em;
+      }
+      .sprint-hud-health--green  { background: #dcfce7; color: #15803d; border-color: #bbf7d0; }
+      .sprint-hud-health--yellow { background: #fef9c3; color: #92400e; border-color: #fde68a; }
+      .sprint-hud-health--red    { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+      .sprint-hud-health--unknown{ background: var(--surface-secondary); color: var(--muted); border-color: var(--line-subtle); }
+      /* Stats pills */
+      .sprint-hud-stats {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .sprint-hud-stat {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 8px;
         border-radius: 6px;
+        background: var(--surface-secondary);
+        color: var(--muted);
         border: 1px solid var(--line-subtle);
       }
-      .sprint-breakdown-assignee img {
-        width: 18px;
-        height: 18px;
-        border-radius: 50%;
-        object-fit: cover;
+      .sprint-hud-stat--inprogress { color: #2563eb; }
+      .sprint-hud-stat--done       { color: #16a34a; }
+      /* Burn rate */
+      .sprint-hud-rate {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 6px;
+        background: var(--surface-secondary);
+        border: 1px solid var(--line-subtle);
       }
-      .sprint-breakdown-assignee strong {
+      .sprint-hud-rate--ok   { color: #16a34a; }
+      .sprint-hud-rate--warn { color: #d97706; background: #fffbeb; border-color: #fde68a; }
+      /* Dates */
+      .sprint-hud-dates {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        color: var(--muted);
+        padding: 2px 8px;
+        border-radius: 6px;
+        background: var(--surface-secondary);
+        border: 1px solid var(--line-subtle);
+      }
+      .sprint-hud-day-label {
+        font-weight: 600;
         color: var(--ink);
       }
-
-      .view-title-stats {
-        cursor: pointer;
-      }
-      .view-title-stats:hover {
-        text-decoration: underline;
-        text-decoration-style: dotted;
+      /* Bottleneck */
+      .sprint-hud-bottleneck {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 6px;
+        background: #fff7ed;
+        color: #c2410c;
+        border: 1px solid #fed7aa;
       }
 
       .task-bento-shell {
@@ -999,6 +1090,38 @@
         color: #9d3f4b;
         border-color: #ebc8cf;
         background: #fbf1f3;
+      }
+      /* Advance-status chip */
+      .task-action-icon--advance {
+        width: auto;
+        padding: 0 10px;
+        gap: 5px;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--brand-700);
+        border-color: color-mix(in srgb, var(--brand-700) 30%, transparent);
+        background: color-mix(in srgb, var(--brand-700) 7%, white);
+        letter-spacing: 0.01em;
+      }
+      .task-action-icon--advance .task-action-label {
+        font-size: 11px;
+      }
+      .task-action-icon--advance:hover,
+      .task-action-icon--advance:focus-visible {
+        background: color-mix(in srgb, var(--brand-700) 14%, white);
+        border-color: var(--brand-700);
+        color: var(--brand-700);
+      }
+      .task-action-icon--advance-done {
+        color: #16a34a;
+        border-color: color-mix(in srgb, #16a34a 30%, transparent);
+        background: color-mix(in srgb, #16a34a 7%, white);
+      }
+      .task-action-icon--advance-done:hover,
+      .task-action-icon--advance-done:focus-visible {
+        background: color-mix(in srgb, #16a34a 14%, white);
+        border-color: #16a34a;
+        color: #16a34a;
       }
       @media (max-width: 860px) {
         .task-bento-top {

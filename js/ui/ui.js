@@ -476,6 +476,15 @@ function createTaskElement(task, context, state) {
                 ${agingChipHTML}
             </div>
             <div class="task-actions-zone">
+                ${context === "sprint" && !isCompleted ? (() => {
+                  const cur = resolveKanbanStatus(task);
+                  const next = cur === "todo" ? "inprogress" : cur === "inprogress" ? "done" : null;
+                  if (!next) return "";
+                  const label = next === "inprogress" ? "Iniciar" : "Completar";
+                  const icon = next === "inprogress" ? "fa-play" : "fa-check";
+                  const cls = next === "done" ? "task-action-icon task-action-icon--advance task-action-icon--advance-done" : "task-action-icon task-action-icon--advance";
+                  return `<button class="${cls}" data-action="advance-status" data-next-status="${next}" title="${label}"><i class="fa-solid ${icon}"></i><span class="task-action-label">${label}</span></button>`;
+                })() : ""}
                 <button class="task-action-icon" data-action="open-details" title="Editar detalles"><i class="fa-solid fa-pen-to-square"></i></button>
                 <button class="task-action-icon" data-action="due-date" title="Cambiar fecha"><i class="fa-regular fa-calendar-check"></i></button>
                 <button class="task-action-icon" data-action="points" title="Cambiar puntos"><i class="fa-solid fa-coins"></i></button>
@@ -851,21 +860,50 @@ function toggleBacklogView(state) {
 // EN js/ui/ui.js - REEMPLAZA LA FUNCIÓN EXISTENTE renderSprintKanban
 
 function renderSprintKanban(state) {
-  // Density toggle toolbar
+  // Toolbar: density + assignee filter
   const densityBar = document.getElementById("kanban-density-bar");
   if (densityBar) {
     const isCompact = state.taskCardDensity === "compact";
-    densityBar.innerHTML = `
-      <button
+    const activeFilter = state.kanbanAssigneeFilter;
+
+    // Collect unique assignees in current sprint
+    const sprintTasks = state.tasks.filter((t) => t.listId === state.currentSprintId);
+    const assigneeEmails = [...new Set(sprintTasks.map((t) => t.assignee).filter(Boolean))];
+
+    const assigneeChips = assigneeEmails.map((email) => {
+      const u = state.allUsers.find((u) => u.email === email);
+      const name = u?.displayName || email.split("@")[0];
+      const avatar = u?.photoURL
+        ? `<img src="${u.photoURL}" class="kanban-filter-avatar-img" title="${name}">`
+        : `<span class="kanban-filter-avatar-initial">${name[0].toUpperCase()}</span>`;
+      const isActive = activeFilter === email;
+      return `<button
         type="button"
-        class="kanban-density-btn ${isCompact ? "kanban-density-btn--active" : ""}"
-        data-action="toggle-task-density"
-        aria-pressed="${isCompact}"
-        title="${isCompact ? "Vista cómoda" : "Vista compacta"}"
-      >
-        <i class="fa-solid ${isCompact ? "fa-table-cells-large" : "fa-table-cells"}" aria-hidden="true"></i>
-        <span>${isCompact ? "Cómodo" : "Compacto"}</span>
-      </button>
+        class="kanban-filter-chip ${isActive ? "kanban-filter-chip--active" : ""}"
+        data-action="filter-kanban-assignee"
+        data-assignee="${email}"
+        title="${isActive ? `Quitar filtro: ${name}` : `Filtrar: ${name}`}"
+      >${avatar}<span>${name.split(" ")[0]}</span></button>`;
+    }).join("");
+
+    densityBar.innerHTML = `
+      <div class="kanban-toolbar">
+        <div class="kanban-filter-row">
+          <span class="kanban-filter-label">Responsable</span>
+          <button type="button" class="kanban-filter-chip ${!activeFilter ? "kanban-filter-chip--active" : ""}" data-action="filter-kanban-assignee" data-assignee="" title="Ver todos">Todos</button>
+          ${assigneeChips}
+        </div>
+        <button
+          type="button"
+          class="kanban-density-btn ${isCompact ? "kanban-density-btn--active" : ""}"
+          data-action="toggle-task-density"
+          aria-pressed="${isCompact}"
+          title="${isCompact ? "Vista cómoda" : "Vista compacta"}"
+        >
+          <i class="fa-solid ${isCompact ? "fa-table-cells-large" : "fa-table-cells"}" aria-hidden="true"></i>
+          <span>${isCompact ? "Cómodo" : "Compacto"}</span>
+        </button>
+      </div>
     `;
   }
 
@@ -875,8 +913,11 @@ function renderSprintKanban(state) {
     { key: "done" },
   ];
 
-  const getColumnTasks = (statusKey) =>
-    state.tasks.filter((t) => t.listId === state.currentSprintId && resolveKanbanStatus(t) === statusKey);
+  const getColumnTasks = (statusKey) => {
+    const base = state.tasks.filter((t) => t.listId === state.currentSprintId && resolveKanbanStatus(t) === statusKey);
+    if (!state.kanbanAssigneeFilter) return base;
+    return base.filter((t) => t.assignee === state.kanbanAssigneeFilter);
+  };
 
   const sortColumnTasks = (statusKey, tasks) => {
     const sorted = [...tasks];
@@ -4219,94 +4260,120 @@ export function renderActiveSprintTitle(state) {
   if (!domViewTitle || window.location.hash !== "#sprint") return;
 
   const selectedSprint = state.taskLists.find((l) => l.id === state.currentSprintId);
-  let title = selectedSprint ? selectedSprint.title : "Sprint";
+  const title = selectedSprint ? selectedSprint.title : "Sprint";
+  domViewTitle.textContent = title;
 
   const sprintTasks = state.tasks.filter((t) => t.listId === state.currentSprintId);
-  const completedPoints = sprintTasks
-    .filter((t) => t.kanbanStatus === "done")
-    .reduce((sum, task) => sum + (task.points || 0), 0);
-  const totalPoints = sprintTasks.reduce((sum, task) => sum + (task.points || 0), 0);
-  const myPoints = sprintTasks
-    .filter((t) => t.assignee === state.user.email)
-    .reduce((sum, task) => sum + (task.points || 0), 0);
-  const pct = totalPoints > 0 ? Math.round((completedPoints / totalPoints) * 100) : 0;
-  const isOpen = state.sprintBreakdownOpen;
-
-  domViewTitle.innerHTML = `${title}<button
-    type="button"
-    class="view-title-stats"
-    data-action="toggle-sprint-breakdown"
-    title="${isOpen ? "Cerrar desglose" : "Ver desglose del sprint"}"
-    aria-expanded="${isOpen}"
-  >Hecho: ${pct}% · ${completedPoints}/${totalPoints} pts<i class="fa-solid ${isOpen ? "fa-chevron-up" : "fa-chevron-down"}" style="font-size:11px;margin-left:5px;"></i></button>`;
-
-  renderSprintBreakdown(state, sprintTasks);
+  renderSprintHUD(state, sprintTasks, selectedSprint);
 }
 
-function renderSprintBreakdown(state, sprintTasks) {
+function getSprintHealth(sprint, donePts, totalPts) {
+  if (!sprint?.startDate || !sprint?.endDate) return "unknown";
+  const getMs = (v) => (v?.toDate ? v.toDate() : v ? new Date(v) : null)?.getTime();
+  const start = getMs(sprint.startDate);
+  const end = getMs(sprint.endDate);
+  if (!start || !end || end <= start) return "unknown";
+  const now = Date.now();
+  const totalDays = (end - start) / 86400000;
+  const daysElapsed = Math.max(0, (now - start) / 86400000);
+  const pctTime = Math.min(1, daysElapsed / totalDays);
+  const pctDone = totalPts > 0 ? donePts / totalPts : 0;
+  if (pctDone >= pctTime) return "green";
+  if (pctDone >= pctTime * 0.75) return "yellow";
+  return "red";
+}
+
+function renderSprintHUD(state, sprintTasks, sprint) {
   const panel = document.getElementById("sprint-breakdown-panel");
   if (!panel) return;
-
-  if (!state.sprintBreakdownOpen) {
-    panel.classList.add("u-hidden");
-    return;
-  }
   panel.classList.remove("u-hidden");
 
-  const todoTasks     = sprintTasks.filter((t) => resolveKanbanStatus(t) === "todo");
-  const inProgTasks   = sprintTasks.filter((t) => resolveKanbanStatus(t) === "inprogress");
-  const doneTasks     = sprintTasks.filter((t) => resolveKanbanStatus(t) === "done");
+  const getMs = (v) => (v?.toDate ? v.toDate() : v ? new Date(v) : null)?.getTime();
+  const todoTasks   = sprintTasks.filter((t) => resolveKanbanStatus(t) === "todo");
+  const inProgTasks = sprintTasks.filter((t) => resolveKanbanStatus(t) === "inprogress");
+  const doneTasks   = sprintTasks.filter((t) => resolveKanbanStatus(t) === "done");
   const pts = (arr) => arr.reduce((s, t) => s + (t.points || 0), 0);
-  const total = pts(sprintTasks);
+  const totalPts = pts(sprintTasks);
   const donePts = pts(doneTasks);
-  const pct = total > 0 ? Math.round((donePts / total) * 100) : 0;
+  const pct = totalPts > 0 ? Math.round((donePts / totalPts) * 100) : 0;
 
-  // Group by assignee
-  const assigneeMap = new Map();
-  sprintTasks.forEach((t) => {
-    const key = t.assignee || "__unassigned__";
-    if (!assigneeMap.has(key)) assigneeMap.set(key, { tasks: 0, pts: 0 });
-    const entry = assigneeMap.get(key);
-    entry.tasks += 1;
-    entry.pts += t.points || 0;
+  // Sprint date context
+  const startMs = sprint ? getMs(sprint.startDate) : null;
+  const endMs   = sprint ? getMs(sprint.endDate)   : null;
+  let dateLabel = "";
+  let dayLabel  = "";
+  let burnRateHTML = "";
+  if (startMs && endMs) {
+    const fmt = (ms) => new Date(ms).toLocaleDateString("es-MX", { day: "numeric", month: "short" });
+    const totalDays = Math.max(1, Math.round((endMs - startMs) / 86400000));
+    const daysElapsed = Math.max(0, Math.round((Date.now() - startMs) / 86400000));
+    const daysLeft = Math.max(0, Math.round((endMs - Date.now()) / 86400000));
+    dateLabel = `${fmt(startMs)} – ${fmt(endMs)}`;
+    dayLabel  = daysLeft === 0 ? "Último día" : `Día ${daysElapsed}/${totalDays} · ${daysLeft}d restantes`;
+    const actualRate  = daysElapsed > 0 ? (donePts / daysElapsed).toFixed(1) : "—";
+    const neededRate  = daysLeft   > 0 ? ((totalPts - donePts) / daysLeft).toFixed(1) : "—";
+    const rateClass   = daysLeft > 0 && Number(actualRate) < Number(neededRate) ? "sprint-hud-rate--warn" : "sprint-hud-rate--ok";
+    burnRateHTML = `<div class="sprint-hud-rate ${rateClass}" title="Ritmo actual vs necesario para terminar a tiempo">
+      <i class="fa-solid fa-gauge-high"></i>
+      <span>${actualRate} pts/día actual · ${neededRate} pts/día necesario</span>
+    </div>`;
+  }
+
+  const health = getSprintHealth(sprint, donePts, totalPts);
+  const healthMap = {
+    green:   { cls: "sprint-hud-health--green",   icon: "fa-circle-check",    label: "Al ritmo" },
+    yellow:  { cls: "sprint-hud-health--yellow",  icon: "fa-triangle-exclamation", label: "Ligero retraso" },
+    red:     { cls: "sprint-hud-health--red",      icon: "fa-circle-xmark",    label: "En riesgo" },
+    unknown: { cls: "sprint-hud-health--unknown",  icon: "fa-circle-question", label: "Sin fechas" },
+  };
+  const h = healthMap[health];
+
+  // Bottleneck: persona con más tareas en inprogress
+  const inProgByPerson = {};
+  inProgTasks.forEach((t) => {
+    const k = t.assignee || "__unassigned__";
+    inProgByPerson[k] = (inProgByPerson[k] || 0) + 1;
   });
-  const assigneeRows = Array.from(assigneeMap.entries())
-    .sort((a, b) => b[1].pts - a[1].pts)
-    .slice(0, 6)
-    .map(([email, data]) => {
-      const user = state.allUsers.find((u) => u.email === email);
-      const name = email === "__unassigned__" ? "Sin asignar" : (user?.displayName || email.split("@")[0]);
-      const avatar = email === "__unassigned__"
-        ? `<span style="width:18px;height:18px;border-radius:50%;background:var(--surface-secondary);display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:var(--muted)"><i class="fa-solid fa-user"></i></span>`
-        : `<img src="${user?.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&size=36`}" alt="${name}">`;
-      return `<div class="sprint-breakdown-assignee">${avatar}<strong>${name}</strong>${data.pts} pts · ${data.tasks} t</div>`;
-    })
-    .join("");
+  const bottleneckEntry = Object.entries(inProgByPerson).sort((a, b) => b[1] - a[1])[0];
+  let bottleneckHTML = "";
+  if (bottleneckEntry && bottleneckEntry[1] >= 2) {
+    const [email, count] = bottleneckEntry;
+    const u = state.allUsers.find((u) => u.email === email);
+    const name = u?.displayName || email.split("@")[0];
+    bottleneckHTML = `<div class="sprint-hud-bottleneck" title="Posible cuello de botella">
+      <i class="fa-solid fa-arrow-down-wide-short"></i>
+      <span>${name} · ${count} en progreso</span>
+    </div>`;
+  }
 
   panel.innerHTML = `
-    <div class="sprint-breakdown-progress" title="${pct}% completado">
-      <div class="sprint-breakdown-progress__fill" style="width:${pct}%"></div>
+    <div class="sprint-hud">
+      <div class="sprint-hud-progress-row">
+        <div class="sprint-hud-progress-bar" title="${pct}% completado">
+          <div class="sprint-hud-progress-fill" style="width:${pct}%"></div>
+        </div>
+        <span class="sprint-hud-pct">${pct}%</span>
+      </div>
+      <div class="sprint-hud-meta">
+        <div class="sprint-hud-health ${h.cls}">
+          <i class="fa-solid ${h.icon}"></i>
+          <span>${h.label}</span>
+        </div>
+        <div class="sprint-hud-stats">
+          <span class="sprint-hud-stat sprint-hud-stat--todo" title="Por hacer"><i class="fa-regular fa-circle"></i>${todoTasks.length} · ${pts(todoTasks)} pts</span>
+          <span class="sprint-hud-stat sprint-hud-stat--inprogress" title="En progreso"><i class="fa-solid fa-spinner"></i>${inProgTasks.length} · ${pts(inProgTasks)} pts</span>
+          <span class="sprint-hud-stat sprint-hud-stat--done" title="Hecho"><i class="fa-solid fa-check-circle"></i>${doneTasks.length} · ${donePts} pts</span>
+        </div>
+        ${dateLabel ? `<div class="sprint-hud-dates"><i class="fa-regular fa-calendar"></i><span>${dateLabel}</span><span class="sprint-hud-day-label">${dayLabel}</span></div>` : ""}
+        ${burnRateHTML}
+        ${bottleneckHTML}
+      </div>
     </div>
-    <div class="sprint-breakdown-grid">
-      <div class="sprint-breakdown-card sprint-breakdown-card--todo">
-        <div class="sprint-breakdown-card__label"><i class="fa-regular fa-circle"></i> Por hacer</div>
-        <div class="sprint-breakdown-card__count">${todoTasks.length}</div>
-        <div class="sprint-breakdown-card__pts">${pts(todoTasks)} pts</div>
-      </div>
-      <div class="sprint-breakdown-card sprint-breakdown-card--inprogress">
-        <div class="sprint-breakdown-card__label"><i class="fa-solid fa-spinner"></i> En progreso</div>
-        <div class="sprint-breakdown-card__count">${inProgTasks.length}</div>
-        <div class="sprint-breakdown-card__pts">${pts(inProgTasks)} pts</div>
-      </div>
-      <div class="sprint-breakdown-card sprint-breakdown-card--done">
-        <div class="sprint-breakdown-card__label"><i class="fa-solid fa-check-circle"></i> Hecho · ${pct}%</div>
-        <div class="sprint-breakdown-card__count">${doneTasks.length}</div>
-        <div class="sprint-breakdown-card__pts">${donePts} pts</div>
-      </div>
-    </div>
-    ${assigneeRows ? `<div class="sprint-breakdown-people">${assigneeRows}</div>` : ""}
   `;
 }
+
+// Mantener compatibilidad con toggles existentes — ahora es no-op ya que el HUD es permanente
+function renderSprintBreakdown(state, sprintTasks) {}
 
 export function renderSprintSelector(state) {
   const sprintListSelect = document.getElementById("sprint-list-select");
@@ -4582,6 +4649,17 @@ function handleAppClick(e) {
 
     if (action === "toggle-sprint-breakdown") {
       appActions.toggleSprintBreakdown();
+      return;
+    }
+
+    if (action === "filter-kanban-assignee") {
+      const email = actionTarget.dataset.assignee || null;
+      // empty string = "Todos" button → always clear
+      if (!email) {
+        appActions.setKanbanAssigneeFilter(null);
+      } else {
+        appActions.setKanbanAssigneeFilter(email);
+      }
       return;
     }
 
@@ -5531,6 +5609,23 @@ function handleTaskCardAction(action, taskId) {
     case "comments":
       openTaskDetailsModal(task);
       break;
+    case "advance-status": {
+      const cur = resolveKanbanStatus(task);
+      const next = cur === "todo" ? "inprogress" : cur === "inprogress" ? "done" : null;
+      if (!next) break;
+      const updates = { kanbanStatus: next, lastMovedAt: Timestamp.now() };
+      if (next === "inprogress") {
+        updates.status = "needsAction";
+        updates.startedAt = Timestamp.now();
+        updates.completedAt = null;
+      } else if (next === "done") {
+        updates.status = "completed";
+        updates.completedAt = Timestamp.now();
+        if (window.confetti) confetti({ particleCount: 50, spread: 50, origin: { y: 0.7 } });
+      }
+      appActions.updateTask(taskId, updates);
+      break;
+    }
   }
 }
 

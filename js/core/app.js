@@ -72,6 +72,7 @@ const state = {
   expandedEpicIds: new Set(),
   taskCardDensity: "comfortable", // "comfortable" | "compact"
   sprintBreakdownOpen: false,
+  kanbanAssigneeFilter: null, // null = todos, email = filtro activo
   collapsedBacklogEpics: new Set(), // Épicas colapsadas en vista backlog
   handbookEntries: [],
   triageConfig: null,
@@ -184,6 +185,15 @@ const actions = {
 
   toggleSprintBreakdown() {
     state.sprintBreakdownOpen = !state.sprintBreakdownOpen;
+    requestRender();
+  },
+
+  setKanbanAssigneeFilter(email) {
+    if (!email) {
+      state.kanbanAssigneeFilter = null;
+    } else {
+      state.kanbanAssigneeFilter = state.kanbanAssigneeFilter === email ? null : email;
+    }
     requestRender();
   },
 
