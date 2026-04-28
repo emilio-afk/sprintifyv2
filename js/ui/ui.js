@@ -423,21 +423,11 @@ function createTaskElement(task, context, state) {
   const ageClass =
     aging.key === "danger" ? "task-card-v3--aging-danger" : aging.key === "warn" ? "task-card-v3--aging-warn" : "";
 
-  let wipAlertClass = "";
-  if (context === "sprint" && resolveKanbanStatus(task) === "inprogress" && task.listId === state.currentSprintId) {
-    const inProgressCount = state.tasks.filter(
-      (t) => t.listId === state.currentSprintId && resolveKanbanStatus(t) === "inprogress"
-    ).length;
-    if (getWipState("inprogress", inProgressCount).isOverLimit) {
-      wipAlertClass = "task-card-v3--wip-alert";
-    }
-  }
-
   const compactClass = state.taskCardDensity === "compact" ? "task-card-v3--compact" : "";
 
   const taskCard = document.createElement("div");
   taskCard.id = task.id;
-  taskCard.className = `task-card task-card-v3 ${ageClass} ${wipAlertClass} ${compactClass} group relative rounded-lg ${isCompleted ? "opacity-60" : ""}`;
+  taskCard.className = `task-card task-card-v3 ${ageClass} ${compactClass} group relative rounded-lg ${isCompleted ? "opacity-60" : ""}`;
   taskCard.draggable = true;
   taskCard.dataset.context = context;
   taskCard.style.setProperty("--task-accent", sprintColor);
@@ -445,53 +435,37 @@ function createTaskElement(task, context, state) {
   taskCard.title = hiddenSummaryTitle || taskTitle;
 
   taskCard.innerHTML = `
-    <div class="task-bento-shell px-3 py-2.5 flex flex-col h-full relative gap-2.5">
-        <div class="task-bento-top">
-            <div class="task-bento-head">
-                ${checkboxHTML}
-                <div class="task-bento-copy">
-                  <div class="task-kicker-row">
-                    <span class="task-kicker" title="${projectTitle.replace(/"/g, "&quot;")}">${projectTitle}</span>
-                    ${commentsCount > 0 ? `<span class="task-kicker task-kicker--muted" title="Comentarios"><i class="fa-regular fa-comment"></i>${commentsCount}</span>` : ""}
-                  </div>
-                  <div class="task-bento-title-wrap">
-                      <div class="min-w-0">
-                        <span class="task-title-v3 block break-words ${shouldClampTitle ? "is-clamped" : ""} ${isCompleted ? "line-through text-gray-400" : ""}" title="${taskTitle.replace(/"/g, "&quot;")}">${taskTitle}</span>
-                        ${shouldClampTitle ? '<button class="task-title-expand" data-action="open-details" type="button">Ver más</button>' : ""}
-                      </div>
-                  </div>
-                </div>
-            </div>
-            <div class="task-bento-toolbar">
-              ${pointsHTML}
-              <div class="cursor-pointer shrink-0 task-assignee-anchor" data-action="assign" title="Asignar Responsable">
-                  ${assigneeHTML}
+    <div class="task-bento-shell px-3 py-2.5 flex flex-col h-full relative gap-2">
+      <div class="task-bento-top">
+        <div class="task-bento-head">
+          ${checkboxHTML}
+          <div class="task-bento-copy">
+            <div class="task-bento-title-wrap">
+              <div class="min-w-0">
+                <span class="task-title-v3 block break-words ${shouldClampTitle ? "is-clamped" : ""} ${isCompleted ? "line-through text-gray-400" : ""}" title="${taskTitle.replace(/"/g, "&quot;")}">${taskTitle}</span>
+                ${shouldClampTitle ? '<button class="task-title-expand" data-action="open-details" type="button">Ver más</button>' : ""}
               </div>
             </div>
+          </div>
         </div>
-        <div class="task-bento-foot">
-            <div class="task-meta-zone">
-                ${dueChipHTML}
-                ${inheritedChipHTML}
-                ${agingChipHTML}
-            </div>
-            <div class="task-actions-zone">
-                ${context === "sprint" && !isCompleted ? (() => {
-                  const cur = resolveKanbanStatus(task);
-                  const next = cur === "todo" ? "inprogress" : cur === "inprogress" ? "done" : null;
-                  if (!next) return "";
-                  const label = next === "inprogress" ? "Iniciar" : "Completar";
-                  const icon = next === "inprogress" ? "fa-play" : "fa-check";
-                  const cls = next === "done" ? "task-action-icon task-action-icon--advance task-action-icon--advance-done" : "task-action-icon task-action-icon--advance";
-                  return `<button class="${cls}" data-action="advance-status" data-next-status="${next}" title="${label}"><i class="fa-solid ${icon}"></i><span class="task-action-label">${label}</span></button>`;
-                })() : ""}
-                <button class="task-action-icon" data-action="open-details" title="Editar detalles"><i class="fa-solid fa-pen-to-square"></i></button>
-                <button class="task-action-icon" data-action="due-date" title="Cambiar fecha"><i class="fa-regular fa-calendar-check"></i></button>
-                <button class="task-action-icon" data-action="points" title="Cambiar puntos"><i class="fa-solid fa-coins"></i></button>
-                <button class="task-action-icon" data-action="move-to-sprint" title="Mover a otro sprint"><i class="fa-solid fa-right-left"></i></button>
-                <button class="task-action-icon task-action-icon--danger" data-action="delete" title="Eliminar tarea"><i class="fa-solid fa-trash-can"></i></button>
-            </div>
+        <div class="cursor-pointer shrink-0 task-assignee-anchor" data-action="assign" title="Asignar Responsable">
+          ${assigneeHTML}
         </div>
+      </div>
+      <div class="task-bento-foot">
+        <div class="task-meta-zone">
+          ${commentsCount > 0 ? `<span class="task-kicker task-kicker--muted" title="Comentarios"><i class="fa-regular fa-comment"></i> ${commentsCount}</span>` : ""}
+          ${agingChipHTML}
+        </div>
+        <div class="task-foot-right" style="display:flex;align-items:center;gap:6px;">
+          ${pointsHTML}
+          <div class="task-menu-wrap">
+            <button class="task-menu-btn" data-action="toggle-task-menu" data-task-id="${task.id}" title="Acciones">
+              <i class="fa-solid fa-ellipsis"></i>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   `;
   return taskCard;
@@ -4578,6 +4552,23 @@ function handleAppClick(e) {
     setSprintMenuOpen(false);
   }
 
+  // Floating task menu: close on outside click, route item clicks to correct task
+  const floatingMenu = document.getElementById("task-floating-menu");
+  if (floatingMenu) {
+    if (target.closest("#task-floating-menu")) {
+      const item = target.closest("[data-action]");
+      if (item) {
+        const tid = floatingMenu.dataset.taskId;
+        closeTaskFloatingMenu();
+        if (tid) handleTaskCardAction(item.dataset.action, tid);
+      }
+      return;
+    }
+    if (!target.closest(".task-menu-wrap")) {
+      closeTaskFloatingMenu();
+    }
+  }
+
   // Person filter dropdown toggle
   const personDropdown = document.getElementById("sprint-person-dropdown");
   const personPanel = document.getElementById("sprint-person-panel");
@@ -5473,7 +5464,41 @@ function openPointsAssignmentModal(taskId) {
   });
 }
 
+function closeTaskFloatingMenu() {
+  const menu = document.getElementById("task-floating-menu");
+  if (menu) menu.classList.remove("is-open");
+}
+
 function handleTaskCardAction(action, taskId) {
+  if (action === "toggle-task-menu") {
+    const menu = document.getElementById("task-floating-menu");
+    if (!menu) return;
+    const btn = document.querySelector(`[data-action="toggle-task-menu"][data-task-id="${taskId}"]`);
+    const isOpen = menu.classList.contains("is-open") && menu.dataset.taskId === taskId;
+    closeTaskFloatingMenu();
+    if (isOpen) return;
+
+    // Position near the button
+    const rect = btn.getBoundingClientRect();
+    menu.style.top = `${rect.top - menu.offsetHeight - 6}px`;
+    menu.style.left = `${rect.right - menu.offsetWidth}px`;
+    menu.dataset.taskId = taskId;
+    menu.classList.add("is-open");
+
+    // Reposition after paint (offsetHeight may be 0 before first open)
+    requestAnimationFrame(() => {
+      const h = menu.offsetHeight;
+      const w = menu.offsetWidth;
+      let top = rect.top - h - 6;
+      let left = rect.right - w;
+      if (top < 8) top = rect.bottom + 6;
+      if (left < 8) left = 8;
+      menu.style.top = `${top}px`;
+      menu.style.left = `${left}px`;
+    });
+    return;
+  }
+
   const task = appState.tasks.find((t) => t.id === taskId);
   if (!task) return;
   switch (action) {

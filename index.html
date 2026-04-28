@@ -465,17 +465,7 @@
           inset 0 1px 0 rgba(255, 255, 255, 0.64);
       }
       .task-card-v3::before {
-        content: "";
-        position: absolute;
-        inset: 0 auto 0 0;
-        width: 4px;
-        background: linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--task-accent-soft) 88%, #ffffff 12%) 0%,
-          var(--task-accent-soft) 100%
-        );
-        opacity: 0.96;
-        z-index: 0;
+        display: none;
       }
       .task-card-v3 > * {
         position: relative;
@@ -529,40 +519,12 @@
         0%, 100% { opacity: 1; }
         50%       { opacity: 0.55; }
       }
-      .task-card-v3--wip-alert {
-        border-left: 3px solid #dc2626;
-        background: linear-gradient(
-          to right,
-          rgba(220, 38, 38, 0.06) 0%,
-          rgba(220, 38, 38, 0) 30%
-        );
-      }
-      .task-card-v3--wip-alert::after {
-        content: "WIP";
-        position: absolute;
-        top: 6px;
-        right: 6px;
-        z-index: 2;
-        padding: 2px 6px;
-        font-family: var(--font-reading);
-        font-size: 9px;
-        font-weight: 700;
-        letter-spacing: 0.06em;
-        color: #ffffff;
-        background: #dc2626;
-        border-radius: 4px;
-        box-shadow: 0 1px 2px rgba(220, 38, 38, 0.35);
-        pointer-events: none;
-      }
       /* ---- Compact task card mode (2.2) ---- */
       .task-card-v3--compact .task-bento-shell {
         min-height: unset;
         padding-top: 0.375rem;
         padding-bottom: 0.375rem;
         gap: 0.25rem;
-      }
-      .task-card-v3--compact .task-kicker-row {
-        display: none;
       }
       .task-card-v3--compact .task-bento-foot {
         display: none;
@@ -1174,7 +1136,7 @@
       }
 
       .task-bento-shell {
-        min-height: 128px;
+        min-height: 96px;
       }
       .task-bento-top {
         display: flex;
@@ -1194,19 +1156,13 @@
         min-width: 0;
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 3px;
       }
       .task-bento-title-wrap {
         min-width: 0;
         display: flex;
         align-items: flex-start;
         gap: 8px;
-      }
-      .task-kicker-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-wrap: wrap;
       }
       .task-kicker {
         display: inline-flex;
@@ -1261,40 +1217,35 @@
         color: var(--brand-900);
         text-decoration: underline;
       }
-      .task-bento-toolbar {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        flex-shrink: 0;
-        padding: 4px 6px;
-        border-radius: 999px;
-        border: 1px solid var(--line-subtle);
-        background: color-mix(in srgb, var(--surface) 88%, var(--surface-secondary) 12%);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
-      }
       .task-assignee-anchor {
         display: inline-flex;
         align-items: center;
         justify-content: center;
+        flex-shrink: 0;
       }
       .task-bento-foot {
         display: flex;
-        align-items: flex-start;
-        justify-content: flex-start;
+        align-items: center;
+        justify-content: space-between;
         gap: 8px;
-        min-height: 28px;
+        min-height: 26px;
         margin-top: auto;
-        padding-top: 7px;
+        padding-top: 6px;
         position: relative;
       }
       .task-meta-zone {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 5px;
         min-width: 0;
         flex: 1;
         flex-wrap: wrap;
         align-content: flex-start;
+      }
+      .task-foot-right {
+        display: inline-flex;
+        align-items: center;
+        flex-shrink: 0;
       }
       .task-meta-chip {
         display: inline-flex;
@@ -1407,11 +1358,11 @@
         border: 1px solid var(--line-default);
         background: color-mix(in srgb, var(--surface-secondary) 72%, #ffffff 28%);
         color: var(--text-strong);
-        font-size: 10px;
+        font-size: 9px;
         font-weight: 800;
         letter-spacing: 0.01em;
         line-height: 1;
-        padding: 7px 10px;
+        padding: 4px 8px;
         white-space: nowrap;
       }
       .task-points-badge-v3--missing {
@@ -1419,92 +1370,88 @@
         background: #fbf1f3;
         color: #9d3f4b;
       }
-      .task-actions-zone {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
+      /* Task card ··· menu */
+      .task-menu-wrap {
+        position: relative;
         flex-shrink: 0;
-        position: absolute;
-        right: 0;
-        bottom: 0;
-        opacity: 0;
-        visibility: hidden;
-        pointer-events: none;
-        transition:
-          opacity 0.18s ease,
-          visibility 0.18s ease,
-          transform 0.18s ease;
-        transform: translateY(6px);
       }
-      .task-card-v3:hover .task-actions-zone,
-      .task-card-v3:focus-within .task-actions-zone {
-        opacity: 1;
-        visibility: visible;
-        pointer-events: auto;
-        transform: translateY(0);
-      }
-      .task-action-icon {
+      .task-menu-btn {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 32px;
-        height: 32px;
-        border-radius: 8px;
-        border: 1px solid var(--line-default);
-        background: var(--surface-elevated);
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        border: 1px solid transparent;
+        background: transparent;
         color: var(--muted);
-        line-height: 1;
-        transition:
-          background-color 0.18s ease,
-          border-color 0.18s ease,
-          color 0.18s ease;
+        cursor: pointer;
+        transition: background 0.13s, border-color 0.13s, color 0.13s;
+        font-size: 13px;
       }
-      .task-action-icon:hover,
-      .task-action-icon:focus-visible {
-        background: color-mix(in srgb, var(--surface-secondary) 76%, #ffffff 24%);
-        border-color: color-mix(in srgb, var(--brand-700) 18%, var(--line-default) 82%);
-        color: var(--brand-700);
+      .task-menu-btn:hover {
+        background: var(--surface-secondary);
+        border-color: var(--line-default);
+        color: var(--ink);
       }
-      .task-action-icon i {
-        font-size: 14px;
+      .task-menu-dropdown {
+        display: none;
+        min-width: 170px;
+        background: var(--surface-elevated, #fff);
+        border: 1px solid var(--line-default);
+        border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06);
+        z-index: 100;
+        padding: 4px;
+        overflow: hidden;
       }
-      .task-action-icon--danger:hover,
-      .task-action-icon--danger:focus-visible {
-        color: #9d3f4b;
-        border-color: #ebc8cf;
-        background: #fbf1f3;
+      .task-menu-dropdown.is-open {
+        display: block;
       }
-      /* Advance-status chip */
-      .task-action-icon--advance {
-        width: auto;
-        padding: 0 10px;
-        gap: 5px;
+      .task-menu-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        padding: 7px 10px;
         font-size: 12px;
-        font-weight: 700;
-        color: var(--brand-700);
-        border-color: color-mix(in srgb, var(--brand-700) 30%, transparent);
-        background: color-mix(in srgb, var(--brand-700) 7%, white);
-        letter-spacing: 0.01em;
+        font-weight: 500;
+        color: var(--ink);
+        background: transparent;
+        border: none;
+        border-radius: 7px;
+        cursor: pointer;
+        text-align: left;
+        transition: background 0.12s;
       }
-      .task-action-icon--advance .task-action-label {
+      .task-menu-item:hover {
+        background: var(--surface-secondary);
+      }
+      .task-menu-item i {
+        width: 14px;
+        text-align: center;
+        color: var(--muted);
         font-size: 11px;
       }
-      .task-action-icon--advance:hover,
-      .task-action-icon--advance:focus-visible {
-        background: color-mix(in srgb, var(--brand-700) 14%, white);
-        border-color: var(--brand-700);
-        color: var(--brand-700);
+      .task-menu-item--danger {
+        color: #9d3f4b;
       }
-      .task-action-icon--advance-done {
-        color: #16a34a;
-        border-color: color-mix(in srgb, #16a34a 30%, transparent);
-        background: color-mix(in srgb, #16a34a 7%, white);
+      .task-menu-item--danger i {
+        color: #9d3f4b;
       }
-      .task-action-icon--advance-done:hover,
-      .task-action-icon--advance-done:focus-visible {
-        background: color-mix(in srgb, #16a34a 14%, white);
-        border-color: #16a34a;
-        color: #16a34a;
+      .task-menu-item--danger:hover {
+        background: #fbf1f3;
+      }
+      .task-menu-separator {
+        height: 1px;
+        background: var(--line-default);
+        margin: 3px 6px;
+      }
+      /* Kicker in footer is slightly smaller */
+      .task-meta-zone .task-kicker {
+        font-size: 0.58rem;
+        padding: 0 6px;
+        min-height: 16px;
       }
       @media (max-width: 860px) {
         .task-bento-top {
@@ -9796,6 +9743,20 @@
 
     <!-- 3.2 Toast container / 3.4 aria-live -->
     <div id="toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
+
+    <!-- Floating task action menu (portal) -->
+    <div id="task-floating-menu" class="task-menu-dropdown" style="position:fixed;z-index:9999;top:0;left:0;right:auto;bottom:auto;">
+      <button class="task-menu-item" data-action="points">
+        <i class="fa-solid fa-coins"></i> Cambiar puntos
+      </button>
+      <button class="task-menu-item" data-action="move-to-sprint">
+        <i class="fa-solid fa-right-left"></i> Mover a sprint
+      </button>
+      <div class="task-menu-separator"></div>
+      <button class="task-menu-item task-menu-item--danger" data-action="delete">
+        <i class="fa-solid fa-trash-can"></i> Eliminar tarea
+      </button>
+    </div>
   </body>
 </html>
 <script>
