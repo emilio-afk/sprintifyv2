@@ -665,31 +665,377 @@
         opacity: 0.9;
       }
 
-      /* ---- Sprint HUD (panel permanente) ---- */
-      .sprint-breakdown-panel {
+      /* ---- Sprint View Tabs + Toolbar ---- */
+      .sprint-nav-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
         margin-bottom: 0.75rem;
-        padding: 10px 16px;
+        border-bottom: 1px solid var(--line-default);
+        padding-bottom: 0;
+      }
+      .sprint-view-tabs {
+        display: flex;
+        align-items: flex-end;
+        gap: 0;
+      }
+      .sprint-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 14px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--muted);
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        cursor: pointer;
+        transition: color 0.15s, border-color 0.15s;
+        white-space: nowrap;
+      }
+      .sprint-tab:hover {
+        color: var(--ink);
+        border-bottom-color: var(--line-default);
+      }
+      .sprint-tab.sprint-tab--active {
+        color: var(--brand-700);
+        border-bottom-color: var(--brand-700);
+        font-weight: 600;
+      }
+      .sprint-tab--add {
+        color: var(--muted);
+        padding: 8px 10px;
+      }
+      .sprint-tab--add:hover {
+        color: var(--brand-700);
+        border-bottom-color: transparent;
+      }
+      .sprint-tab--disabled {
+        opacity: 0.4;
+        cursor: default;
+        pointer-events: none;
+      }
+      .sprint-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-shrink: 0;
+        padding-bottom: 6px;
+      }
+      .sprint-toolbar-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 10px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--muted);
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s, border-color 0.15s;
+        white-space: nowrap;
+      }
+      .sprint-toolbar-btn:hover {
+        background: var(--surface-secondary);
+        color: var(--ink);
+        border-color: var(--line-default);
+      }
+      .sprint-toolbar-btn--primary {
+        background: var(--brand-700);
+        color: #fff;
+        border-color: var(--brand-700);
+        font-weight: 600;
+      }
+      .sprint-toolbar-btn--primary:hover {
+        opacity: 0.9;
+        background: var(--brand-700);
+        color: #fff;
+        border-color: var(--brand-700);
+      }
+      .sprint-toolbar-btn--active {
+        background: color-mix(in srgb, var(--brand-700) 10%, white);
+        color: var(--brand-700);
+        border-color: color-mix(in srgb, var(--brand-700) 35%, transparent);
+      }
+      .sprint-toolbar-divider {
+        width: 1px;
+        height: 20px;
+        background: var(--line-default);
+        margin: 0 2px;
+        flex-shrink: 0;
+      }
+      /* Sprint status badge */
+      .sprint-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 8px;
+        font-size: 11px;
+        font-weight: 600;
+        border-radius: 99px;
+        white-space: nowrap;
+        letter-spacing: 0.01em;
+      }
+      .sprint-status-badge--active {
+        background: color-mix(in srgb, #22c55e 12%, white);
+        color: #15803d;
+      }
+      .sprint-status-badge--warning {
+        background: color-mix(in srgb, #f59e0b 12%, white);
+        color: #b45309;
+      }
+      .sprint-status-badge--danger {
+        background: color-mix(in srgb, #ef4444 12%, white);
+        color: #b91c1c;
+      }
+      .sprint-status-badge--done {
+        background: color-mix(in srgb, #6b7280 12%, white);
+        color: #4b5563;
+      }
+      .sprint-status-badge--upcoming {
+        background: color-mix(in srgb, #6b7280 12%, white);
+        color: #4b5563;
+      }
+      .sprint-status-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+        flex-shrink: 0;
+      }
+      .sprint-nav-select {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--ink);
+        background: transparent;
+        border: 1px solid var(--line-default);
+        border-radius: 6px;
+        padding: 4px 8px;
+        cursor: pointer;
+        outline: none;
+        max-width: 160px;
+      }
+      .sprint-nav-select:hover {
+        background: var(--surface-secondary);
+        border-color: var(--brand-700);
+      }
+      .sprint-nav-select:focus {
+        border-color: var(--brand-700);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-700) 20%, transparent);
+      }
+      /* Person filter dropdown */
+      .sprint-person-dropdown {
+        position: relative;
+      }
+      .sprint-person-panel {
+        display: none;
+        position: absolute;
+        top: calc(100% + 6px);
+        right: 0;
+        min-width: 200px;
+        background: var(--surface-elevated, #fff);
+        border: 1px solid var(--line-default);
+        border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        z-index: 100;
+        padding: 8px;
+      }
+      .sprint-person-panel.is-open {
+        display: block;
+      }
+      .sprint-person-panel-label {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        padding: 2px 6px 6px;
+      }
+      .sprint-person-chip {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--ink);
+        cursor: pointer;
+        transition: background 0.12s;
+      }
+      .sprint-person-chip:hover {
+        background: var(--surface-secondary);
+      }
+      .sprint-person-chip.is-active {
+        background: color-mix(in srgb, var(--brand-700) 10%, white);
+        color: var(--brand-700);
+        font-weight: 600;
+      }
+
+      /* ---- Sprint Command Center ---- */
+      .sprint-breakdown-panel {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        margin-bottom: 0.75rem;
         background: var(--surface-elevated, #fff);
         border: 1px solid var(--line-default);
         border-radius: 12px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        transition: box-shadow 0.22s ease;
+        overflow: hidden;
       }
+      .sprint-breakdown-panel.hud--collapsed {
+        box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+      }
+
+      /* Row 1: main header */
       .sprint-hud {
         display: flex;
-        flex-direction: column;
-        gap: 8px;
+        align-items: stretch;
+        padding: 0;
+        gap: 0;
+        border-bottom: 1px solid var(--line-default);
+        min-width: 0;
+        overflow: hidden;
       }
-      .sprint-hud-progress-row {
+
+      /* Each section cell */
+      .sprint-hud-cell {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 10px 14px;
+        border-right: 1px solid var(--line-default);
+        gap: 2px;
+        flex-shrink: 0;
+        overflow: hidden;
+        min-width: 0;
+      }
+      .sprint-hud-cell:last-child { border-right: none; }
+      .sprint-hud-cell--grow { flex: 1; min-width: 0; overflow: hidden; }
+      .sprint-hud-cell--context { flex-shrink: 1; min-width: 120px; max-width: 200px; }
+      .sprint-hud-cell--filters { flex-shrink: 1; min-width: 100px; max-width: 220px; }
+      .sprint-hud-cell--actions {
+        flex-direction: row;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 10px;
+        flex-shrink: 0;
+      }
+
+      .sprint-hud-cell-label {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+
+      /* Section 1 — Contexto */
+      .sprint-hud-breadcrumb {
+        font-size: 11px;
+        color: var(--muted);
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 3px;
+        white-space: nowrap;
+        margin-bottom: 2px;
+      }
+      .sprint-hud-sprint-name {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        min-width: 0;
+        overflow: hidden;
+      }
+      .sprint-hud-sprint-select {
+        font-size: 15px;
+        font-weight: 800;
+        color: var(--ink);
+        background: transparent;
+        border: none;
+        outline: none;
+        cursor: pointer;
+        padding: 0;
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        appearance: none;
+        -webkit-appearance: none;
+      }
+      .sprint-hud-chevron {
+        font-size: 10px;
+        color: var(--muted);
+        flex-shrink: 0;
+        pointer-events: none;
+      }
+
+      /* Section 2 — Filtros */
+      .sprint-hud-filter-row {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        flex-wrap: nowrap;
+        overflow: hidden;
+        min-width: 0;
+      }
+
+      /* Section 3 — Resumen */
+      .sprint-hud-summary {
+        display: flex;
+        align-items: stretch;
+        gap: 0;
+        min-width: 0;
+        overflow: hidden;
+        flex-wrap: nowrap;
+        border: 1px solid var(--line-default);
+        border-radius: 8px;
+        background: var(--bg, #fafafa);
+      }
+      .sprint-hud-summary-block {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 2px;
+        padding: 6px 14px;
+        flex-shrink: 0;
+      }
+      .sprint-hud-summary-value {
+        font-size: 20px;
+        font-weight: 800;
+        color: var(--ink);
+        line-height: 1;
+        white-space: nowrap;
+      }
+      .sprint-hud-summary-value--md {
+        font-size: 14px;
+        font-weight: 700;
+      }
+      .sprint-hud-summary-total {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--muted);
+      }
+      .sprint-hud-summary-sub {
+        font-size: 10px;
+        color: var(--muted);
+        white-space: nowrap;
       }
       .sprint-hud-progress-bar {
-        flex: 1;
-        height: 6px;
+        width: 72px;
+        height: 5px;
         border-radius: 99px;
         background: var(--surface-secondary);
         overflow: hidden;
+        margin-top: 3px;
       }
       .sprint-hud-progress-fill {
         height: 100%;
@@ -697,97 +1043,134 @@
         background: linear-gradient(to right, #16a34a, #22c55e);
         transition: width 0.4s ease;
       }
-      .sprint-hud-pct {
-        font-size: 13px;
-        font-weight: 800;
-        color: var(--ink);
-        min-width: 36px;
-        text-align: right;
+      .sprint-hud-divider-v {
+        width: 1px;
+        height: 32px;
+        background: var(--line-default);
+        flex-shrink: 0;
       }
-      .sprint-hud-meta {
+
+      /* Section 7 row — alerts */
+      .sprint-hud-alerts {
         display: flex;
-        flex-wrap: wrap;
         align-items: center;
-        gap: 8px;
+        padding: 0 14px;
+        height: 40px;
+        gap: 0;
+        font-size: 11.5px;
+        color: var(--muted);
+        flex-wrap: nowrap;
+        overflow: hidden;
+        background: var(--bg, #fafafa);
+        border-top: 1px solid var(--line-default);
       }
-      /* Health badge */
+      .sprint-hud-alerts-label {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--muted);
+        white-space: nowrap;
+        margin-right: 10px;
+        flex-shrink: 0;
+      }
       .sprint-hud-health {
         display: inline-flex;
         align-items: center;
         gap: 5px;
-        font-size: 11px;
+        font-size: 11.5px;
         font-weight: 700;
-        padding: 3px 9px;
-        border-radius: 99px;
-        border: 1px solid transparent;
-        letter-spacing: 0.01em;
+        white-space: nowrap;
+        padding: 3px 10px 3px 8px;
+        border-radius: 6px;
+        flex-shrink: 0;
       }
-      .sprint-hud-health--green  { background: #dcfce7; color: #15803d; border-color: #bbf7d0; }
-      .sprint-hud-health--yellow { background: #fef9c3; color: #92400e; border-color: #fde68a; }
-      .sprint-hud-health--red    { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
-      .sprint-hud-health--unknown{ background: var(--surface-secondary); color: var(--muted); border-color: var(--line-subtle); }
-      /* Stats pills */
-      .sprint-hud-stats {
+      .sprint-hud-health--green  { background: #f0fdf4; color: #15803d; }
+      .sprint-hud-health--yellow { background: #fefce8; color: #92400e; }
+      .sprint-hud-health--red    { background: #fff1f2; color: #991b1b; }
+      .sprint-hud-health--unknown{ background: var(--surface-secondary); color: var(--muted); }
+
+      .sprint-hud-sep {
+        padding: 0 10px;
+        color: var(--line-default);
+        font-size: 14px;
+        flex-shrink: 0;
+      }
+      .sprint-hud-stat { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+      .sprint-hud-stat i { font-size: 11px; }
+      .sprint-hud-stat b { font-weight: 700; color: var(--ink); }
+      .sprint-hud-stat--inprogress b { color: #2563eb; }
+      .sprint-hud-stat--done b       { color: #16a34a; }
+      .sprint-hud-rate { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; white-space: nowrap; }
+      .sprint-hud-rate--ok   { color: #15803d; }
+      .sprint-hud-rate--warn { color: #d97706; }
+      .sprint-hud-bottleneck { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; color: #c2410c; white-space: nowrap; }
+
+      .sprint-hud-alerts-right {
+        margin-left: auto;
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: 6px;
+        flex-shrink: 0;
       }
-      .sprint-hud-stat {
+
+      /* Collapsed: compress alerts row */
+      .hud--collapsed .sprint-hud-alerts {
+        height: 0;
+        overflow: hidden;
+        padding: 0;
+      }
+
+      /* Action buttons in header */
+      .sprint-hud-icon-btn {
         display: inline-flex;
         align-items: center;
-        gap: 4px;
-        font-size: 11px;
-        font-weight: 600;
-        padding: 2px 8px;
-        border-radius: 6px;
-        background: var(--surface-secondary);
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        border: 1px solid var(--line-default);
+        background: var(--surface-elevated, #fff);
         color: var(--muted);
-        border: 1px solid var(--line-subtle);
+        cursor: pointer;
+        font-size: 14px;
+        transition: background 0.15s, color 0.15s;
+        flex-shrink: 0;
       }
-      .sprint-hud-stat--inprogress { color: #2563eb; }
-      .sprint-hud-stat--done       { color: #16a34a; }
-      /* Burn rate */
-      .sprint-hud-rate {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        font-size: 11px;
-        font-weight: 600;
-        padding: 2px 8px;
-        border-radius: 6px;
+      .sprint-hud-icon-btn:hover {
         background: var(--surface-secondary);
-        border: 1px solid var(--line-subtle);
-      }
-      .sprint-hud-rate--ok   { color: #16a34a; }
-      .sprint-hud-rate--warn { color: #d97706; background: #fffbeb; border-color: #fde68a; }
-      /* Dates */
-      .sprint-hud-dates {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        font-size: 11px;
-        color: var(--muted);
-        padding: 2px 8px;
-        border-radius: 6px;
-        background: var(--surface-secondary);
-        border: 1px solid var(--line-subtle);
-      }
-      .sprint-hud-day-label {
-        font-weight: 600;
         color: var(--ink);
       }
-      /* Bottleneck */
-      .sprint-hud-bottleneck {
+      .sprint-hud-icon-btn--primary {
+        background: var(--brand-700, #15803d);
+        color: #fff;
+        border-color: var(--brand-700, #15803d);
+      }
+      .sprint-hud-icon-btn--primary:hover {
+        opacity: 0.88;
+        background: var(--brand-700, #15803d);
+        color: #fff;
+      }
+      .sprint-hud-icon-btn--active {
+        background: color-mix(in srgb, var(--brand-700) 10%, white);
+        color: var(--brand-700);
+        border-color: color-mix(in srgb, var(--brand-700) 30%, transparent);
+      }
+      .sprint-hud-density-btn {
         display: inline-flex;
         align-items: center;
         gap: 5px;
-        font-size: 11px;
+        padding: 4px 10px;
+        font-size: 12px;
         font-weight: 600;
-        padding: 2px 8px;
+        color: var(--ink);
+        background: var(--surface-elevated, #fff);
+        border: 1px solid var(--line-default);
         border-radius: 6px;
-        background: #fff7ed;
-        color: #c2410c;
-        border: 1px solid #fed7aa;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.15s;
+      }
+      .sprint-hud-density-btn:hover {
+        background: var(--surface-secondary);
       }
 
       .task-bento-shell {
@@ -8523,19 +8906,19 @@
                   <i class="fas fa-plus"></i>
                 </button>
 
-                <div id="sprint-menu-container" class="sprint-menu-container">
+                <div id="sprint-menu-container-header" class="sprint-menu-container">
                   <button
                     data-action="toggle-sprint-menu"
                     class="sprint-menu-button bg-white border border-gray-200 text-gray-600 font-semibold py-2 px-3 rounded-md transition-colors shadow-sm"
                     title="Más acciones"
-                    aria-controls="sprint-actions-menu"
+                    aria-controls="sprint-actions-menu-header"
                     aria-expanded="false"
                     aria-haspopup="true"
                   >
                     <i class="fas fa-ellipsis-v"></i>
                   </button>
                   <div
-                    id="sprint-actions-menu"
+                    id="sprint-actions-menu-header"
                     class="sprint-menu-content py-1"
                     role="menu"
                     aria-hidden="true"
@@ -8616,8 +8999,84 @@
         </section>
 
         <section id="view-sprint" class="hidden">
+          <!-- Tab bar + Toolbar -->
+          <div class="sprint-nav-bar">
+            <!-- Left: task actions -->
+            <div class="sprint-toolbar" id="sprint-toolbar">
+              <button class="sprint-toolbar-btn sprint-toolbar-btn--primary" data-action="add-task-sprint" title="Nueva tarea en el sprint">
+                <i data-lucide="plus" style="width:13px;height:13px;"></i> Nueva tarea
+              </button>
+
+              <div class="sprint-toolbar-divider"></div>
+
+              <!-- Person filter dropdown -->
+              <div class="sprint-person-dropdown" id="sprint-person-dropdown">
+                <button class="sprint-toolbar-btn" id="sprint-person-btn" title="Filtrar por persona">
+                  <i data-lucide="user" style="width:13px;height:13px;"></i>
+                  <span id="sprint-person-label">Persona</span>
+                  <i data-lucide="chevron-down" style="width:11px;height:11px;opacity:0.6;"></i>
+                </button>
+                <div class="sprint-person-panel" id="sprint-person-panel">
+                  <div class="sprint-person-panel-label">Filtrar por responsable</div>
+                  <div id="sprint-person-list"></div>
+                </div>
+              </div>
+
+              <!-- Density toggle -->
+              <button class="sprint-toolbar-btn" id="sprint-density-btn" data-action="set-kanban-density" data-density="compact" title="Cambiar densidad de tarjetas">
+                <i data-lucide="layout-list" style="width:13px;height:13px;"></i>
+                <span id="sprint-density-label">Cómodo</span>
+                <i data-lucide="chevron-down" style="width:11px;height:11px;opacity:0.6;"></i>
+              </button>
+            </div>
+
+            <!-- Right: sprint selector + creation -->
+            <div class="sprint-toolbar" style="padding-bottom:6px;">
+              <select id="sprint-nav-select" class="sprint-nav-select" title="Seleccionar sprint"></select>
+              <div id="sprint-status-badge" class="sprint-status-badge" style="display:none;"></div>
+              <div class="sprint-toolbar-divider"></div>
+              <button
+                data-action="new-sprint"
+                class="sprint-toolbar-btn sprint-toolbar-btn--primary"
+                title="Nuevo Sprint"
+              >
+                <i data-lucide="plus" style="width:13px;height:13px;"></i> Nuevo sprint
+              </button>
+              <div id="sprint-menu-container" class="sprint-menu-container" style="position:relative;">
+                <button
+                  data-action="toggle-sprint-menu"
+                  class="sprint-toolbar-btn sprint-menu-button"
+                  title="Acciones del sprint"
+                  aria-controls="sprint-actions-menu"
+                  aria-expanded="false"
+                  aria-haspopup="true"
+                >
+                  <i data-lucide="ellipsis" style="width:14px;height:14px;"></i>
+                </button>
+                <div
+                  id="sprint-actions-menu"
+                  class="sprint-menu-content py-1"
+                  role="menu"
+                  aria-hidden="true"
+                >
+                  <button type="button" data-action="edit-sprint" class="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-[var(--bg)] cursor-pointer text-left" role="menuitem">
+                    <i class="fas fa-pencil w-5 text-gray-500"></i><span>Editar Sprint</span>
+                  </button>
+                  <button type="button" data-action="archive-sprint" class="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-[var(--bg)] cursor-pointer text-left" role="menuitem">
+                    <i class="fas fa-archive w-5 text-gray-500"></i><span>Archivar Sprint</span>
+                  </button>
+                  <div class="border-t border-gray-100 my-1"></div>
+                  <button type="button" data-action="delete-sprint" class="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 cursor-pointer text-left" role="menuitem">
+                    <i class="fas fa-trash-can w-5"></i><span>Borrar Sprint</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div id="kanban-density-bar" class="kanban-density-bar"></div>
-          <div id="sprint-breakdown-panel" class="sprint-breakdown-panel u-hidden"></div>
+          <div id="sprint-breakdown-panel" style="display:none;"></div>
+          <div id="hud-sentinel" style="height:1px;pointer-events:none;"></div>
           <div class="flex gap-4 h-full overflow-x-auto items-start" id="kanban-grid">
             <div
               id="col-todo-wrapper"

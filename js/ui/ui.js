@@ -860,52 +860,9 @@ function toggleBacklogView(state) {
 // EN js/ui/ui.js - REEMPLAZA LA FUNCIÓN EXISTENTE renderSprintKanban
 
 function renderSprintKanban(state) {
-  // Toolbar: density + assignee filter
+  // Density bar is now part of the sprint command center panel; clear it here.
   const densityBar = document.getElementById("kanban-density-bar");
-  if (densityBar) {
-    const isCompact = state.taskCardDensity === "compact";
-    const activeFilter = state.kanbanAssigneeFilter;
-
-    // Collect unique assignees in current sprint
-    const sprintTasks = state.tasks.filter((t) => t.listId === state.currentSprintId);
-    const assigneeEmails = [...new Set(sprintTasks.map((t) => t.assignee).filter(Boolean))];
-
-    const assigneeChips = assigneeEmails.map((email) => {
-      const u = state.allUsers.find((u) => u.email === email);
-      const name = u?.displayName || email.split("@")[0];
-      const avatar = u?.photoURL
-        ? `<img src="${u.photoURL}" class="kanban-filter-avatar-img" title="${name}">`
-        : `<span class="kanban-filter-avatar-initial">${name[0].toUpperCase()}</span>`;
-      const isActive = activeFilter === email;
-      return `<button
-        type="button"
-        class="kanban-filter-chip ${isActive ? "kanban-filter-chip--active" : ""}"
-        data-action="filter-kanban-assignee"
-        data-assignee="${email}"
-        title="${isActive ? `Quitar filtro: ${name}` : `Filtrar: ${name}`}"
-      >${avatar}<span>${name.split(" ")[0]}</span></button>`;
-    }).join("");
-
-    densityBar.innerHTML = `
-      <div class="kanban-toolbar">
-        <div class="kanban-filter-row">
-          <span class="kanban-filter-label">Responsable</span>
-          <button type="button" class="kanban-filter-chip ${!activeFilter ? "kanban-filter-chip--active" : ""}" data-action="filter-kanban-assignee" data-assignee="" title="Ver todos">Todos</button>
-          ${assigneeChips}
-        </div>
-        <button
-          type="button"
-          class="kanban-density-btn ${isCompact ? "kanban-density-btn--active" : ""}"
-          data-action="toggle-task-density"
-          aria-pressed="${isCompact}"
-          title="${isCompact ? "Vista cómoda" : "Vista compacta"}"
-        >
-          <i class="fa-solid ${isCompact ? "fa-table-cells-large" : "fa-table-cells"}" aria-hidden="true"></i>
-          <span>${isCompact ? "Cómodo" : "Compacto"}</span>
-        </button>
-      </div>
-    `;
-  }
+  if (densityBar) densityBar.innerHTML = "";
 
   const columns = [
     { key: "todo" },
@@ -4173,6 +4130,10 @@ export function handleRouteChange(state) {
     const isControlView = ["#backlog", "#sprint"].includes(hash);
     headerControls.style.visibility = isControlView ? "visible" : "hidden";
   }
+  const sprintControlEl = document.querySelector(".sprint-control");
+  if (sprintControlEl) {
+    sprintControlEl.style.display = hash === "#backlog" ? "" : "none";
+  }
   const backlogHeaderActions = document.getElementById("backlog-header-actions");
   if (backlogHeaderActions) {
     backlogHeaderActions.style.display = hash === "#backlog" ? "flex" : "none";
@@ -4255,6 +4216,27 @@ export function handleRouteChange(state) {
   }
 }
 
+let _hudObserver = null;
+
+function initSprintHUDObserver() {
+  if (_hudObserver) {
+    _hudObserver.disconnect();
+    _hudObserver = null;
+  }
+  const sentinel = document.getElementById("hud-sentinel");
+  const panel = document.getElementById("sprint-breakdown-panel");
+  const scrollRoot = document.getElementById("main-content");
+  if (!sentinel || !panel || !scrollRoot) return;
+
+  _hudObserver = new IntersectionObserver(
+    ([entry]) => {
+      panel.classList.toggle("hud--collapsed", !entry.isIntersecting);
+    },
+    { root: scrollRoot, threshold: 0 }
+  );
+  _hudObserver.observe(sentinel);
+}
+
 export function renderActiveSprintTitle(state) {
   const domViewTitle = document.getElementById("view-title");
   if (!domViewTitle || window.location.hash !== "#sprint") return;
@@ -4265,6 +4247,7 @@ export function renderActiveSprintTitle(state) {
 
   const sprintTasks = state.tasks.filter((t) => t.listId === state.currentSprintId);
   renderSprintHUD(state, sprintTasks, selectedSprint);
+  initSprintHUDObserver();
 }
 
 function getSprintHealth(sprint, donePts, totalPts) {
@@ -4284,116 +4267,123 @@ function getSprintHealth(sprint, donePts, totalPts) {
 }
 
 function renderSprintHUD(state, sprintTasks, sprint) {
-  const panel = document.getElementById("sprint-breakdown-panel");
-  if (!panel) return;
-  panel.classList.remove("u-hidden");
+  const density = state.taskCardDensity || "comfortable";
+  const densityLabel = density === "compact" ? "Compacto" : "Cómodo";
 
-  const getMs = (v) => (v?.toDate ? v.toDate() : v ? new Date(v) : null)?.getTime();
-  const todoTasks   = sprintTasks.filter((t) => resolveKanbanStatus(t) === "todo");
-  const inProgTasks = sprintTasks.filter((t) => resolveKanbanStatus(t) === "inprogress");
-  const doneTasks   = sprintTasks.filter((t) => resolveKanbanStatus(t) === "done");
-  const pts = (arr) => arr.reduce((s, t) => s + (t.points || 0), 0);
-  const totalPts = pts(sprintTasks);
-  const donePts = pts(doneTasks);
-  const pct = totalPts > 0 ? Math.round((donePts / totalPts) * 100) : 0;
-
-  // Sprint date context
-  const startMs = sprint ? getMs(sprint.startDate) : null;
-  const endMs   = sprint ? getMs(sprint.endDate)   : null;
-  let dateLabel = "";
-  let dayLabel  = "";
-  let burnRateHTML = "";
-  if (startMs && endMs) {
-    const fmt = (ms) => new Date(ms).toLocaleDateString("es-MX", { day: "numeric", month: "short" });
-    const totalDays = Math.max(1, Math.round((endMs - startMs) / 86400000));
-    const daysElapsed = Math.max(0, Math.round((Date.now() - startMs) / 86400000));
-    const daysLeft = Math.max(0, Math.round((endMs - Date.now()) / 86400000));
-    dateLabel = `${fmt(startMs)} – ${fmt(endMs)}`;
-    dayLabel  = daysLeft === 0 ? "Último día" : `Día ${daysElapsed}/${totalDays} · ${daysLeft}d restantes`;
-    const actualRate  = daysElapsed > 0 ? (donePts / daysElapsed).toFixed(1) : "—";
-    const neededRate  = daysLeft   > 0 ? ((totalPts - donePts) / daysLeft).toFixed(1) : "—";
-    const rateClass   = daysLeft > 0 && Number(actualRate) < Number(neededRate) ? "sprint-hud-rate--warn" : "sprint-hud-rate--ok";
-    burnRateHTML = `<div class="sprint-hud-rate ${rateClass}" title="Ritmo actual vs necesario para terminar a tiempo">
-      <i class="fa-solid fa-gauge-high"></i>
-      <span>${actualRate} pts/día actual · ${neededRate} pts/día necesario</span>
-    </div>`;
+  const densityBtn = document.getElementById("sprint-density-btn");
+  if (densityBtn) {
+    densityBtn.dataset.density = density === "compact" ? "comfortable" : "compact";
+    const densityLabelEl = document.getElementById("sprint-density-label");
+    if (densityLabelEl) densityLabelEl.textContent = densityLabel;
+    densityBtn.classList.toggle("sprint-toolbar-btn--active", density === "compact");
   }
 
-  const health = getSprintHealth(sprint, donePts, totalPts);
-  const healthMap = {
-    green:   { cls: "sprint-hud-health--green",   icon: "fa-circle-check",    label: "Al ritmo" },
-    yellow:  { cls: "sprint-hud-health--yellow",  icon: "fa-triangle-exclamation", label: "Ligero retraso" },
-    red:     { cls: "sprint-hud-health--red",      icon: "fa-circle-xmark",    label: "En riesgo" },
-    unknown: { cls: "sprint-hud-health--unknown",  icon: "fa-circle-question", label: "Sin fechas" },
-  };
-  const h = healthMap[health];
+  _renderSprintPersonDropdown(state, sprintTasks);
+  _renderSprintStatusBadge(sprint);
+}
 
-  // Bottleneck: persona con más tareas en inprogress
-  const inProgByPerson = {};
-  inProgTasks.forEach((t) => {
-    const k = t.assignee || "__unassigned__";
-    inProgByPerson[k] = (inProgByPerson[k] || 0) + 1;
-  });
-  const bottleneckEntry = Object.entries(inProgByPerson).sort((a, b) => b[1] - a[1])[0];
-  let bottleneckHTML = "";
-  if (bottleneckEntry && bottleneckEntry[1] >= 2) {
-    const [email, count] = bottleneckEntry;
+function _renderSprintStatusBadge(sprint) {
+  const badge = document.getElementById("sprint-status-badge");
+  if (!badge) return;
+
+  const startDate = parseAppDate(sprint?.startDate);
+  const endDate = parseAppDate(sprint?.endDate);
+
+  if (!startDate || !endDate) { badge.style.display = "none"; return; }
+
+  // Compare at day granularity: end of the last day counts as still active
+  const todayMs = new Date(new Date().toDateString()).getTime();
+  const startMs = new Date(startDate.toDateString()).getTime();
+  const endMs = new Date(endDate.toDateString()).getTime();
+
+  badge.style.display = "inline-flex";
+  badge.className = "sprint-status-badge";
+
+  if (todayMs < startMs) {
+    const daysUntil = Math.round((startMs - todayMs) / 86400000);
+    badge.classList.add("sprint-status-badge--upcoming");
+    badge.innerHTML = `<span class="sprint-status-dot"></span>Próximo · ${daysUntil}d`;
+  } else if (todayMs > endMs) {
+    badge.classList.add("sprint-status-badge--done");
+    badge.innerHTML = `<span class="sprint-status-dot"></span>Completado`;
+  } else {
+    const daysLeft = Math.round((endMs - todayMs) / 86400000);
+    const totalDays = Math.round((endMs - startMs) / 86400000) || 1;
+    const pctTime = Math.min(1, (todayMs - startMs) / (endMs - startMs));
+    let variant = "active";
+    if (daysLeft <= 2) variant = "danger";
+    else if (pctTime > 0.7) variant = "warning";
+    badge.classList.add(`sprint-status-badge--${variant}`);
+    badge.innerHTML = `<span class="sprint-status-dot"></span>${daysLeft === 0 ? "Último día" : `${daysLeft} días restantes`}`;
+  }
+}
+
+function _renderSprintPersonDropdown(state, sprintTasks) {
+  const list = document.getElementById("sprint-person-list");
+  const btn = document.getElementById("sprint-person-btn");
+  const labelEl = document.getElementById("sprint-person-label");
+  if (!list) return;
+
+  const activeFilter = state.kanbanAssigneeFilter;
+  const assigneeEmails = [...new Set(sprintTasks.map((t) => t.assignee).filter(Boolean))];
+
+  // Update button label + active style
+  if (labelEl) {
+    if (activeFilter) {
+      const u = state.allUsers.find((u) => u.email === activeFilter);
+      labelEl.textContent = u?.displayName?.split(" ")[0] || activeFilter.split("@")[0];
+    } else {
+      labelEl.textContent = "Persona";
+    }
+  }
+  if (btn) btn.classList.toggle("sprint-toolbar-btn--active", !!activeFilter);
+
+  const makeAvatar = (email) => {
+    const u = state.allUsers.find((u) => u.email === email);
+    if (u?.photoURL) return `<img src="${u.photoURL}" class="kanban-filter-avatar-img" alt="">`;
+    const initial = (u?.displayName || email)[0].toUpperCase();
+    return `<span class="kanban-filter-avatar-initial">${initial}</span>`;
+  };
+
+  const allChip = `<div class="sprint-person-chip ${!activeFilter ? "is-active" : ""}" data-action="filter-kanban-assignee" data-assignee="" role="button" tabindex="0">
+    <span style="width:18px;height:18px;border-radius:50%;background:var(--surface-secondary);display:inline-flex;align-items:center;justify-content:center;font-size:10px;">✓</span>
+    Todos
+  </div>`;
+
+  const chips = assigneeEmails.map((email) => {
     const u = state.allUsers.find((u) => u.email === email);
     const name = u?.displayName || email.split("@")[0];
-    bottleneckHTML = `<div class="sprint-hud-bottleneck" title="Posible cuello de botella">
-      <i class="fa-solid fa-arrow-down-wide-short"></i>
-      <span>${name} · ${count} en progreso</span>
+    const isActive = activeFilter === email;
+    return `<div class="sprint-person-chip ${isActive ? "is-active" : ""}" data-action="filter-kanban-assignee" data-assignee="${email}" role="button" tabindex="0">
+      ${makeAvatar(email)}
+      ${name}
     </div>`;
-  }
+  }).join("");
 
-  panel.innerHTML = `
-    <div class="sprint-hud">
-      <div class="sprint-hud-progress-row">
-        <div class="sprint-hud-progress-bar" title="${pct}% completado">
-          <div class="sprint-hud-progress-fill" style="width:${pct}%"></div>
-        </div>
-        <span class="sprint-hud-pct">${pct}%</span>
-      </div>
-      <div class="sprint-hud-meta">
-        <div class="sprint-hud-health ${h.cls}">
-          <i class="fa-solid ${h.icon}"></i>
-          <span>${h.label}</span>
-        </div>
-        <div class="sprint-hud-stats">
-          <span class="sprint-hud-stat sprint-hud-stat--todo" title="Por hacer"><i class="fa-regular fa-circle"></i>${todoTasks.length} · ${pts(todoTasks)} pts</span>
-          <span class="sprint-hud-stat sprint-hud-stat--inprogress" title="En progreso"><i class="fa-solid fa-spinner"></i>${inProgTasks.length} · ${pts(inProgTasks)} pts</span>
-          <span class="sprint-hud-stat sprint-hud-stat--done" title="Hecho"><i class="fa-solid fa-check-circle"></i>${doneTasks.length} · ${donePts} pts</span>
-        </div>
-        ${dateLabel ? `<div class="sprint-hud-dates"><i class="fa-regular fa-calendar"></i><span>${dateLabel}</span><span class="sprint-hud-day-label">${dayLabel}</span></div>` : ""}
-        ${burnRateHTML}
-        ${bottleneckHTML}
-      </div>
-    </div>
-  `;
+  list.innerHTML = allChip + chips;
 }
 
 // Mantener compatibilidad con toggles existentes — ahora es no-op ya que el HUD es permanente
 function renderSprintBreakdown(state, sprintTasks) {}
 
 export function renderSprintSelector(state) {
-  const sprintListSelect = document.getElementById("sprint-list-select");
-  if (!sprintListSelect) return;
-
   const sprints = state.taskLists
     .filter((l) => !l.isBacklog && !l.isArchived)
     .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
 
-  sprintListSelect.innerHTML = "";
+  const populate = (el) => {
+    if (!el) return;
+    el.innerHTML = "";
+    if (sprints.length > 0) {
+      sprints.forEach((s) => el.add(new Option(s.title, s.id)));
+      el.value = state.currentSprintId;
+    } else {
+      el.innerHTML = "<option>Crea un sprint</option>";
+    }
+  };
 
-  if (sprints.length > 0) {
-    sprints.forEach((s) => {
-      const option = new Option(s.title, s.id);
-      sprintListSelect.add(option);
-    });
-    sprintListSelect.value = state.currentSprintId;
-  } else {
-    sprintListSelect.innerHTML = "<option>Crea un sprint</option>";
-  }
+  populate(document.getElementById("sprint-list-select"));
+  populate(document.getElementById("sprint-nav-select"));
 }
 
 export function renderCalendarButton(state) {
@@ -4588,6 +4578,23 @@ function handleAppClick(e) {
     setSprintMenuOpen(false);
   }
 
+  // Person filter dropdown toggle
+  const personDropdown = document.getElementById("sprint-person-dropdown");
+  const personPanel = document.getElementById("sprint-person-panel");
+  const personBtn = document.getElementById("sprint-person-btn");
+  if (personPanel) {
+    if (target.closest("#sprint-person-btn")) {
+      personPanel.classList.toggle("is-open");
+      return;
+    }
+    if (!target.closest("#sprint-person-dropdown")) {
+      personPanel.classList.remove("is-open");
+    }
+    if (target.closest("[data-action='filter-kanban-assignee']") && target.closest("#sprint-person-panel")) {
+      personPanel.classList.remove("is-open");
+    }
+  }
+
   if (sidebarLink && isMobileSidebarLayout()) {
     setSidebarMobileOpen(false);
   }
@@ -4641,7 +4648,7 @@ function handleAppClick(e) {
       return;
     }
 
-    if (action === "toggle-task-density") {
+    if (action === "toggle-task-density" || action === "set-kanban-density") {
       const next = appState.taskCardDensity === "compact" ? "comfortable" : "compact";
       appActions.setTaskCardDensity(next);
       return;
@@ -6110,6 +6117,10 @@ export function initializeEventListeners(state, actions) {
 
   if (sprintSelector) {
     sprintSelector.addEventListener("change", (e) => appActions.setCurrentSprintId(e.target.value));
+  }
+  const sprintNavSelect = document.getElementById("sprint-nav-select");
+  if (sprintNavSelect) {
+    sprintNavSelect.addEventListener("change", (e) => appActions.setCurrentSprintId(e.target.value));
   }
   if (sprintCapacityInput) {
     sprintCapacityInput.addEventListener("change", (e) => {
