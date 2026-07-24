@@ -4101,8 +4101,32 @@ const FLAG_TEXT_CLASS = {
   red: "text-red-600",
   gray: "text-slate-400",
 };
-const HITO_STATUS_WORD = { done: "✓ Hecho", inprogress: "En curso", pending: "Pendiente" };
+const HITO_STATUS_WORD = { done: "Hecho", inprogress: "En curso", pending: "Pendiente" };
 const BET_STATUS_WORD = { advanced: "Avanzó", stalled: "Se estancó", died: "Murió" };
+const FLAG_DOT_COLOR = {
+  green: "#10b981",
+  yellow: "#eab308",
+  orange: "#f97316",
+  red: "#ef4444",
+  gray: "#cbd5e1",
+};
+const FLAG_PILL_CLASS = {
+  green: "bg-emerald-50 text-emerald-700",
+  yellow: "bg-yellow-50 text-yellow-700",
+  orange: "bg-orange-50 text-orange-700",
+  red: "bg-red-50 text-red-700",
+  gray: "bg-slate-100 text-slate-500",
+};
+
+// Punto de color (para ítems).
+function flagDot(color) {
+  return `<span class="inline-block w-2.5 h-2.5 rounded-full align-middle" style="background:${FLAG_DOT_COLOR[color] || FLAG_DOT_COLOR.gray}"></span>`;
+}
+// Píldora con punto + palabra (para la fila del frente).
+function flagPill(color) {
+  return `<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold ${FLAG_PILL_CLASS[color] || FLAG_PILL_CLASS.gray}">
+    <span class="w-1.5 h-1.5 rounded-full" style="background:${FLAG_DOT_COLOR[color] || FLAG_DOT_COLOR.gray}"></span>${FLAG_WORD[color]}</span>`;
+}
 const MESES_ABBR = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
 function boardDateShort(ts) {
@@ -4127,84 +4151,82 @@ function frenteTypes(items) {
   return ["hito", "tasa", "apuesta"].filter((t) => items.some((i) => i.measurementType === t));
 }
 
-// Celda de acciones de un ítem.
-function itemActionsCell(item) {
-  return `
-    <td class="py-1 px-2 whitespace-nowrap text-right">
-      <button type="button" data-action="edit-board-item" data-item-id="${item.id}" title="Editar" class="text-slate-400 hover:text-slate-700 px-1"><i data-lucide="pencil" class="w-4 h-4"></i></button>
-      <button type="button" data-action="weekly-update" data-item-id="${item.id}" title="Actualizar semana" class="text-slate-400 hover:text-emerald-600 px-1"><i data-lucide="calendar-check" class="w-4 h-4"></i></button>
-      <button type="button" data-action="delete-board-item" data-item-id="${item.id}" title="Borrar" class="text-slate-400 hover:text-red-600 px-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-    </td>`;
+// Detalle secundario de un ítem según su tipo (columna "Detalle").
+function itemDetailText(item) {
+  if (item.measurementType === "hito") return item.doneCriteria || "";
+  if (item.measurementType === "tasa") return item.qualityNote || "";
+  if (item.measurementType === "apuesta") {
+    const parts = [];
+    if (item.progressSignal) parts.push(`Señal: ${item.progressSignal}`);
+    if (item.weekTest) parts.push(`Prueba: ${item.weekTest}`);
+    return parts.join(" · ");
+  }
+  return "";
+}
+// Valor/estado de un ítem según su tipo (columna "Estado").
+function itemValueText(item) {
+  if (item.measurementType === "hito") return HITO_STATUS_WORD[item.status] || "—";
+  if (item.measurementType === "tasa") {
+    return `<span class="font-semibold text-slate-800">${item.real ?? "—"}</span> <span class="text-slate-400">/ ${item.meta ?? "—"} ${boardEscape(item.period || "")}</span>`;
+  }
+  if (item.measurementType === "apuesta") return BET_STATUS_WORD[item.betStatus] || "—";
+  return "—";
 }
 
-// Nombre del ítem con badge "sin actualizar" y nota debajo.
-function itemNameCell(item) {
-  const stale = boardUpdatedThisWeek(item.lastWeeklyUpdate)
-    ? ""
-    : `<span class="ml-1 inline-flex items-center text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded px-1" title="Sin actualizar esta semana">•</span>`;
-  const note = item.note
-    ? `<div class="text-xs text-amber-700 mt-0.5"><span class="font-semibold">Nota:</span> ${boardEscape(item.note)}</div>`
-    : "";
-  return `<td class="py-1 px-2 align-top"><span class="font-medium text-slate-800">${boardEscape(
-    item.title || "—"
-  )}</span>${stale}${note}</td>`;
-}
+// Una sola tabla unificada de ítems para el detalle del frente.
+function renderFrenteDetail(frente, items) {
+  const addBtn = `<button type="button" data-action="add-board-item" data-epic-id="${frente.id}" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700">+ Ítem</button>`;
+  if (!items.length) {
+    return `<div class="px-5 py-3 text-sm text-slate-400">Sin ítems. ${addBtn}</div>`;
+  }
 
-function renderTypeTable(type, items) {
-  const headers = {
-    hito: ["Hito", 'Cómo sé que "terminó"', "Fecha meta", "Estado"],
-    tasa: ["Métrica", "Meta", "Real", "Nota de calidad"],
-    apuesta: ["Hipótesis", "Señal de que avanzó", "Qué probamos", "Estado"],
-  }[type];
-
-  const rowFor = (it) => {
-    const flag = computeItemFlag(it, new Date());
-    const flagCell = `<td class="py-1 px-2 align-top text-center" title="${boardEscape(flag.reason)}">${FLAG_EMOJI[flag.color]}</td>`;
-    let cells = "";
-    if (type === "hito") {
-      cells = `
-        <td class="py-1 px-2 align-top text-slate-600">${boardEscape(it.doneCriteria || "—")}</td>
-        <td class="py-1 px-2 align-top text-slate-600 whitespace-nowrap">${boardDateShort(it.targetDate) || "—"}</td>
-        <td class="py-1 px-2 align-top text-slate-600">${HITO_STATUS_WORD[it.status] || "—"}</td>`;
-    } else if (type === "tasa") {
-      cells = `
-        <td class="py-1 px-2 align-top text-slate-600">${it.meta ?? "—"} / ${boardEscape(it.period || "")}</td>
-        <td class="py-1 px-2 align-top text-slate-600 font-semibold">${it.real ?? "—"}</td>
-        <td class="py-1 px-2 align-top text-slate-600">${boardEscape(it.qualityNote || "")}</td>`;
-    } else {
-      cells = `
-        <td class="py-1 px-2 align-top text-slate-600">${boardEscape(it.progressSignal || "—")}</td>
-        <td class="py-1 px-2 align-top text-slate-600">${boardEscape(it.weekTest || "—")}</td>
-        <td class="py-1 px-2 align-top text-slate-600">${BET_STATUS_WORD[it.betStatus] || "—"}</td>`;
-    }
-    return `<tr class="border-t border-gray-100">${itemNameCell(it)}${cells}${flagCell}${itemActionsCell(it)}</tr>`;
-  };
+  const rows = items
+    .map((it) => {
+      const meta = BOARD_TYPE_META[it.measurementType] || { emoji: "⚪", label: "Sin tipo" };
+      const flag = computeItemFlag(it, new Date());
+      const stale = boardUpdatedThisWeek(it.lastWeeklyUpdate)
+        ? ""
+        : `<span class="ml-1.5 w-1.5 h-1.5 inline-block rounded-full bg-orange-400 align-middle" title="Sin actualizar esta semana"></span>`;
+      const detail = boardEscape(itemDetailText(it));
+      const noteRow = it.note
+        ? `<div class="text-xs text-amber-700 mt-0.5">↳ ${boardEscape(it.note)}</div>`
+        : "";
+      const dateText = it.measurementType === "hito" ? boardDateShort(it.targetDate) || "—" : "—";
+      return `
+        <tr class="border-t border-gray-100 hover:bg-slate-50/60">
+          <td class="py-2 pl-5 pr-2 align-top w-6 text-center" title="${meta.label}">${meta.emoji}</td>
+          <td class="py-2 px-2 align-top">
+            <span class="font-medium text-slate-800">${boardEscape(it.title || "—")}</span>${stale}
+            ${detail ? `<div class="text-xs text-slate-500 mt-0.5">${detail}</div>` : ""}
+            ${noteRow}
+          </td>
+          <td class="py-2 px-2 align-top text-sm text-slate-600 whitespace-nowrap">${itemValueText(it)}</td>
+          <td class="py-2 px-2 align-top text-sm text-slate-500 whitespace-nowrap tabular-nums">${dateText}</td>
+          <td class="py-2 px-2 align-top text-center" title="${boardEscape(flag.reason)}">${flagDot(flag.color)}</td>
+          <td class="py-2 pr-4 pl-2 align-top text-right whitespace-nowrap">
+            <button type="button" data-action="edit-board-item" data-item-id="${it.id}" title="Editar" class="text-slate-300 hover:text-slate-700 px-1"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+            <button type="button" data-action="weekly-update" data-item-id="${it.id}" title="Actualizar semana" class="text-slate-300 hover:text-emerald-600 px-1"><i data-lucide="calendar-check" class="w-4 h-4"></i></button>
+            <button type="button" data-action="delete-board-item" data-item-id="${it.id}" title="Borrar" class="text-slate-300 hover:text-red-600 px-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+          </td>
+        </tr>`;
+    })
+    .join("");
 
   return `
     <table class="w-full text-sm">
       <thead>
-        <tr class="text-[11px] uppercase text-slate-500 text-left bg-slate-100">
-          ${headers.map((h) => `<th class="py-1.5 px-2 font-semibold">${h}</th>`).join("")}
-          <th class="py-1.5 px-2 font-semibold text-center">🚩</th>
-          <th class="py-1.5 px-2"></th>
+        <tr class="text-[10px] uppercase tracking-wide text-slate-400 text-left border-b border-gray-200">
+          <th class="py-1.5 pl-5 pr-2 font-semibold w-6"></th>
+          <th class="py-1.5 px-2 font-semibold">Ítem</th>
+          <th class="py-1.5 px-2 font-semibold">Estado</th>
+          <th class="py-1.5 px-2 font-semibold">Fecha</th>
+          <th class="py-1.5 px-2 font-semibold text-center w-10">Bandera</th>
+          <th class="py-1.5 pr-4 pl-2"></th>
         </tr>
       </thead>
-      <tbody>${items.map(rowFor).join("")}</tbody>
-    </table>`;
-}
-
-function renderFrenteDetail(frente, items) {
-  if (!items.length) {
-    return `<div class="px-4 py-3 text-sm text-slate-400 italic">Sin ítems.
-      <button type="button" data-action="add-board-item" data-epic-id="${frente.id}" class="ml-2 font-semibold text-emerald-600 hover:text-emerald-700 not-italic">+ Ítem</button></div>`;
-  }
-  const tables = frenteTypes(items)
-    .map((t) => renderTypeTable(t, items.filter((i) => i.measurementType === t)))
-    .join('<div class="h-3"></div>');
-  return `<div class="px-2 py-2">${tables}
-    <div class="px-2 pt-2">
-      <button type="button" data-action="add-board-item" data-epic-id="${frente.id}" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700">+ Ítem</button>
-    </div></div>`;
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="px-5 py-2 border-t border-gray-100">${addBtn}</div>`;
 }
 
 // Fila de un frente (fila-encabezado tipo spreadsheet) + fila de detalle.
@@ -4217,7 +4239,7 @@ function renderFrenteRow(frente, items, collapsed) {
     : "—";
   const staleCount = items.filter((it) => !boardUpdatedThisWeek(it.lastWeeklyUpdate)).length;
   const staleBadge = staleCount
-    ? `<span class="ml-2 inline-flex items-center text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded px-1 py-0.5" title="Ítems sin actualizar">${staleCount} sin act.</span>`
+    ? `<span class="ml-2 inline-flex items-center gap-1 text-[10px] font-semibold text-orange-600" title="Ítems sin actualizar esta semana"><span class="w-1.5 h-1.5 rounded-full bg-orange-400"></span>${staleCount} sin actualizar</span>`
     : "";
   // Nota de la fila: la del ítem más crítico (rojo/naranja) si existe.
   const worst = [...items]
@@ -4228,25 +4250,28 @@ function renderFrenteRow(frente, items, collapsed) {
 
   return `
     <tbody class="frente-block border-b border-gray-200">
-      <tr class="bg-sky-50 hover:bg-sky-100 cursor-pointer" data-action="toggle-board-frente" data-frente-id="${frente.id}">
-        <td class="py-2.5 px-3 align-top">
+      <tr class="group/frente hover:bg-slate-50 cursor-pointer" data-action="toggle-board-frente" data-frente-id="${frente.id}">
+        <td class="py-3 px-4 align-top">
           <div class="flex items-start gap-2">
             <i data-lucide="chevron-${collapsed ? "right" : "down"}" class="w-4 h-4 mt-0.5 text-slate-400 shrink-0"></i>
-            <span class="font-bold text-slate-800">${boardEscape(frente.title || "Frente")}${staleBadge}</span>
+            <div class="min-w-0">
+              <span class="font-semibold text-slate-800">${boardEscape(frente.title || "Frente")}</span>
+              ${staleBadge ? `<div class="mt-0.5">${staleBadge}</div>` : ""}
+            </div>
           </div>
         </td>
-        <td class="py-2.5 px-3 align-top text-sm text-slate-600 whitespace-nowrap">${typeCell}</td>
-        <td class="py-2.5 px-3 align-top text-sm text-slate-700">${boardEscape(summary)}</td>
-        <td class="py-2.5 px-3 align-top text-sm text-slate-600 whitespace-nowrap">${frenteNextDate(items)}</td>
-        <td class="py-2.5 px-3 align-top text-sm font-semibold whitespace-nowrap ${FLAG_TEXT_CLASS[flag.color]}">${FLAG_EMOJI[flag.color]} ${FLAG_WORD[flag.color]}</td>
-        <td class="py-2.5 px-3 align-top text-sm text-slate-600">${rowNote}</td>
-        <td class="py-2.5 px-2 align-top text-right whitespace-nowrap">
-          <button type="button" data-action="edit-board-frente" data-frente-id="${frente.id}" title="Editar frente / mover de programa" class="text-slate-400 hover:text-slate-700 px-1"><i data-lucide="pencil" class="w-4 h-4"></i></button>
-          <button type="button" data-action="delete-board-frente" data-frente-id="${frente.id}" title="Borrar frente" class="text-slate-400 hover:text-red-600 px-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+        <td class="py-3 px-4 align-top text-sm text-slate-500 whitespace-nowrap">${typeCell}</td>
+        <td class="py-3 px-4 align-top text-sm text-slate-700 font-medium">${boardEscape(summary)}</td>
+        <td class="py-3 px-4 align-top text-sm text-slate-500 whitespace-nowrap tabular-nums">${frenteNextDate(items)}</td>
+        <td class="py-3 px-4 align-top whitespace-nowrap">${flagPill(flag.color)}</td>
+        <td class="py-3 px-4 align-top text-sm text-slate-600">${rowNote}</td>
+        <td class="py-3 px-3 align-top text-right whitespace-nowrap">
+          <button type="button" data-action="edit-board-frente" data-frente-id="${frente.id}" title="Editar frente / mover de programa" class="text-slate-300 hover:text-slate-700 px-1 opacity-0 group-hover/frente:opacity-100 transition"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+          <button type="button" data-action="delete-board-frente" data-frente-id="${frente.id}" title="Borrar frente" class="text-slate-300 hover:text-red-600 px-1 opacity-0 group-hover/frente:opacity-100 transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
         </td>
       </tr>
       <tr class="${collapsed ? "hidden" : ""}">
-        <td colspan="7" class="p-0 bg-white">${renderFrenteDetail(frente, items)}</td>
+        <td colspan="7" class="p-0 bg-slate-50/40 border-t border-gray-100">${renderFrenteDetail(frente, items)}</td>
       </tr>
     </tbody>`;
 }
@@ -4288,17 +4313,17 @@ function renderBoardProgram(program, frentes, tasksByEpic, collapsedSet) {
       .map((f) => renderFrenteRow(f, tasksByEpic.get(f.id) || [], collapsedSet.has(f.id)))
       .join("");
     tableOrEmpty = `
-      <div class="border border-gray-200 rounded-xl overflow-x-auto bg-white">
-        <table class="w-full text-sm">
+      <div class="border border-gray-200 rounded-xl overflow-x-auto bg-white shadow-sm">
+        <table class="w-full text-sm border-collapse">
           <thead>
-            <tr class="text-[11px] uppercase text-slate-500 text-left bg-slate-800 text-white/90">
-              <th class="py-2 px-3 font-semibold">Frente</th>
-              <th class="py-2 px-3 font-semibold">Tipo</th>
-              <th class="py-2 px-3 font-semibold">Estado (lunes)</th>
-              <th class="py-2 px-3 font-semibold">Próx. fecha</th>
-              <th class="py-2 px-3 font-semibold">Bandera</th>
-              <th class="py-2 px-3 font-semibold">Nota / decisión</th>
-              <th class="py-2 px-2"></th>
+            <tr class="text-[10px] uppercase tracking-wide text-slate-400 text-left bg-slate-50 border-b border-gray-200">
+              <th class="py-2.5 px-4 font-semibold">Frente</th>
+              <th class="py-2.5 px-4 font-semibold">Tipo</th>
+              <th class="py-2.5 px-4 font-semibold">Estado (lunes)</th>
+              <th class="py-2.5 px-4 font-semibold">Próx. fecha</th>
+              <th class="py-2.5 px-4 font-semibold">Bandera</th>
+              <th class="py-2.5 px-4 font-semibold">Nota / decisión</th>
+              <th class="py-2.5 px-3"></th>
             </tr>
           </thead>
           ${rows}
