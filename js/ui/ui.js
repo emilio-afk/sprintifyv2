@@ -4239,6 +4239,7 @@ export function renderBoard(state) {
 
   const toolbar = `
     <div class="flex justify-end gap-2 mb-4">
+      <button type="button" data-action="board-help" class="text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">¿Cómo se usa?</button>
       <button type="button" data-action="add-board-program" class="text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">+ Programa</button>
     </div>`;
 
@@ -4625,6 +4626,50 @@ function readItemModal() {
     weekTest: val("bi-weekTest"),
     betStatus: val("bi-betStatus") || "stalled",
   };
+}
+
+export function showBoardHelpModal() {
+  showModal({
+    title: "Cómo se usa el Tablero",
+    htmlContent: `
+      <div class="text-left space-y-4 text-sm text-slate-700 max-h-[65vh] overflow-y-auto pr-1">
+        <div class="bg-slate-900 text-white rounded-lg p-3">
+          <p class="font-bold uppercase text-xs tracking-wider text-white/60 mb-1">La única regla dura</p>
+          <p>Tu trabajo actualizado <b>antes del lunes 9:00</b>. Si un ítem llega "Sin actualizar", ese es el tema de la junta — nadie lo cubre por ti.</p>
+        </div>
+
+        <div>
+          <p class="font-bold text-slate-900 mb-1">La jerarquía</p>
+          <p><b>Programa</b> (la bolsa de trabajo, con dueño) → <b>Frente</b> (las fases) → <b>Ítem</b> (la unidad de trabajo).</p>
+        </div>
+
+        <div>
+          <p class="font-bold text-slate-900 mb-1">Cómo medir cada ítem — elige el tipo según: ¿este trabajo tiene un final?</p>
+          <ul class="space-y-2">
+            <li>🎯 <b>Hito</b> — trabajo CON final. Un cambio de estado verificable, no actividad. Semáforo por estado: Pendiente ⚪ · En curso/Hecho 🟢 · Vencido 🟠 · Bloqueado 🔴.</li>
+            <li>📈 <b>Tasa</b> — flujo continuo sin final (leads, contenido). "36 de 40". Semáforo por ritmo: ≥90% 🟢 · 70–90% 🟡 · &lt;70% 🟠 · &lt;40% o cayendo 2 sem 🔴.</li>
+            <li>🎲 <b>Apuesta</b> — trabajo incierto. No finjas hitos que no conoces. Reportas si se movió: Avanzó 🟢 · Se estancó 🟠 · Murió / 2+ sem sin moverse 🔴.</li>
+          </ul>
+        </div>
+
+        <div>
+          <p class="font-bold text-slate-900 mb-1">La bandera del frente</p>
+          <p>Es el <b>roll-up</b> (la peor) de las banderas de sus ítems. Severidad: ⚪ &lt; 🟢 &lt; 🟡 &lt; 🟠 &lt; 🔴.</p>
+        </div>
+
+        <div>
+          <p class="font-bold text-slate-900 mb-1">La nota / decisión</p>
+          <p>Ahí la bandera se vuelve acción. En 🟠/🔴 escribe el pedido concreto: "necesito X de Y para el viernes". En 🟢 va vacía. Una 🔴 sin pedido desperdicia la junta.</p>
+        </div>
+
+        <div>
+          <p class="font-bold text-slate-900 mb-1">El corte semanal</p>
+          <p>Con el botón 📅 de cada ítem capturas su estado de la semana; queda congelado en <b>Historia</b>. En <b>Bloqueos</b> ves todo lo crítico junto para la junta.</p>
+        </div>
+      </div>`,
+    okText: "Entendido",
+    hideCancel: true,
+  });
 }
 
 export function showWeeklyUpdateModal(item) {
@@ -5652,6 +5697,9 @@ function handleAppClick(e) {
       }
       case "seed-board-example":
         if (appActions?.seedBoardExample) appActions.seedBoardExample();
+        return;
+      case "board-help":
+        showBoardHelpModal();
         return;
       case "add-board-item": {
         const epicId = actionTarget.dataset.epicId;
