@@ -83,12 +83,9 @@ export function flagForTasa(item, today = new Date()) {
     real < hist[hist.length - 1] &&
     hist[hist.length - 1] < hist[hist.length - 2];
 
-  if (ratio < 0.7 || fallingTwoWeeks) {
-    return {
-      color: "red",
-      reason: fallingTwoWeeks ? "Cayendo 2 semanas seguidas" : "Por debajo del 70% del ritmo",
-    };
-  }
+  if (fallingTwoWeeks) return { color: "red", reason: "Cayendo 2 semanas seguidas" };
+  if (ratio < 0.4) return { color: "red", reason: "Muy por debajo de la meta (<40%)" };
+  if (ratio < 0.7) return { color: "orange", reason: "Por debajo del 70% del ritmo" };
   if (ratio < 0.9) return { color: "yellow", reason: "Entre 70–90% del ritmo" };
   return { color: "green", reason: "Al 90%+ del ritmo esperado" };
 }
@@ -106,7 +103,7 @@ export function flagForApuesta(item, today = new Date()) {
     const idleDays = daysBetween(today, lastMoved);
     if (idleDays >= 14) return { color: "red", reason: "Sin moverse 2+ semanas" };
   }
-  return { color: "yellow", reason: "No se movió esta semana" };
+  return { color: "orange", reason: "Se estancó, no se movió" };
 }
 
 // Dispatcher por ítem
