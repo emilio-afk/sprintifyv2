@@ -4087,109 +4087,172 @@ function boardUpdatedThisWeek(ts) {
   return d >= boardWeekMonday();
 }
 
-function renderBoardItem(item) {
-  const meta = BOARD_TYPE_META[item.measurementType] || {
-    emoji: "⚪",
-    label: "Sin tipo",
-  };
-  const flag = computeItemFlag(item, new Date());
-  let detail = "";
-  if (item.measurementType === "hito") {
-    const st = { done: "Hecho", inprogress: "En curso", pending: "Pendiente" }[item.status] || "—";
-    detail = `${boardEscape(item.doneCriteria || "")} · ${st}`;
-  } else if (item.measurementType === "tasa") {
-    detail = `${item.real ?? "—"} / ${item.meta ?? "—"}${
-      item.qualityNote ? ` · ${boardEscape(item.qualityNote)}` : ""
-    }`;
-  } else if (item.measurementType === "apuesta") {
-    const st =
-      { advanced: "avanzó", stalled: "se estancó", died: "murió" }[item.betStatus] || "—";
-    detail = `${boardEscape(item.hypothesis || "")} · ${st}`;
-  }
-  const updated = boardUpdatedThisWeek(item.lastWeeklyUpdate);
-  const staleBadge = updated
-    ? ""
-    : `<span class="ml-2 inline-flex items-center text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded px-1 py-0.5" title="Sin actualizar esta semana">Sin actualizar</span>`;
-  const noteHtml = item.note
-    ? `<p class="text-xs text-amber-700 mt-0.5"><span class="font-semibold">Nota:</span> ${boardEscape(item.note)}</p>`
-    : "";
-  return `
-    <li class="board-item group flex items-start gap-3 py-2 border-b border-gray-100 last:border-0">
-      <span title="${meta.label}" class="text-base leading-6">${meta.emoji}</span>
-      <span title="${boardEscape(flag.reason)}" class="text-base leading-6">${FLAG_EMOJI[flag.color]}</span>
-      <button type="button" data-action="edit-board-item" data-item-id="${item.id}" class="min-w-0 flex-1 text-left hover:opacity-70">
-        <p class="text-sm font-medium text-slate-800 truncate">${boardEscape(
-          item.title || "(sin título)"
-        )}${staleBadge}</p>
-        ${detail ? `<p class="text-xs text-slate-500 truncate">${detail}</p>` : ""}
-        ${noteHtml}
-      </button>
-      <button type="button" data-action="weekly-update" data-item-id="${item.id}" title="Actualizar semana" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-emerald-600 transition">
-        <i data-lucide="calendar-check" class="w-4 h-4"></i>
-      </button>
-      <button type="button" data-action="delete-board-item" data-item-id="${item.id}" title="Borrar" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-600 transition">
-        <i data-lucide="trash-2" class="w-4 h-4"></i>
-      </button>
-    </li>`;
+const FLAG_WORD = {
+  green: "En tiempo",
+  yellow: "Atención",
+  orange: "En riesgo",
+  red: "Bloqueado",
+  gray: "Sin datos",
+};
+const FLAG_TEXT_CLASS = {
+  green: "text-emerald-600",
+  yellow: "text-yellow-600",
+  orange: "text-orange-600",
+  red: "text-red-600",
+  gray: "text-slate-400",
+};
+const HITO_STATUS_WORD = { done: "✓ Hecho", inprogress: "En curso", pending: "Pendiente" };
+const BET_STATUS_WORD = { advanced: "Avanzó", stalled: "Se estancó", died: "Murió" };
+const MESES_ABBR = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+function boardDateShort(ts) {
+  if (!ts) return "";
+  const d = typeof ts?.toDate === "function" ? ts.toDate() : new Date(ts);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getDate()}-${MESES_ABBR[d.getMonth()]}`;
 }
 
-function renderBoardFrente(frente, items, collapsed) {
-  const flag = rollUpFrenteFlag(items, new Date());
-  const summary = summarizeFrente(items) || "Sin ítems capturados";
-  const itemsHtml = items.length
-    ? `<ul class="mt-2 px-4">${items.map(renderBoardItem).join("")}</ul>`
-    : `<p class="mt-2 px-4 py-3 text-sm text-slate-400 italic">Sin ítems. Agrega hitos, tasas o apuestas.</p>`;
-  const addItemBtn = `<div class="px-4 pb-2 pt-1">
-      <button type="button" data-action="add-board-item" data-epic-id="${frente.id}" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700">+ Ítem</button>
-    </div>`;
+// Próxima fecha del frente: el hito no terminado con fecha más cercana.
+function frenteNextDate(items) {
+  const dates = items
+    .filter((i) => i.measurementType === "hito" && i.status !== "done" && i.targetDate)
+    .map((i) => (typeof i.targetDate.toDate === "function" ? i.targetDate.toDate() : new Date(i.targetDate)))
+    .filter((d) => !Number.isNaN(d.getTime()))
+    .sort((a, b) => a - b);
+  return dates.length ? boardDateShort(dates[0]) : "—";
+}
 
-  // Banda del lunes: resumen automático de los ítems.
-  const bandText = boardEscape(summary);
-  // Guardarraíl agregado: cuántos ítems no se actualizaron esta semana.
-  const staleCount = items.filter((it) => !boardUpdatedThisWeek(it.lastWeeklyUpdate)).length;
-  const staleBadge = staleCount
-    ? `<span class="ml-2 inline-flex items-center gap-1 text-[11px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5" title="Ítems sin actualizar esta semana">${staleCount} sin actualizar</span>`
+// Tipos presentes en el frente, en orden hito→tasa→apuesta.
+function frenteTypes(items) {
+  return ["hito", "tasa", "apuesta"].filter((t) => items.some((i) => i.measurementType === t));
+}
+
+// Celda de acciones de un ítem.
+function itemActionsCell(item) {
+  return `
+    <td class="py-1 px-2 whitespace-nowrap text-right">
+      <button type="button" data-action="edit-board-item" data-item-id="${item.id}" title="Editar" class="text-slate-400 hover:text-slate-700 px-1"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+      <button type="button" data-action="weekly-update" data-item-id="${item.id}" title="Actualizar semana" class="text-slate-400 hover:text-emerald-600 px-1"><i data-lucide="calendar-check" class="w-4 h-4"></i></button>
+      <button type="button" data-action="delete-board-item" data-item-id="${item.id}" title="Borrar" class="text-slate-400 hover:text-red-600 px-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+    </td>`;
+}
+
+// Nombre del ítem con badge "sin actualizar" y nota debajo.
+function itemNameCell(item) {
+  const stale = boardUpdatedThisWeek(item.lastWeeklyUpdate)
+    ? ""
+    : `<span class="ml-1 inline-flex items-center text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded px-1" title="Sin actualizar esta semana">•</span>`;
+  const note = item.note
+    ? `<div class="text-xs text-amber-700 mt-0.5"><span class="font-semibold">Nota:</span> ${boardEscape(item.note)}</div>`
     : "";
+  return `<td class="py-1 px-2 align-top"><span class="font-medium text-slate-800">${boardEscape(
+    item.title || "—"
+  )}</span>${stale}${note}</td>`;
+}
+
+function renderTypeTable(type, items) {
+  const headers = {
+    hito: ["Hito", 'Cómo sé que "terminó"', "Fecha meta", "Estado"],
+    tasa: ["Métrica", "Meta", "Real", "Nota de calidad"],
+    apuesta: ["Hipótesis", "Señal de que avanzó", "Qué probamos", "Estado"],
+  }[type];
+
+  const rowFor = (it) => {
+    const flag = computeItemFlag(it, new Date());
+    const flagCell = `<td class="py-1 px-2 align-top text-center" title="${boardEscape(flag.reason)}">${FLAG_EMOJI[flag.color]}</td>`;
+    let cells = "";
+    if (type === "hito") {
+      cells = `
+        <td class="py-1 px-2 align-top text-slate-600">${boardEscape(it.doneCriteria || "—")}</td>
+        <td class="py-1 px-2 align-top text-slate-600 whitespace-nowrap">${boardDateShort(it.targetDate) || "—"}</td>
+        <td class="py-1 px-2 align-top text-slate-600">${HITO_STATUS_WORD[it.status] || "—"}</td>`;
+    } else if (type === "tasa") {
+      cells = `
+        <td class="py-1 px-2 align-top text-slate-600">${it.meta ?? "—"} / ${boardEscape(it.period || "")}</td>
+        <td class="py-1 px-2 align-top text-slate-600 font-semibold">${it.real ?? "—"}</td>
+        <td class="py-1 px-2 align-top text-slate-600">${boardEscape(it.qualityNote || "")}</td>`;
+    } else {
+      cells = `
+        <td class="py-1 px-2 align-top text-slate-600">${boardEscape(it.progressSignal || "—")}</td>
+        <td class="py-1 px-2 align-top text-slate-600">${boardEscape(it.weekTest || "—")}</td>
+        <td class="py-1 px-2 align-top text-slate-600">${BET_STATUS_WORD[it.betStatus] || "—"}</td>`;
+    }
+    return `<tr class="border-t border-gray-100">${itemNameCell(it)}${cells}${flagCell}${itemActionsCell(it)}</tr>`;
+  };
 
   return `
-    <div class="frente-card group border border-gray-200 rounded-xl overflow-hidden bg-white">
-      <div class="flex items-center hover:bg-gray-50">
-        <button
-          type="button"
-          data-action="toggle-board-frente"
-          data-frente-id="${frente.id}"
-          class="flex-1 min-w-0 flex items-center gap-3 px-4 py-3 text-left"
-          aria-expanded="${!collapsed}"
-        >
-          <span class="text-lg">${FLAG_EMOJI[flag.color]}</span>
-          <div class="min-w-0 flex-1">
-            <p class="font-semibold text-slate-800 truncate">${boardEscape(frente.title || "Frente")}${staleBadge}</p>
-            <p class="text-xs text-slate-500 truncate">${bandText}</p>
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-[11px] uppercase text-slate-500 text-left bg-slate-100">
+          ${headers.map((h) => `<th class="py-1.5 px-2 font-semibold">${h}</th>`).join("")}
+          <th class="py-1.5 px-2 font-semibold text-center">🚩</th>
+          <th class="py-1.5 px-2"></th>
+        </tr>
+      </thead>
+      <tbody>${items.map(rowFor).join("")}</tbody>
+    </table>`;
+}
+
+function renderFrenteDetail(frente, items) {
+  if (!items.length) {
+    return `<div class="px-4 py-3 text-sm text-slate-400 italic">Sin ítems.
+      <button type="button" data-action="add-board-item" data-epic-id="${frente.id}" class="ml-2 font-semibold text-emerald-600 hover:text-emerald-700 not-italic">+ Ítem</button></div>`;
+  }
+  const tables = frenteTypes(items)
+    .map((t) => renderTypeTable(t, items.filter((i) => i.measurementType === t)))
+    .join('<div class="h-3"></div>');
+  return `<div class="px-2 py-2">${tables}
+    <div class="px-2 pt-2">
+      <button type="button" data-action="add-board-item" data-epic-id="${frente.id}" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700">+ Ítem</button>
+    </div></div>`;
+}
+
+// Fila de un frente (fila-encabezado tipo spreadsheet) + fila de detalle.
+function renderFrenteRow(frente, items, collapsed) {
+  const flag = rollUpFrenteFlag(items, new Date());
+  const summary = summarizeFrente(items) || "Sin ítems capturados";
+  const types = frenteTypes(items);
+  const typeCell = types.length
+    ? types.map((t) => `${BOARD_TYPE_META[t].emoji} ${BOARD_TYPE_META[t].label}`).join(" · ")
+    : "—";
+  const staleCount = items.filter((it) => !boardUpdatedThisWeek(it.lastWeeklyUpdate)).length;
+  const staleBadge = staleCount
+    ? `<span class="ml-2 inline-flex items-center text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded px-1 py-0.5" title="Ítems sin actualizar">${staleCount} sin act.</span>`
+    : "";
+  // Nota de la fila: la del ítem más crítico (rojo/naranja) si existe.
+  const worst = [...items]
+    .map((it) => ({ it, f: computeItemFlag(it, new Date()) }))
+    .filter((x) => x.f.color === "red" || x.f.color === "orange")
+    .sort((a, b) => b.f.color.localeCompare(a.f.color))[0];
+  const rowNote = worst?.it?.note ? boardEscape(worst.it.note) : "";
+
+  return `
+    <tbody class="frente-block border-b border-gray-200">
+      <tr class="bg-sky-50 hover:bg-sky-100 cursor-pointer" data-action="toggle-board-frente" data-frente-id="${frente.id}">
+        <td class="py-2.5 px-3 align-top">
+          <div class="flex items-start gap-2">
+            <i data-lucide="chevron-${collapsed ? "right" : "down"}" class="w-4 h-4 mt-0.5 text-slate-400 shrink-0"></i>
+            <span class="font-bold text-slate-800">${boardEscape(frente.title || "Frente")}${staleBadge}</span>
           </div>
-          <i data-lucide="${collapsed ? "chevron-down" : "chevron-up"}" class="text-slate-400"></i>
-        </button>
-        <button type="button" data-action="edit-board-frente" data-frente-id="${frente.id}" title="Editar frente / mover de programa" class="px-2 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-700 transition">
-          <i data-lucide="pencil" class="w-4 h-4"></i>
-        </button>
-        <button type="button" data-action="delete-board-frente" data-frente-id="${frente.id}" title="Borrar frente" class="px-3 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-600 transition">
-          <i data-lucide="trash-2" class="w-4 h-4"></i>
-        </button>
-      </div>
-      <div class="frente-detail ${collapsed ? "hidden" : ""} pb-2">${itemsHtml}${addItemBtn}</div>
-    </div>`;
+        </td>
+        <td class="py-2.5 px-3 align-top text-sm text-slate-600 whitespace-nowrap">${typeCell}</td>
+        <td class="py-2.5 px-3 align-top text-sm text-slate-700">${boardEscape(summary)}</td>
+        <td class="py-2.5 px-3 align-top text-sm text-slate-600 whitespace-nowrap">${frenteNextDate(items)}</td>
+        <td class="py-2.5 px-3 align-top text-sm font-semibold whitespace-nowrap ${FLAG_TEXT_CLASS[flag.color]}">${FLAG_EMOJI[flag.color]} ${FLAG_WORD[flag.color]}</td>
+        <td class="py-2.5 px-3 align-top text-sm text-slate-600">${rowNote}</td>
+        <td class="py-2.5 px-2 align-top text-right whitespace-nowrap">
+          <button type="button" data-action="edit-board-frente" data-frente-id="${frente.id}" title="Editar frente / mover de programa" class="text-slate-400 hover:text-slate-700 px-1"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+          <button type="button" data-action="delete-board-frente" data-frente-id="${frente.id}" title="Borrar frente" class="text-slate-400 hover:text-red-600 px-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+        </td>
+      </tr>
+      <tr class="${collapsed ? "hidden" : ""}">
+        <td colspan="7" class="p-0 bg-white">${renderFrenteDetail(frente, items)}</td>
+      </tr>
+    </tbody>`;
 }
 
 function renderBoardProgram(program, frentes, tasksByEpic, collapsedSet) {
   const isReal = Boolean(program.id);
-  const frentesHtml = frentes.length
-    ? frentes
-        .map((f) => renderBoardFrente(f, tasksByEpic.get(f.id) || [], collapsedSet.has(f.id)))
-        .join("")
-    : `<p class="text-sm text-slate-400 italic mb-3">${
-        isReal
-          ? 'Sin frentes todavía. Usa "+ Frente" para dividir el trabajo en fases.'
-          : "Frentes sin programa asignado."
-      }</p>`;
   const owner = program.owner
     ? `<span class="text-sm text-slate-500">· Dueño: ${boardEscape(program.owner)}</span>`
     : "";
@@ -4200,7 +4263,7 @@ function renderBoardProgram(program, frentes, tasksByEpic, collapsedSet) {
        </div>`
     : "";
   const header = `
-    <div class="mb-4 pb-2 border-b border-gray-200 flex items-start gap-3">
+    <div class="mb-3 flex items-start gap-3">
       <div class="flex-1 min-w-0">
         <div class="flex items-baseline gap-3">
           <h2 class="text-2xl font-bold ${isReal ? "text-slate-900" : "text-slate-400"}">${boardEscape(
@@ -4208,19 +4271,45 @@ function renderBoardProgram(program, frentes, tasksByEpic, collapsedSet) {
           )}</h2>
           ${owner}
         </div>
-        ${program.description ? `<p class="text-sm text-slate-500">${boardEscape(program.description)}</p>` : ""}
+        ${program.description ? `<p class="text-sm text-slate-500 italic mt-0.5">${boardEscape(program.description)}</p>` : ""}
       </div>
       ${editBtn}
     </div>`;
+
+  let tableOrEmpty;
+  if (!frentes.length) {
+    tableOrEmpty = `<p class="text-sm text-slate-400 italic">${
+      isReal
+        ? 'Sin frentes todavía. Usa "+ Frente" para dividir el trabajo en fases.'
+        : "Frentes sin programa asignado."
+    }</p>`;
+  } else {
+    const rows = frentes
+      .map((f) => renderFrenteRow(f, tasksByEpic.get(f.id) || [], collapsedSet.has(f.id)))
+      .join("");
+    tableOrEmpty = `
+      <div class="border border-gray-200 rounded-xl overflow-x-auto bg-white">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-[11px] uppercase text-slate-500 text-left bg-slate-800 text-white/90">
+              <th class="py-2 px-3 font-semibold">Frente</th>
+              <th class="py-2 px-3 font-semibold">Tipo</th>
+              <th class="py-2 px-3 font-semibold">Estado (lunes)</th>
+              <th class="py-2 px-3 font-semibold">Próx. fecha</th>
+              <th class="py-2 px-3 font-semibold">Bandera</th>
+              <th class="py-2 px-3 font-semibold">Nota / decisión</th>
+              <th class="py-2 px-2"></th>
+            </tr>
+          </thead>
+          ${rows}
+        </table>
+      </div>`;
+  }
+
   const addFrenteBtn = isReal
-    ? `<button type="button" data-action="add-board-frente" data-program-id="${program.id}" class="text-sm font-semibold text-emerald-600 hover:text-emerald-700">+ Frente</button>`
+    ? `<button type="button" data-action="add-board-frente" data-program-id="${program.id}" class="text-sm font-semibold text-emerald-600 hover:text-emerald-700 mt-2 inline-block">+ Frente</button>`
     : "";
-  return `
-    <div class="program-group mb-8">
-      ${header}
-      <div class="space-y-3 mb-3">${frentesHtml}</div>
-      ${addFrenteBtn}
-    </div>`;
+  return `<div class="program-group mb-8">${header}${tableOrEmpty}${addFrenteBtn}</div>`;
 }
 
 export function renderBoard(state) {
