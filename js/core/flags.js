@@ -6,8 +6,10 @@
 //
 // Convención de colores: "green" | "yellow" | "red" | "gray" (sin datos).
 
-export const FLAG_COLORS = ["gray", "green", "yellow", "red"];
-const SEVERITY = { gray: 0, green: 1, yellow: 2, red: 3 };
+export const FLAG_COLORS = ["gray", "green", "yellow", "orange", "red"];
+// Severidad para el roll-up (worst-of). Naranja (vencido) pesa más que amarillo
+// pero menos que rojo (bloqueado / murió).
+const SEVERITY = { gray: 0, green: 1, yellow: 2, orange: 3, red: 4 };
 
 const MS_DAY = 24 * 60 * 60 * 1000;
 
@@ -49,22 +51,20 @@ function isThisWeek(target, today) {
 
 // ------------------ Banderas por tipo ------------------
 
-// 🎯 HITO: verde si próximo hito dentro/antes de su fecha · amarillo si su fecha
-// es esta semana y no está en curso · rojo si vencida sin terminar o bloqueado.
+// 🎯 HITO: guiado por ESTADO.
+//   Bloqueado → 🔴 · Hecho → 🟢 · Fecha vencida (no hecho) → 🟠 ·
+//   En curso → 🟢 · Pendiente → ⚪ gris.
 export function flagForHito(item, today = new Date()) {
   const status = item?.status || "pending";
-  if (status === "done") return { color: "green", reason: "Hito terminado" };
   if (item?.blocked) return { color: "red", reason: "Bloqueado, esperando a alguien" };
+  if (status === "done") return { color: "green", reason: "Hito terminado" };
 
   const target = toDateSafe(item?.targetDate);
-  if (!target) return { color: "gray", reason: "Sin fecha meta" };
-
-  const diff = daysBetween(target, today); // >0 futuro, <0 vencido
-  if (diff < 0) return { color: "red", reason: "Fecha vencida sin terminar" };
-  if (isThisWeek(target, today) && status !== "inprogress") {
-    return { color: "yellow", reason: "Vence esta semana y no está en curso" };
+  if (target && daysBetween(target, today) < 0) {
+    return { color: "orange", reason: "Fecha vencida sin terminar" };
   }
-  return { color: "green", reason: "Próximo hito dentro de fecha" };
+  if (status === "inprogress") return { color: "green", reason: "En curso" };
+  return { color: "gray", reason: "Pendiente, sin empezar" };
 }
 
 // 📈 TASA: verde ≥90% del ritmo esperado · amarillo 70–90% · rojo <70% o cayendo
@@ -168,4 +168,4 @@ export function summarizeFrente(items) {
   return parts.join(" · ");
 }
 
-export const FLAG_EMOJI = { green: "🟢", yellow: "🟡", red: "🔴", gray: "⚪" };
+export const FLAG_EMOJI = { green: "🟢", yellow: "🟡", orange: "🟠", red: "🔴", gray: "⚪" };
