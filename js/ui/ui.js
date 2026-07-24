@@ -4134,119 +4134,100 @@ function renderBoardFrente(frente, items, collapsed) {
     </div>`;
 }
 
-function renderBoardCarril(carril, epics, tasksByEpic, collapsedSet) {
-  const frentesHtml = epics.length
-    ? epics
-        .map((f) =>
-          renderBoardFrente(f, tasksByEpic.get(f.id) || [], collapsedSet.has(f.id))
-        )
+function renderBoardProgram(program, frentes, tasksByEpic, collapsedSet) {
+  const isReal = Boolean(program.id);
+  const frentesHtml = frentes.length
+    ? frentes
+        .map((f) => renderBoardFrente(f, tasksByEpic.get(f.id) || [], collapsedSet.has(f.id)))
         .join("")
-    : `<p class="text-sm text-slate-400 italic px-1">Sin frentes en este carril.</p>`;
-  const addFrenteBtn = carril.id
-    ? `<button type="button" data-action="add-board-frente" data-theme-id="${carril.id}" class="text-sm font-semibold text-emerald-600 hover:text-emerald-700 mb-6">+ Frente</button>`
+    : `<p class="text-sm text-slate-400 italic mb-3">${
+        isReal
+          ? 'Sin frentes todavía. Usa "+ Frente" para dividir el trabajo en fases.'
+          : "Frentes sin programa asignado."
+      }</p>`;
+  const owner = program.owner
+    ? `<span class="text-sm text-slate-500">· Dueño: ${boardEscape(program.owner)}</span>`
+    : "";
+  const editBtn = isReal
+    ? `<button type="button" data-action="edit-board-program" data-program-id="${program.id}" title="Editar programa" class="text-slate-400 hover:text-slate-700"><i data-lucide="pencil" class="w-4 h-4"></i></button>`
+    : "";
+  const header = `
+    <div class="mb-4 pb-2 border-b border-gray-200 flex items-start gap-3">
+      <div class="flex-1 min-w-0">
+        <div class="flex items-baseline gap-3">
+          <h2 class="text-2xl font-bold ${isReal ? "text-slate-900" : "text-slate-400"}">${boardEscape(
+            program.title || "Sin programa"
+          )}</h2>
+          ${owner}
+        </div>
+        ${program.description ? `<p class="text-sm text-slate-500">${boardEscape(program.description)}</p>` : ""}
+      </div>
+      ${editBtn}
+    </div>`;
+  const addFrenteBtn = isReal
+    ? `<button type="button" data-action="add-board-frente" data-program-id="${program.id}" class="text-sm font-semibold text-emerald-600 hover:text-emerald-700">+ Frente</button>`
     : "";
   return `
-    <section class="carril-card">
-      <header class="flex items-baseline gap-3 mb-3">
-        <h3 class="text-xl font-bold text-slate-800">${boardEscape(carril.title || "Carril")}</h3>
-        ${carril.owner ? `<span class="text-sm text-slate-500">· Dueño: ${boardEscape(carril.owner)}</span>` : ""}
-      </header>
+    <div class="program-group mb-8">
+      ${header}
       <div class="space-y-3 mb-3">${frentesHtml}</div>
       ${addFrenteBtn}
-    </section>`;
+    </div>`;
 }
 
 export function renderBoard(state) {
   const container = document.getElementById("board-container");
   if (!container) return;
 
-  const themes = state.themes || [];
   const epics = state.epics || [];
   const tasks = state.tasks || [];
   const programs = state.programs || [];
   const collapsedSet = state.boardCollapsedFrentes || new Set();
 
-  // Índices
+  // Índice: ítems por frente
   const tasksByEpic = new Map();
   tasks.forEach((t) => {
     if (!t.epicId) return;
     if (!tasksByEpic.has(t.epicId)) tasksByEpic.set(t.epicId, []);
     tasksByEpic.get(t.epicId).push(t);
   });
-  const epicsByTheme = new Map();
-  epics.forEach((e) => {
-    const key = e.themeId || "__none__";
-    if (!epicsByTheme.has(key)) epicsByTheme.set(key, []);
-    epicsByTheme.get(key).push(e);
-  });
 
-  if (themes.length === 0 && epics.length === 0 && programs.length === 0) {
+  const toolbar = `
+    <div class="flex justify-end gap-2 mb-4">
+      <button type="button" data-action="add-board-program" class="text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">+ Programa</button>
+    </div>`;
+
+  if (programs.length === 0 && epics.length === 0) {
     container.innerHTML = `
       ${buildEmptyState({
         icon: "layout-dashboard",
         title: "Tablero vacío",
-        hint: "Aún no hay carriles ni frentes. Puedes sembrar un ejemplo limpio de Astrolab para ver cómo se usa.",
+        hint: "Aún no hay programas. Crea uno con “+ Programa” o siembra un ejemplo de Astrolab para ver cómo se usa.",
       })}
-      <div class="flex justify-center mt-4">
-        <button
-          type="button"
-          data-action="seed-board-example"
-          class="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700"
-        >Sembrar ejemplo de Astrolab</button>
+      <div class="flex justify-center gap-2 mt-4">
+        <button type="button" data-action="add-board-program" class="px-4 py-2 rounded-lg border border-gray-300 text-sm font-semibold hover:bg-gray-50">+ Programa</button>
+        <button type="button" data-action="seed-board-example" class="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700">Sembrar ejemplo de Astrolab</button>
       </div>`;
     if (window.lucide) window.lucide.createIcons();
     return;
   }
 
-  // Agrupar carriles por programa (capa superior). Los sin parentId van a "Sin programa".
-  const programGroups = [
-    // Los programas se muestran siempre (aunque no tengan carriles todavía).
-    ...programs.map((p) => ({ program: p, carriles: themes.filter((t) => t.parentId === p.id) })),
-    // El bucket "Sin programa" solo aparece si tiene carriles sueltos.
-    { program: null, carriles: themes.filter((t) => !t.parentId || !programs.some((p) => p.id === t.parentId)) },
-  ].filter((g) => g.program || g.carriles.length > 0);
-
-  const html = programGroups
-    .map((g) => {
-      const carrilesHtml = g.carriles.length
-        ? g.carriles
-            .map((c) => renderBoardCarril(c, epicsByTheme.get(c.id) || [], tasksByEpic, collapsedSet))
-            .join("")
-        : `<p class="text-sm text-slate-400 italic">Sin carriles. Usa "+ Carril" para agregar uno a este programa.</p>`;
-      const header = g.program
-        ? `<div class="mb-4 pb-2 border-b border-gray-200">
-             <h2 class="text-2xl font-bold text-slate-900">${boardEscape(g.program.title || "Programa")}</h2>
-             ${g.program.description ? `<p class="text-sm text-slate-500">${boardEscape(g.program.description)}</p>` : ""}
-           </div>`
-        : programs.length
-          ? `<div class="mb-4 pb-2 border-b border-gray-200"><h2 class="text-2xl font-bold text-slate-400">Sin programa</h2></div>`
-          : "";
-      return `<div class="program-group mb-8">${header}${carrilesHtml}</div>`;
-    })
-    .join("");
-
-  // Frentes huérfanos (sin carril válido) — visibles para no perder datos actuales.
-  const themeIds = new Set(themes.map((t) => t.id));
-  const orphanEpics = epics.filter((e) => !e.themeId || !themeIds.has(e.themeId));
-  let orphanHtml = "";
-  if (orphanEpics.length) {
-    orphanHtml = `<div class="program-group mb-8">
-      ${renderBoardCarril(
-        { title: "Sin carril", owner: null },
-        orphanEpics,
-        tasksByEpic,
-        collapsedSet
-      )}
-    </div>`;
+  const programIds = new Set(programs.map((p) => p.id));
+  const groups = programs.map((p) => ({
+    program: p,
+    frentes: epics.filter((e) => e.programId === p.id),
+  }));
+  // Frentes sin programa válido (incluye datos viejos con themeId) — no se pierden.
+  const orphanFrentes = epics.filter((e) => !e.programId || !programIds.has(e.programId));
+  if (orphanFrentes.length) {
+    groups.push({ program: { title: "Sin programa" }, frentes: orphanFrentes });
   }
 
-  const toolbar = `
-    <div class="flex justify-end gap-2 mb-4">
-      <button type="button" data-action="add-board-program" class="text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">+ Programa</button>
-      <button type="button" data-action="add-board-carril" class="text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">+ Carril</button>
-    </div>`;
+  const html = groups
+    .map((g) => renderBoardProgram(g.program, g.frentes, tasksByEpic, collapsedSet))
+    .join("");
 
-  container.innerHTML = toolbar + html + orphanHtml;
+  container.innerHTML = toolbar + html;
   if (window.lucide) window.lucide.createIcons();
 }
 
@@ -5386,73 +5367,50 @@ function handleAppClick(e) {
         return;
       }
       case "add-board-frente": {
-        const themeId = actionTarget.dataset.themeId;
-        if (!themeId) return;
+        const programId = actionTarget.dataset.programId;
+        if (!programId) return;
         showModal({
-          title: "Nuevo frente",
+          title: "Nuevo frente (fase)",
           input: true,
-          inputPlaceholder: "Nombre del frente",
+          inputPlaceholder: "Ej. Desarrollar el servicio",
           okText: "Crear",
           callback: (title) =>
             typeof title === "string" &&
             title.trim() &&
-            appActions.addBoardFrente({ title, themeId }),
+            appActions.addBoardFrente({ title, programId }),
         });
         return;
       }
-      case "add-board-carril": {
-        const programs = appState.programs || [];
-        const programOptions = programs
-          .map((p) => `<option value="${p.id}">${boardEscape(p.title)}</option>`)
-          .join("");
+      case "add-board-program":
+      case "edit-board-program": {
+        const isEdit = action === "edit-board-program";
+        const prog = isEdit
+          ? (appState.programs || []).find((p) => p.id === actionTarget.dataset.programId)
+          : {};
+        if (isEdit && !prog) return;
+        const v = (x) => boardEscape(x ?? "");
         showModal({
-          title: "Nuevo carril",
+          title: isEdit ? "Editar programa" : "Nuevo programa",
           htmlContent: `
             <div class="text-left space-y-3">
-              <label class="block text-sm font-medium text-slate-700">Nombre
-                <input id="bc-title" type="text" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" placeholder="Ej. Blue Hackers"></label>
+              <label class="block text-sm font-medium text-slate-700">Nombre (bolsa de trabajo)
+                <input id="bp-title" type="text" value="${v(prog.title)}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" placeholder="Ej. Blue Hackers · Q3 2026"></label>
               <label class="block text-sm font-medium text-slate-700">Dueño
-                <input id="bc-owner" type="text" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" placeholder="Ej. Ana Fer"></label>
-              ${
-                programs.length
-                  ? `<label class="block text-sm font-medium text-slate-700">Programa
-                <select id="bc-program" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm">${programOptions}</select></label>`
-                  : ""
-              }
-            </div>`,
-          okText: "Crear",
-          callback: (ok) => {
-            if (ok === false) return;
-            const title = document.getElementById("bc-title")?.value?.trim();
-            if (!title) return;
-            appActions.addBoardCarril({
-              title,
-              owner: document.getElementById("bc-owner")?.value?.trim() || null,
-              parentId: document.getElementById("bc-program")?.value || null,
-            });
-          },
-        });
-        return;
-      }
-      case "add-board-program": {
-        showModal({
-          title: "Nuevo programa",
-          htmlContent: `
-            <div class="text-left space-y-3">
-              <label class="block text-sm font-medium text-slate-700">Nombre
-                <input id="bp-title" type="text" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" placeholder="Ej. Q3 2026 — Astrolab"></label>
+                <input id="bp-owner" type="text" value="${v(prog.owner)}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" placeholder="Ej. Ana Fer"></label>
               <label class="block text-sm font-medium text-slate-700">Descripción
-                <input id="bp-desc" type="text" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm"></label>
+                <input id="bp-desc" type="text" value="${v(prog.description)}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm"></label>
             </div>`,
-          okText: "Crear",
+          okText: isEdit ? "Guardar" : "Crear",
           callback: (ok) => {
             if (ok === false) return;
-            const title = document.getElementById("bp-title")?.value?.trim();
-            if (!title) return;
-            appActions.addBoardProgram({
-              title,
+            const data = {
+              title: document.getElementById("bp-title")?.value?.trim() || "",
+              owner: document.getElementById("bp-owner")?.value?.trim() || null,
               description: document.getElementById("bp-desc")?.value?.trim() || "",
-            });
+            };
+            if (!data.title) return;
+            if (isEdit) appActions.updateBoardProgram(prog.id, data);
+            else appActions.addBoardProgram(data);
           },
         });
         return;

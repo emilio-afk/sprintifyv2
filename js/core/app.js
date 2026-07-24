@@ -1004,29 +1004,27 @@ const actions = {
     addDoc(programsCollection, {
       title,
       description: data.description ?? "",
+      owner: data.owner ?? null,
       createdAt: serverTimestamp(),
       createdBy: state.user?.email ?? null,
     }).catch((e) => console.error("addBoardProgram:", e));
   },
 
-  addBoardCarril(data) {
-    const title = (data?.title ?? "").trim();
-    if (!title) return;
-    addDoc(themesCollection, {
-      title,
+  updateBoardProgram(programId, data) {
+    if (!programId) return;
+    updateDoc(doc(programsCollection, programId), {
+      title: (data?.title ?? "").trim(),
+      description: data.description ?? "",
       owner: data.owner ?? null,
-      parentId: data.parentId || null,
-      createdAt: serverTimestamp(),
-      createdBy: state.user?.email ?? null,
-    }).catch((e) => console.error("addBoardCarril:", e));
+    }).catch((e) => console.error("updateBoardProgram:", e));
   },
 
   addBoardFrente(data) {
     const title = (data?.title ?? "").trim();
-    if (!title || !data?.themeId) return;
+    if (!title || !data?.programId) return;
     addDoc(epicsCollection, {
       title,
-      themeId: data.themeId,
+      programId: data.programId,
       status: "En curso",
       color: "#475569",
       createdAt: serverTimestamp(),
@@ -1105,7 +1103,7 @@ const actions = {
   async seedBoardExample() {
     if (!assertUserOr(() => ui.showModal({ title: "Sesión requerida", text: "Inicia sesión." })))
       return;
-    if (state.programs.length || state.themes.length) {
+    if (state.programs.length) {
       return ui.showModal({
         title: "Ya hay datos",
         text: "El tablero ya tiene contenido. El sembrado solo corre en un tablero vacío para no duplicar.",
@@ -1117,34 +1115,26 @@ const actions = {
     const d = (str) => Timestamp.fromDate(new Date(`${str}T00:00:00`));
 
     try {
-      // Capa superior
-      const programRef = await addDoc(programsCollection, {
-        title: "Q3 2026 — Astrolab",
-        description: "Tablero de proyectos y prioridades",
-        createdAt: serverTimestamp(),
-        createdBy: owner,
-      });
-
-      // Carriles (themes con parentId + owner)
-      const mkCarril = (title, ownerName) =>
-        addDoc(themesCollection, {
+      // Programas (bolsa de trabajo con dueño) — antes eran "carriles"
+      const mkProgram = (title, ownerName, description) =>
+        addDoc(programsCollection, {
           title,
-          parentId: programRef.id,
           owner: ownerName,
+          description: description || "",
           createdAt: serverTimestamp(),
           createdBy: owner,
         });
       const [blue, corp, ejec] = await Promise.all([
-        mkCarril("Blue Hackers", "Ana Fer"),
-        mkCarril("Corporativo", "Andrés"),
-        mkCarril("Ejecución", "Socio director"),
+        mkProgram("Blue Hackers", "Ana Fer", "Construir el servicio y generar demanda"),
+        mkProgram("Corporativo", "Andrés", "Construir la oferta y aterrizar cuentas"),
+        mkProgram("Ejecución", "Socio director", "Proyectos a cliente ya vendidos"),
       ]);
 
-      // Frentes (epics con themeId)
-      const mkFrente = (title, themeId) =>
+      // Frentes (epics con programId) = fases dentro de la bolsa
+      const mkFrente = (title, programId) =>
         addDoc(epicsCollection, {
           title,
-          themeId,
+          programId,
           status: "En curso",
           color: "#475569",
           createdAt: serverTimestamp(),
