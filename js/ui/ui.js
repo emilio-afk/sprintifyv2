@@ -4254,11 +4254,12 @@ const BOARD_TYPE_OPTIONS = [
   { key: "apuesta", emoji: "🎲", label: "Apuesta", q: "¿Es incierto? No finjas hitos." },
 ];
 
-function itemTypeFieldsHtml(item) {
+function itemTypeFieldsHtml(item, currentType = "hito") {
   const v = (x) => boardEscape(x ?? "");
   const sel = (a, b) => (a === b ? "selected" : "");
+  const hide = (t) => (t === currentType ? "" : "hidden");
   return `
-    <div data-type-group="hito" class="board-type-fields space-y-3">
+    <div data-type-group="hito" class="board-type-fields space-y-3 ${hide("hito")}">
       <label class="block text-sm font-medium text-slate-700">¿Cómo sé que "terminó"?
         <input id="bi-doneCriteria" type="text" value="${v(item.doneCriteria)}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" placeholder="Evidencia verificable, no actividad"></label>
       <div class="grid grid-cols-2 gap-3">
@@ -4272,7 +4273,7 @@ function itemTypeFieldsHtml(item) {
           </select></label>
       </div>
     </div>
-    <div data-type-group="tasa" class="board-type-fields space-y-3 hidden">
+    <div data-type-group="tasa" class="board-type-fields space-y-3 ${hide("tasa")}">
       <div class="grid grid-cols-3 gap-3">
         <label class="block text-sm font-medium text-slate-700">Meta
           <input id="bi-meta" type="number" value="${v(item.meta)}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm"></label>
@@ -4284,7 +4285,7 @@ function itemTypeFieldsHtml(item) {
       <label class="block text-sm font-medium text-slate-700">Nota de calidad
         <input id="bi-qualityNote" type="text" value="${v(item.qualityNote)}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm"></label>
     </div>
-    <div data-type-group="apuesta" class="board-type-fields space-y-3 hidden">
+    <div data-type-group="apuesta" class="board-type-fields space-y-3 ${hide("apuesta")}">
       <label class="block text-sm font-medium text-slate-700">Hipótesis (qué apostamos)
         <input id="bi-hypothesis" type="text" value="${v(item.hypothesis)}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm"></label>
       <label class="block text-sm font-medium text-slate-700">Señal de que AVANZÓ
@@ -4324,7 +4325,7 @@ export function showItemModal(existing, epicId) {
       <p class="text-xs font-semibold uppercase text-slate-400 mb-2">2. Detalle</p>
       <label class="block text-sm font-medium text-slate-700 mb-3">Título
         <input id="bi-title" type="text" value="${boardEscape(item.title || "")}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" placeholder="Nombre del ítem"></label>
-      <div id="bi-type-fields">${itemTypeFieldsHtml(item)}</div>
+      <div id="bi-type-fields">${itemTypeFieldsHtml(item, currentType)}</div>
     </div>`;
 
   showModal({
