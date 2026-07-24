@@ -4276,6 +4276,115 @@ export function renderBoard(state) {
   if (window.lucide) window.lucide.createIcons();
 }
 
+export function renderBlockers(state) {
+  const container = document.getElementById("blockers-container");
+  if (!container) return;
+  const programs = state.programs || [];
+  const epics = state.epics || [];
+  const tasks = state.tasks || [];
+  const today = new Date();
+
+  const epicById = new Map(epics.map((e) => [e.id, e]));
+  const programById = new Map(programs.map((p) => [p.id, p]));
+
+  // Ítems con bandera roja o naranja, con su contexto.
+  const flagged = [];
+  tasks.forEach((t) => {
+    if (!t.epicId) return;
+    const flag = computeItemFlag(t, today);
+    if (flag.color !== "red" && flag.color !== "orange") return;
+    const frente = epicById.get(t.epicId);
+    const program = frente ? programById.get(frente.programId) : null;
+    flagged.push({
+      item: t,
+      flag,
+      frenteTitle: frente?.title || "Sin frente",
+      programTitle: program?.title || "Sin programa",
+    });
+  });
+
+  const reds = flagged.filter((f) => f.flag.color === "red");
+  const oranges = flagged.filter((f) => f.flag.color === "orange");
+
+  // Resumen por programa
+  const summaryRows = programs
+    .map((p) => {
+      const frenteIds = new Set(epics.filter((e) => e.programId === p.id).map((e) => e.id));
+      const items = tasks.filter((t) => frenteIds.has(t.epicId));
+      const flag = rollUpFrenteFlag(items, today);
+      const redCount = items.filter((it) => computeItemFlag(it, today).color === "red").length;
+      const staleCount = items.filter((it) => !boardUpdatedThisWeek(it.lastWeeklyUpdate)).length;
+      return `
+        <tr class="border-b border-gray-100 last:border-0">
+          <td class="py-2 pr-3 font-medium text-slate-800">${FLAG_EMOJI[flag.color]} ${boardEscape(p.title || "Programa")}</td>
+          <td class="py-2 px-3 text-slate-500">${boardEscape(p.owner || "—")}</td>
+          <td class="py-2 px-3 text-center">${redCount ? `<span class="text-red-600 font-semibold">${redCount}</span>` : "0"}</td>
+          <td class="py-2 px-3 text-center">${staleCount ? `<span class="text-orange-600 font-semibold">${staleCount}</span>` : "0"}</td>
+        </tr>`;
+    })
+    .join("");
+
+  const summaryTable = programs.length
+    ? `<section class="border border-gray-200 rounded-xl bg-white overflow-hidden">
+         <header class="px-4 py-2 bg-gray-50 border-b border-gray-200"><h3 class="font-bold text-slate-800">Resumen por programa</h3></header>
+         <div class="px-4 py-2 overflow-x-auto">
+           <table class="w-full text-sm">
+             <thead><tr class="text-xs uppercase text-slate-400 text-left">
+               <th class="py-1 pr-3">Programa</th><th class="py-1 px-3">Dueño</th>
+               <th class="py-1 px-3 text-center">🔴 Bloqueos</th><th class="py-1 px-3 text-center">Sin actualizar</th>
+             </tr></thead>
+             <tbody>${summaryRows}</tbody>
+           </table>
+         </div>
+       </section>`
+    : "";
+
+  const renderDecision = (f) => {
+    const noteHtml = f.item.note
+      ? `<p class="text-xs text-slate-700 mt-0.5"><span class="font-semibold">Pedido:</span> ${boardEscape(f.item.note)}</p>`
+      : `<p class="text-xs text-red-600 mt-0.5 italic">⚠ Sin pedido concreto — una 🔴 sin decisión desperdicia la junta.</p>`;
+    return `
+      <div class="flex items-start gap-3 py-2 border-b border-gray-100 last:border-0">
+        <span class="text-base leading-6" title="${boardEscape(f.flag.reason)}">${FLAG_EMOJI[f.flag.color]}</span>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-medium text-slate-800">${boardEscape(f.item.title || "Ítem")}
+            <span class="text-xs font-normal text-slate-400">· ${boardEscape(f.programTitle)} › ${boardEscape(f.frenteTitle)}</span></p>
+          <p class="text-xs text-slate-500">${boardEscape(f.flag.reason)}</p>
+          ${f.flag.color === "red" ? noteHtml : f.item.note ? `<p class="text-xs text-slate-700 mt-0.5"><span class="font-semibold">Pedido:</span> ${boardEscape(f.item.note)}</p>` : ""}
+        </div>
+        <button type="button" data-action="weekly-update" data-item-id="${f.item.id}" title="Actualizar" class="text-slate-400 hover:text-emerald-600"><i data-lucide="calendar-check" class="w-4 h-4"></i></button>
+      </div>`;
+  };
+
+  const redsSection = `
+    <section class="border border-red-200 rounded-xl bg-white overflow-hidden">
+      <header class="px-4 py-2 bg-red-50 border-b border-red-200"><h3 class="font-bold text-red-700">🔴 Bloqueos abiertos (${reds.length})</h3></header>
+      <div class="px-4 py-1">${
+        reds.length ? reds.map(renderDecision).join("") : '<p class="py-3 text-sm text-slate-400 italic">Nada en rojo. 🎉</p>'
+      }</div>
+    </section>`;
+
+  const orangesSection = oranges.length
+    ? `<section class="border border-orange-200 rounded-xl bg-white overflow-hidden">
+         <header class="px-4 py-2 bg-orange-50 border-b border-orange-200"><h3 class="font-bold text-orange-700">🟠 En riesgo (${oranges.length})</h3></header>
+         <div class="px-4 py-1">${oranges.map(renderDecision).join("")}</div>
+       </section>`
+    : "";
+
+  if (programs.length === 0 && epics.length === 0) {
+    container.innerHTML = buildEmptyState({
+      icon: "octagon-alert",
+      title: "Sin datos",
+      hint: "Cuando tengas frentes e ítems, aquí verás los bloqueos y riesgos para la junta.",
+    });
+    if (window.lucide) window.lucide.createIcons();
+    return;
+  }
+
+  container.innerHTML = summaryTable + redsSection + orangesSection;
+  if (window.lucide) window.lucide.createIcons();
+}
+
 function formatWeekLabel(weekOf) {
   // weekOf = "YYYY-MM-DD" (lunes). Muestra "Semana del D de MMM".
   const d = new Date(`${weekOf}T00:00:00`);
@@ -4572,6 +4681,7 @@ export function showWeeklyUpdateModal(item) {
 export function handleRouteChange(state) {
   const views = {
     "#tablero": document.getElementById("view-tablero"),
+    "#bloqueos": document.getElementById("view-bloqueos"),
     "#historia": document.getElementById("view-historia"),
     "#themes": document.getElementById("view-themes"),
     "#epics": document.getElementById("view-epics"),
@@ -4667,6 +4777,9 @@ export function handleRouteChange(state) {
     switch (hash) {
       case "#tablero":
         renderBoard(state);
+        break;
+      case "#bloqueos":
+        renderBlockers(state);
         break;
       case "#historia":
         renderHistory(state);
