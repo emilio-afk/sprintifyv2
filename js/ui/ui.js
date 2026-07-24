@@ -1,6 +1,12 @@
 // ui.js - VERSIÓN CORREGIDA Y COMPLETA
 
 import { Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {
+  computeItemFlag,
+  rollUpFrenteFlag,
+  summarizeFrente,
+  FLAG_EMOJI,
+} from "../core/flags.js";
 
 let modalCallback = null;
 let appState = {};
@@ -4049,8 +4055,352 @@ function escapeBreadcrumbLabel(value) {
     .replace(/>/g, "&gt;");
 }
 
+// ------------------ Tablero Astrolab ------------------
+
+const BOARD_TYPE_META = {
+  hito: { emoji: "🎯", label: "Hito" },
+  tasa: { emoji: "📈", label: "Tasa" },
+  apuesta: { emoji: "🎲", label: "Apuesta" },
+};
+
+function boardEscape(str) {
+  return String(str ?? "").replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]
+  );
+}
+
+function renderBoardItem(item) {
+  const meta = BOARD_TYPE_META[item.measurementType] || {
+    emoji: "⚪",
+    label: "Sin tipo",
+  };
+  const flag = computeItemFlag(item, new Date());
+  let detail = "";
+  if (item.measurementType === "hito") {
+    const st = { done: "Hecho", inprogress: "En curso", pending: "Pendiente" }[item.status] || "—";
+    detail = `${boardEscape(item.doneCriteria || "")} · ${st}`;
+  } else if (item.measurementType === "tasa") {
+    detail = `${item.real ?? "—"} / ${item.meta ?? "—"}${
+      item.qualityNote ? ` · ${boardEscape(item.qualityNote)}` : ""
+    }`;
+  } else if (item.measurementType === "apuesta") {
+    const st =
+      { advanced: "avanzó", stalled: "se estancó", died: "murió" }[item.betStatus] || "—";
+    detail = `${boardEscape(item.hypothesis || "")} · ${st}`;
+  }
+  return `
+    <li class="board-item group flex items-start gap-3 py-2 border-b border-gray-100 last:border-0">
+      <span title="${meta.label}" class="text-base leading-6">${meta.emoji}</span>
+      <span title="${boardEscape(flag.reason)}" class="text-base leading-6">${FLAG_EMOJI[flag.color]}</span>
+      <button type="button" data-action="edit-board-item" data-item-id="${item.id}" class="min-w-0 flex-1 text-left hover:opacity-70">
+        <p class="text-sm font-medium text-slate-800 truncate">${boardEscape(
+          item.title || "(sin título)"
+        )}</p>
+        ${detail ? `<p class="text-xs text-slate-500 truncate">${detail}</p>` : ""}
+      </button>
+      <button type="button" data-action="delete-board-item" data-item-id="${item.id}" title="Borrar" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-600 transition">
+        <i data-lucide="trash-2" class="w-4 h-4"></i>
+      </button>
+    </li>`;
+}
+
+function renderBoardFrente(frente, items, collapsed) {
+  const flag = rollUpFrenteFlag(items, new Date());
+  const summary = summarizeFrente(items) || "Sin ítems capturados";
+  const itemsHtml = items.length
+    ? `<ul class="mt-2 px-4">${items.map(renderBoardItem).join("")}</ul>`
+    : `<p class="mt-2 px-4 py-3 text-sm text-slate-400 italic">Sin ítems. Agrega hitos, tasas o apuestas.</p>`;
+  const addItemBtn = `<div class="px-4 pb-2 pt-1">
+      <button type="button" data-action="add-board-item" data-epic-id="${frente.id}" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700">+ Ítem</button>
+    </div>`;
+  return `
+    <div class="frente-card border border-gray-200 rounded-xl overflow-hidden bg-white">
+      <button
+        type="button"
+        data-action="toggle-board-frente"
+        data-frente-id="${frente.id}"
+        class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50"
+        aria-expanded="${!collapsed}"
+      >
+        <span class="text-lg">${FLAG_EMOJI[flag.color]}</span>
+        <div class="min-w-0 flex-1">
+          <p class="font-semibold text-slate-800 truncate">${boardEscape(frente.title || "Frente")}</p>
+          <p class="text-xs text-slate-500 truncate">${boardEscape(summary)}</p>
+        </div>
+        <i data-lucide="${collapsed ? "chevron-down" : "chevron-up"}" class="text-slate-400"></i>
+      </button>
+      <div class="frente-detail ${collapsed ? "hidden" : ""} pb-2">${itemsHtml}${addItemBtn}</div>
+    </div>`;
+}
+
+function renderBoardCarril(carril, epics, tasksByEpic, collapsedSet) {
+  const frentesHtml = epics.length
+    ? epics
+        .map((f) =>
+          renderBoardFrente(f, tasksByEpic.get(f.id) || [], collapsedSet.has(f.id))
+        )
+        .join("")
+    : `<p class="text-sm text-slate-400 italic px-1">Sin frentes en este carril.</p>`;
+  const addFrenteBtn = carril.id
+    ? `<button type="button" data-action="add-board-frente" data-theme-id="${carril.id}" class="text-sm font-semibold text-emerald-600 hover:text-emerald-700 mb-6">+ Frente</button>`
+    : "";
+  return `
+    <section class="carril-card">
+      <header class="flex items-baseline gap-3 mb-3">
+        <h3 class="text-xl font-bold text-slate-800">${boardEscape(carril.title || "Carril")}</h3>
+        ${carril.owner ? `<span class="text-sm text-slate-500">· Dueño: ${boardEscape(carril.owner)}</span>` : ""}
+      </header>
+      <div class="space-y-3 mb-3">${frentesHtml}</div>
+      ${addFrenteBtn}
+    </section>`;
+}
+
+export function renderBoard(state) {
+  const container = document.getElementById("board-container");
+  if (!container) return;
+
+  const themes = state.themes || [];
+  const epics = state.epics || [];
+  const tasks = state.tasks || [];
+  const programs = state.programs || [];
+  const collapsedSet = state.boardCollapsedFrentes || new Set();
+
+  // Índices
+  const tasksByEpic = new Map();
+  tasks.forEach((t) => {
+    if (!t.epicId) return;
+    if (!tasksByEpic.has(t.epicId)) tasksByEpic.set(t.epicId, []);
+    tasksByEpic.get(t.epicId).push(t);
+  });
+  const epicsByTheme = new Map();
+  epics.forEach((e) => {
+    const key = e.themeId || "__none__";
+    if (!epicsByTheme.has(key)) epicsByTheme.set(key, []);
+    epicsByTheme.get(key).push(e);
+  });
+
+  if (themes.length === 0 && epics.length === 0) {
+    container.innerHTML = `
+      ${buildEmptyState({
+        icon: "layout-dashboard",
+        title: "Tablero vacío",
+        hint: "Aún no hay carriles ni frentes. Puedes sembrar un ejemplo limpio de Astrolab para ver cómo se usa.",
+      })}
+      <div class="flex justify-center mt-4">
+        <button
+          type="button"
+          data-action="seed-board-example"
+          class="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700"
+        >Sembrar ejemplo de Astrolab</button>
+      </div>`;
+    if (window.lucide) window.lucide.createIcons();
+    return;
+  }
+
+  // Agrupar carriles por programa (capa superior). Los sin parentId van a "Sin programa".
+  const programGroups = [
+    ...programs.map((p) => ({ program: p, carriles: themes.filter((t) => t.parentId === p.id) })),
+    { program: null, carriles: themes.filter((t) => !t.parentId || !programs.some((p) => p.id === t.parentId)) },
+  ].filter((g) => g.carriles.length > 0);
+
+  const html = programGroups
+    .map((g) => {
+      const carrilesHtml = g.carriles
+        .map((c) => renderBoardCarril(c, epicsByTheme.get(c.id) || [], tasksByEpic, collapsedSet))
+        .join("");
+      const header = g.program
+        ? `<div class="mb-4 pb-2 border-b border-gray-200">
+             <h2 class="text-2xl font-bold text-slate-900">${boardEscape(g.program.title || "Programa")}</h2>
+             ${g.program.description ? `<p class="text-sm text-slate-500">${boardEscape(g.program.description)}</p>` : ""}
+           </div>`
+        : programs.length
+          ? `<div class="mb-4 pb-2 border-b border-gray-200"><h2 class="text-2xl font-bold text-slate-400">Sin programa</h2></div>`
+          : "";
+      return `<div class="program-group mb-8">${header}${carrilesHtml}</div>`;
+    })
+    .join("");
+
+  // Frentes huérfanos (sin carril válido) — visibles para no perder datos actuales.
+  const themeIds = new Set(themes.map((t) => t.id));
+  const orphanEpics = epics.filter((e) => !e.themeId || !themeIds.has(e.themeId));
+  let orphanHtml = "";
+  if (orphanEpics.length) {
+    orphanHtml = `<div class="program-group mb-8">
+      ${renderBoardCarril(
+        { title: "Sin carril", owner: null },
+        orphanEpics,
+        tasksByEpic,
+        collapsedSet
+      )}
+    </div>`;
+  }
+
+  const toolbar = `
+    <div class="flex justify-end gap-2 mb-4">
+      <button type="button" data-action="add-board-program" class="text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">+ Programa</button>
+      <button type="button" data-action="add-board-carril" class="text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">+ Carril</button>
+    </div>`;
+
+  container.innerHTML = toolbar + html + orphanHtml;
+  if (window.lucide) window.lucide.createIcons();
+}
+
+// --- Modal de ítem con selector de tipo (paso 0) ---
+
+function boardDateInputValue(ts) {
+  if (!ts) return "";
+  const d = typeof ts?.toDate === "function" ? ts.toDate() : new Date(ts);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
+
+const BOARD_TYPE_OPTIONS = [
+  { key: "hito", emoji: "🎯", label: "Hito", q: "¿Este trabajo tiene un final?" },
+  { key: "tasa", emoji: "📈", label: "Tasa", q: "¿Es flujo continuo, sin final?" },
+  { key: "apuesta", emoji: "🎲", label: "Apuesta", q: "¿Es incierto? No finjas hitos." },
+];
+
+function itemTypeFieldsHtml(item) {
+  const v = (x) => boardEscape(x ?? "");
+  const sel = (a, b) => (a === b ? "selected" : "");
+  return `
+    <div data-type-group="hito" class="board-type-fields space-y-3">
+      <label class="block text-sm font-medium text-slate-700">¿Cómo sé que "terminó"?
+        <input id="bi-doneCriteria" type="text" value="${v(item.doneCriteria)}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" placeholder="Evidencia verificable, no actividad"></label>
+      <div class="grid grid-cols-2 gap-3">
+        <label class="block text-sm font-medium text-slate-700">Fecha meta
+          <input id="bi-targetDate" type="date" value="${boardDateInputValue(item.targetDate)}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm"></label>
+        <label class="block text-sm font-medium text-slate-700">Estado
+          <select id="bi-status" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm">
+            <option value="pending" ${sel(item.status, "pending")}>Pendiente</option>
+            <option value="inprogress" ${sel(item.status, "inprogress")}>En curso</option>
+            <option value="done" ${sel(item.status, "done")}>Hecho</option>
+          </select></label>
+      </div>
+    </div>
+    <div data-type-group="tasa" class="board-type-fields space-y-3 hidden">
+      <div class="grid grid-cols-3 gap-3">
+        <label class="block text-sm font-medium text-slate-700">Meta
+          <input id="bi-meta" type="number" value="${v(item.meta)}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm"></label>
+        <label class="block text-sm font-medium text-slate-700">Real
+          <input id="bi-real" type="number" value="${v(item.real)}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm"></label>
+        <label class="block text-sm font-medium text-slate-700">Período
+          <input id="bi-period" type="text" value="${v(item.period || "mes")}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" placeholder="mes / Q"></label>
+      </div>
+      <label class="block text-sm font-medium text-slate-700">Nota de calidad
+        <input id="bi-qualityNote" type="text" value="${v(item.qualityNote)}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm"></label>
+    </div>
+    <div data-type-group="apuesta" class="board-type-fields space-y-3 hidden">
+      <label class="block text-sm font-medium text-slate-700">Hipótesis (qué apostamos)
+        <input id="bi-hypothesis" type="text" value="${v(item.hypothesis)}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm"></label>
+      <label class="block text-sm font-medium text-slate-700">Señal de que AVANZÓ
+        <input id="bi-progressSignal" type="text" value="${v(item.progressSignal)}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm"></label>
+      <label class="block text-sm font-medium text-slate-700">Qué probamos esta semana
+        <input id="bi-weekTest" type="text" value="${v(item.weekTest)}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm"></label>
+      <label class="block text-sm font-medium text-slate-700">Estado
+        <select id="bi-betStatus" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm">
+          <option value="advanced" ${sel(item.betStatus, "advanced")}>Avanzó</option>
+          <option value="stalled" ${sel(item.betStatus, "stalled")}>Se estancó</option>
+          <option value="died" ${sel(item.betStatus, "died")}>Murió</option>
+        </select></label>
+    </div>`;
+}
+
+export function showItemModal(existing, epicId) {
+  const item = existing || {};
+  const isEdit = Boolean(existing?.id);
+  const currentType = item.measurementType || "hito";
+
+  const typeSelector = BOARD_TYPE_OPTIONS.map(
+    (o) => `
+    <button type="button" data-item-type="${o.key}"
+      class="board-type-btn flex-1 border rounded-lg p-3 text-left transition ${
+        o.key === currentType ? "border-emerald-500 bg-emerald-50" : "border-gray-200"
+      }">
+      <div class="text-lg">${o.emoji} <span class="font-semibold text-sm">${o.label}</span></div>
+      <div class="text-xs text-slate-500 mt-1">${o.q}</div>
+    </button>`
+  ).join("");
+
+  const html = `
+    <div class="text-left">
+      <p class="text-xs font-semibold uppercase text-slate-400 mb-2">1. Tipo de medición</p>
+      <div class="flex gap-2 mb-4" id="bi-type-selector">${typeSelector}</div>
+      <input type="hidden" id="bi-measurementType" value="${currentType}">
+      <p class="text-xs font-semibold uppercase text-slate-400 mb-2">2. Detalle</p>
+      <label class="block text-sm font-medium text-slate-700 mb-3">Título
+        <input id="bi-title" type="text" value="${boardEscape(item.title || "")}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" placeholder="Nombre del ítem"></label>
+      <div id="bi-type-fields">${itemTypeFieldsHtml(item)}</div>
+    </div>`;
+
+  showModal({
+    title: isEdit ? "Editar ítem" : "Nuevo ítem",
+    htmlContent: html,
+    okText: isEdit ? "Guardar" : "Crear",
+    callback: (ok) => {
+      if (ok === false) return;
+      const data = readItemModal();
+      if (!data.title) return;
+      if (isEdit) appActions.updateBoardItem(existing.id, data);
+      else appActions.addBoardItem(epicId, data);
+    },
+  });
+
+  // Wire del selector de tipo (cambia el formulario)
+  const selector = document.getElementById("bi-type-selector");
+  if (selector) {
+    selector.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-item-type]");
+      if (!btn) return;
+      const type = btn.dataset.itemType;
+      document.getElementById("bi-measurementType").value = type;
+      selector.querySelectorAll(".board-type-btn").forEach((b) => {
+        const on = b.dataset.itemType === type;
+        b.classList.toggle("border-emerald-500", on);
+        b.classList.toggle("bg-emerald-50", on);
+        b.classList.toggle("border-gray-200", !on);
+      });
+      document.querySelectorAll("#bi-type-fields [data-type-group]").forEach((g) => {
+        g.classList.toggle("hidden", g.dataset.typeGroup !== type);
+      });
+    });
+  }
+}
+
+function readItemModal() {
+  const val = (id) => document.getElementById(id)?.value?.trim() ?? "";
+  const type = document.getElementById("bi-measurementType")?.value || "hito";
+  const base = { title: val("bi-title"), measurementType: type };
+  if (type === "hito") {
+    return {
+      ...base,
+      doneCriteria: val("bi-doneCriteria"),
+      targetDate: val("bi-targetDate"),
+      status: val("bi-status") || "pending",
+    };
+  }
+  if (type === "tasa") {
+    return {
+      ...base,
+      meta: val("bi-meta"),
+      real: val("bi-real"),
+      period: val("bi-period") || "mes",
+      qualityNote: val("bi-qualityNote"),
+    };
+  }
+  return {
+    ...base,
+    hypothesis: val("bi-hypothesis"),
+    progressSignal: val("bi-progressSignal"),
+    weekTest: val("bi-weekTest"),
+    betStatus: val("bi-betStatus") || "stalled",
+  };
+}
+
 export function handleRouteChange(state) {
   const views = {
+    "#tablero": document.getElementById("view-tablero"),
     "#themes": document.getElementById("view-themes"),
     "#epics": document.getElementById("view-epics"),
     "#backlog": document.getElementById("view-backlog"),
@@ -4064,7 +4414,7 @@ export function handleRouteChange(state) {
     "#handbook": document.getElementById("view-handbook"),
     "#settings": document.getElementById("view-settings"),
   };
-  let hash = window.location.hash || "#backlog";
+  let hash = window.location.hash || "#tablero";
   if (hash === "#mytasks" || hash === "#activity") {
     hash = "#by-person";
     if (typeof window !== "undefined" && window.history?.replaceState) {
@@ -4143,6 +4493,9 @@ export function handleRouteChange(state) {
     }
 
     switch (hash) {
+      case "#tablero":
+        renderBoard(state);
+        break;
       case "#themes": // <-- AÑADIR ESTE BLOQUE
         renderThemes(state);
         break;
@@ -5000,6 +5353,104 @@ function handleAppClick(e) {
         if (typeof appActions !== "undefined" && appActions.toggleBacklogEpic) {
           appActions.toggleBacklogEpic(epicId);
         }
+        return;
+      }
+      case "toggle-board-frente": {
+        const frenteId = actionTarget.dataset.frenteId;
+        if (frenteId && appActions?.toggleBoardFrente) {
+          appActions.toggleBoardFrente(frenteId);
+        }
+        return;
+      }
+      case "seed-board-example":
+        if (appActions?.seedBoardExample) appActions.seedBoardExample();
+        return;
+      case "add-board-item": {
+        const epicId = actionTarget.dataset.epicId;
+        if (epicId) showItemModal(null, epicId);
+        return;
+      }
+      case "edit-board-item": {
+        const itemId = actionTarget.dataset.itemId;
+        const item = (appState.tasks || []).find((t) => t.id === itemId);
+        if (item) showItemModal(item);
+        return;
+      }
+      case "delete-board-item": {
+        const itemId = actionTarget.dataset.itemId;
+        if (itemId && appActions?.deleteBoardItem) appActions.deleteBoardItem(itemId);
+        return;
+      }
+      case "add-board-frente": {
+        const themeId = actionTarget.dataset.themeId;
+        if (!themeId) return;
+        showModal({
+          title: "Nuevo frente",
+          input: true,
+          inputPlaceholder: "Nombre del frente",
+          okText: "Crear",
+          callback: (title) =>
+            typeof title === "string" &&
+            title.trim() &&
+            appActions.addBoardFrente({ title, themeId }),
+        });
+        return;
+      }
+      case "add-board-carril": {
+        const programs = appState.programs || [];
+        const programOptions = programs
+          .map((p) => `<option value="${p.id}">${boardEscape(p.title)}</option>`)
+          .join("");
+        showModal({
+          title: "Nuevo carril",
+          htmlContent: `
+            <div class="text-left space-y-3">
+              <label class="block text-sm font-medium text-slate-700">Nombre
+                <input id="bc-title" type="text" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" placeholder="Ej. Blue Hackers"></label>
+              <label class="block text-sm font-medium text-slate-700">Dueño
+                <input id="bc-owner" type="text" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" placeholder="Ej. Ana Fer"></label>
+              ${
+                programs.length
+                  ? `<label class="block text-sm font-medium text-slate-700">Programa
+                <select id="bc-program" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm">${programOptions}</select></label>`
+                  : ""
+              }
+            </div>`,
+          okText: "Crear",
+          callback: (ok) => {
+            if (ok === false) return;
+            const title = document.getElementById("bc-title")?.value?.trim();
+            if (!title) return;
+            appActions.addBoardCarril({
+              title,
+              owner: document.getElementById("bc-owner")?.value?.trim() || null,
+              parentId: document.getElementById("bc-program")?.value || null,
+            });
+          },
+        });
+        return;
+      }
+      case "add-board-program": {
+        showModal({
+          title: "Nuevo programa",
+          htmlContent: `
+            <div class="text-left space-y-3">
+              <label class="block text-sm font-medium text-slate-700">Nombre
+                <input id="bp-title" type="text" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" placeholder="Ej. Q3 2026 — Astrolab"></label>
+              <label class="block text-sm font-medium text-slate-700">Descripción
+                <input id="bp-desc" type="text" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm"></label>
+            </div>`,
+          okText: "Crear",
+          callback: (ok) => {
+            if (ok === false) return;
+            const title = document.getElementById("bp-title")?.value?.trim();
+            if (!title) return;
+            appActions.addBoardProgram({
+              title,
+              description: document.getElementById("bp-desc")?.value?.trim() || "",
+            });
+          },
+        });
         return;
       }
       case "plan-sprint": {

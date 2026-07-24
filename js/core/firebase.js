@@ -35,8 +35,10 @@ export function getRtdb() {
   return rtdbInstance;
 }
 
-// “Namespace” de datos compartidos (un solo appId)
-const appId = "sprintify-shared-project";
+// “Namespace” de datos. La transformación a Tablero Astrolab usa un namespace
+// PROPIO y aislado, para no leer ni ensuciar los datos del Sprintify legado
+// (que sigue en "sprintify-shared-project" en la rama main).
+const appId = "astrolab-tablero-v1";
 
 export const listsCollection = collection(db, `artifacts/${appId}/public/data/taskLists`);
 export const tasksCollection = collection(db, `artifacts/${appId}/public/data/tasks`);
@@ -44,3 +46,12 @@ export const epicsCollection = collection(db, `artifacts/${appId}/public/data/ep
 export const profilesCollection = collection(db, `artifacts/${appId}/public/data/profiles`);
 export const handbookCollection = collection(db, `artifacts/${appId}/public/data/handbook`);
 export const themesCollection = collection(db, `artifacts/${appId}/public/data/themes`);
+
+// --- Tablero Astrolab ---
+// Capa superior (flexible: período u objetivo). Los Carriles (=themes) apuntan aquí vía parentId.
+export const programsCollection = collection(db, `artifacts/${appId}/public/data/programs`);
+// Corte semanal ("estado del lunes") por frente. Habilita historia.
+export const weeklySnapshotsCollection = collection(
+  db,
+  `artifacts/${appId}/public/data/weeklySnapshots`
+);

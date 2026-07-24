@@ -8760,6 +8760,31 @@
           <div class="nav-group">
             <button
               data-action="toggle-nav-group"
+              data-target="nav-group-tablero"
+              class="nav-group-button w-full flex justify-between items-center"
+              aria-controls="nav-group-tablero"
+              aria-expanded="true"
+              data-default-open="true"
+            >
+              <h3 class="text-sm font-semibold uppercase text-white/50 tracking-wider">
+                Astrolab
+              </h3>
+              <i data-lucide="chevron-down" class="chevron-icon text-white/50"></i>
+            </button>
+            <div
+              id="nav-group-tablero"
+              class="nav-group-content mt-2 space-y-1"
+              aria-hidden="false"
+            >
+              <a href="#tablero" class="sidebar-link"
+                ><i data-lucide="layout-dashboard"></i><span>Tablero</span></a
+              >
+            </div>
+          </div>
+
+          <div class="nav-group" style="display:none">
+            <button
+              data-action="toggle-nav-group"
               data-target="nav-group-operation"
               class="nav-group-button w-full flex justify-between items-center"
               aria-controls="nav-group-operation"
@@ -8789,7 +8814,7 @@
             </div>
           </div>
 
-          <div class="nav-group">
+          <div class="nav-group" style="display:none">
             <button
               data-action="toggle-nav-group"
               data-target="nav-group-planning"
@@ -8821,7 +8846,7 @@
             </div>
           </div>
 
-          <div class="nav-group">
+          <div class="nav-group" style="display:none">
             <button
               data-action="toggle-nav-group"
               data-target="nav-group-tracking"
@@ -9021,6 +9046,10 @@
           </div>
         </header>
         <div id="sprint-insights" class="hidden mb-4"></div>
+
+        <section id="view-tablero" class="hidden">
+          <div id="board-container" class="space-y-6"></div>
+        </section>
 
         <section id="view-backlog" class="hidden">
           <div id="backlog-controls" class="mb-4">

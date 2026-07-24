@@ -9,6 +9,7 @@ import {
   themesCollection,
   profilesCollection,
   handbookCollection,
+  programsCollection,
 } from "./firebase.js";
 import { handleAuth, login, logout, getCalendarAccessToken } from "../integrations/auth.js";
 import * as ui from "../ui/ui.js";
@@ -44,6 +45,8 @@ const state = {
   taskLists: [],
   epics: [],
   themes: [],
+  programs: [], // Tablero Astrolab: capa superior (período u objetivo)
+  boardCollapsedFrentes: new Set(), // Frentes colapsados en la vista Tablero
   allUsers: [],
   onlineUsers: [],
   backlogId: null,
@@ -227,6 +230,15 @@ const actions = {
       state.collapsedColumns.delete(columnId);
     } else {
       state.collapsedColumns.add(columnId);
+    }
+    requestRender();
+  },
+
+  toggleBoardFrente(frenteId) {
+    if (state.boardCollapsedFrentes.has(frenteId)) {
+      state.boardCollapsedFrentes.delete(frenteId);
+    } else {
+      state.boardCollapsedFrentes.add(frenteId);
     }
     requestRender();
   },
@@ -985,6 +997,274 @@ const actions = {
     });
   },
 
+  // --- Tablero Astrolab: CRUD de estructura e ítems ---
+  addBoardProgram(data) {
+    const title = (data?.title ?? "").trim();
+    if (!title) return;
+    addDoc(programsCollection, {
+      title,
+      description: data.description ?? "",
+      createdAt: serverTimestamp(),
+      createdBy: state.user?.email ?? null,
+    }).catch((e) => console.error("addBoardProgram:", e));
+  },
+
+  addBoardCarril(data) {
+    const title = (data?.title ?? "").trim();
+    if (!title) return;
+    addDoc(themesCollection, {
+      title,
+      owner: data.owner ?? null,
+      parentId: data.parentId || null,
+      createdAt: serverTimestamp(),
+      createdBy: state.user?.email ?? null,
+    }).catch((e) => console.error("addBoardCarril:", e));
+  },
+
+  addBoardFrente(data) {
+    const title = (data?.title ?? "").trim();
+    if (!title || !data?.themeId) return;
+    addDoc(epicsCollection, {
+      title,
+      themeId: data.themeId,
+      status: "En curso",
+      color: "#475569",
+      createdAt: serverTimestamp(),
+      createdBy: state.user?.email ?? null,
+    }).catch((e) => console.error("addBoardFrente:", e));
+  },
+
+  addBoardItem(epicId, data) {
+    if (!epicId || !data?.title) return;
+    addDoc(tasksCollection, {
+      epicId,
+      title: data.title,
+      measurementType: data.measurementType,
+      ...actions._itemTypeFields(data),
+      createdAt: serverTimestamp(),
+      lastMovedAt: serverTimestamp(),
+      createdBy: state.user?.email ?? null,
+    }).catch((e) => console.error("addBoardItem:", e));
+  },
+
+  updateBoardItem(itemId, data) {
+    if (!itemId || !data) return;
+    const patch = {
+      title: data.title,
+      measurementType: data.measurementType,
+      ...actions._itemTypeFields(data),
+      lastMovedAt: serverTimestamp(),
+    };
+    updateDoc(doc(tasksCollection, itemId), patch).catch((e) =>
+      console.error("updateBoardItem:", e)
+    );
+  },
+
+  // Normaliza los campos según el tipo (limpia los que no aplican).
+  _itemTypeFields(data) {
+    const toTs = (v) => (v ? Timestamp.fromDate(new Date(`${v}T00:00:00`)) : null);
+    if (data.measurementType === "hito") {
+      return {
+        doneCriteria: data.doneCriteria ?? "",
+        targetDate: toTs(data.targetDate),
+        status: data.status ?? "pending",
+      };
+    }
+    if (data.measurementType === "tasa") {
+      return {
+        meta: Number(data.meta) || 0,
+        real: Number(data.real) || 0,
+        period: data.period ?? "mes",
+        qualityNote: data.qualityNote ?? "",
+      };
+    }
+    if (data.measurementType === "apuesta") {
+      return {
+        hypothesis: data.hypothesis ?? "",
+        progressSignal: data.progressSignal ?? "",
+        weekTest: data.weekTest ?? "",
+        betStatus: data.betStatus ?? "stalled",
+        lastMovedAt: data.betStatus === "advanced" ? serverTimestamp() : null,
+      };
+    }
+    return {};
+  },
+
+  deleteBoardItem(itemId) {
+    if (!itemId) return;
+    ui.showModal({
+      title: "Confirmar eliminación",
+      text: "¿Borrar este ítem?",
+      okText: "Sí, borrar",
+      okClass: "bg-red-600",
+      callback: (ok) => ok && deleteDoc(doc(tasksCollection, itemId)).catch(console.error),
+    });
+  },
+
+  // --- Tablero Astrolab: sembrar ejemplo limpio (una vez) ---
+  async seedBoardExample() {
+    if (!assertUserOr(() => ui.showModal({ title: "Sesión requerida", text: "Inicia sesión." })))
+      return;
+    if (state.programs.length || state.themes.length) {
+      return ui.showModal({
+        title: "Ya hay datos",
+        text: "El tablero ya tiene contenido. El sembrado solo corre en un tablero vacío para no duplicar.",
+        okText: "Entendido",
+      });
+    }
+
+    const owner = state.user?.email ?? null;
+    const d = (str) => Timestamp.fromDate(new Date(`${str}T00:00:00`));
+
+    try {
+      // Capa superior
+      const programRef = await addDoc(programsCollection, {
+        title: "Q3 2026 — Astrolab",
+        description: "Tablero de proyectos y prioridades",
+        createdAt: serverTimestamp(),
+        createdBy: owner,
+      });
+
+      // Carriles (themes con parentId + owner)
+      const mkCarril = (title, ownerName) =>
+        addDoc(themesCollection, {
+          title,
+          parentId: programRef.id,
+          owner: ownerName,
+          createdAt: serverTimestamp(),
+          createdBy: owner,
+        });
+      const [blue, corp, ejec] = await Promise.all([
+        mkCarril("Blue Hackers", "Ana Fer"),
+        mkCarril("Corporativo", "Andrés"),
+        mkCarril("Ejecución", "Socio director"),
+      ]);
+
+      // Frentes (epics con themeId)
+      const mkFrente = (title, themeId) =>
+        addDoc(epicsCollection, {
+          title,
+          themeId,
+          status: "En curso",
+          color: "#475569",
+          createdAt: serverTimestamp(),
+          createdBy: owner,
+        });
+      const [fServicio, fDemanda, fOferta, fCuentas, fIconn] = await Promise.all([
+        mkFrente("Desarrollar el servicio", blue.id),
+        mkFrente("Generar demanda (leads)", blue.id),
+        mkFrente("Construir la oferta (AB System corp.)", corp.id),
+        mkFrente("Aterrizar cuentas", corp.id),
+        mkFrente("ICONN", ejec.id),
+      ]);
+
+      // Ítems (tasks con measurementType y campos por tipo)
+      const mkItem = (epicId, data) =>
+        addDoc(tasksCollection, {
+          epicId,
+          status: data.status ?? "needsAction",
+          createdAt: serverTimestamp(),
+          createdBy: owner,
+          ...data,
+        });
+
+      await Promise.all([
+        // 🎯 Hitos — Desarrollar el servicio
+        mkItem(fServicio.id, {
+          title: "Aterrizar metodología",
+          measurementType: "hito",
+          doneCriteria: "Documento de metodología aprobado",
+          targetDate: d("2026-07-18"),
+          status: "done",
+        }),
+        mkItem(fServicio.id, {
+          title: "Diseñar contenido y frameworks",
+          measurementType: "hito",
+          doneCriteria: "5 cartas descriptivas y su canvas",
+          targetDate: d("2026-08-05"),
+          status: "inprogress",
+        }),
+        mkItem(fServicio.id, {
+          title: "Producción de materiales y contenido",
+          measurementType: "hito",
+          doneCriteria: "Todo montado en Kajabi",
+          targetDate: d("2026-07-25"),
+          status: "pending",
+        }),
+        mkItem(fServicio.id, {
+          title: "Acoplar herramienta tecnológica",
+          measurementType: "hito",
+          doneCriteria: "Companion app creada",
+          targetDate: d("2026-07-10"),
+          status: "pending",
+        }),
+        // 📈 Tasas — Generar demanda
+        mkItem(fDemanda.id, {
+          title: "Leads generados",
+          measurementType: "tasa",
+          meta: 40,
+          real: 36,
+          period: "mes",
+          qualityNote: "calidad media, 3 con fit alto",
+        }),
+        mkItem(fDemanda.id, {
+          title: "Contenido publicado (RRSS)",
+          measurementType: "tasa",
+          meta: 30,
+          real: 8,
+          period: "mes",
+        }),
+        // 🎲 Apuesta — Construir la oferta
+        mkItem(fOferta.id, {
+          title: "AB System para corporativos",
+          measurementType: "apuesta",
+          hypothesis: "El rediseño de sistema operativo se vende a corporativos",
+          progressSignal: "Un corporativo pide una propuesta formal",
+          weekTest: "Entrevista con Ana Fer sobre el pitch",
+          betStatus: "stalled",
+          lastMovedAt: d("2026-07-05"),
+        }),
+        // 📈 Tasa — Aterrizar cuentas
+        mkItem(fCuentas.id, {
+          title: "Cuentas nuevas",
+          measurementType: "tasa",
+          meta: 3,
+          real: 2,
+          period: "Q",
+          qualityNote: "2 en conversación",
+        }),
+        // 🎯 Hitos — ICONN
+        mkItem(fIconn.id, {
+          title: "Kickoff con cliente",
+          measurementType: "hito",
+          doneCriteria: "Acta firmada + alcance acordado",
+          targetDate: d("2026-07-20"),
+          status: "done",
+        }),
+        mkItem(fIconn.id, {
+          title: "Sesión diseñada",
+          measurementType: "hito",
+          doneCriteria: "Guion aprobado internamente",
+          targetDate: d("2026-08-05"),
+          status: "inprogress",
+        }),
+      ]);
+
+      ui.showModal({
+        title: "¡Ejemplo sembrado!",
+        text: "Se creó el tablero de ejemplo de Astrolab. Ya puedes verlo.",
+        okText: "Ver tablero",
+      });
+    } catch (e) {
+      console.error("seedBoardExample:", e);
+      ui.showModal({
+        title: "Error al sembrar",
+        text: `No se pudo escribir. ${e?.message || ""} (Puede ser por reglas de Firestore.)`,
+        okText: "Cerrar",
+      });
+    }
+  },
+
   updateTriageConfig(newConfig) {
     if (!newConfig) return;
     const refDoc = doc(db, "triageQuestions", "default");
@@ -1076,6 +1356,10 @@ function loadData() {
     state.themes = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
     checkAllLoaded();
   });
+  const unsubPrograms = onSnapshot(query(programsCollection), (snapshot) => {
+    state.programs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+    requestRender();
+  });
   const unsubHandbook = onSnapshot(query(handbookCollection), (snapshot) => {
     state.handbookEntries = snapshot.docs.map((d) => ({
       id: d.id,
@@ -1104,6 +1388,7 @@ function loadData() {
     unsubLists,
     unsubEpics,
     unsubThemes,
+    unsubPrograms,
     unsubTasks
   );
 }
