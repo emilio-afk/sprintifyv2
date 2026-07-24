@@ -1110,6 +1110,15 @@ const actions = {
     }).catch((e) => console.error("addBoardFrente:", e));
   },
 
+  updateBoardFrente(frenteId, data) {
+    const title = (data?.title ?? "").trim();
+    if (!frenteId || !title) return;
+    updateDoc(doc(epicsCollection, frenteId), {
+      title,
+      programId: data.programId || null,
+    }).catch((e) => console.error("updateBoardFrente:", e));
+  },
+
   addBoardItem(epicId, data) {
     if (!epicId || !data?.title) return;
     addDoc(tasksCollection, {
@@ -1131,6 +1140,7 @@ const actions = {
       ...actions._itemTypeFields(data),
       lastMovedAt: serverTimestamp(),
     };
+    if (data.epicId) patch.epicId = data.epicId; // mover de frente
     updateDoc(doc(tasksCollection, itemId), patch).catch((e) =>
       console.error("updateBoardItem:", e)
     );

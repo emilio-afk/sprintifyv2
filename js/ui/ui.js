@@ -4168,6 +4168,9 @@ function renderBoardFrente(frente, items, collapsed) {
           </div>
           <i data-lucide="${collapsed ? "chevron-down" : "chevron-up"}" class="text-slate-400"></i>
         </button>
+        <button type="button" data-action="edit-board-frente" data-frente-id="${frente.id}" title="Editar frente / mover de programa" class="px-2 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-700 transition">
+          <i data-lucide="pencil" class="w-4 h-4"></i>
+        </button>
         <button type="button" data-action="delete-board-frente" data-frente-id="${frente.id}" title="Borrar frente" class="px-3 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-600 transition">
           <i data-lucide="trash-2" class="w-4 h-4"></i>
         </button>
@@ -4537,10 +4540,30 @@ function itemTypeFieldsHtml(item, currentType = "hito") {
     </div>`;
 }
 
+// Opciones de frente agrupadas por programa, para mover ítems.
+function boardFrenteOptions(selectedEpicId) {
+  const programs = appState.programs || [];
+  const epics = appState.epics || [];
+  const opt = (e) =>
+    `<option value="${e.id}" ${e.id === selectedEpicId ? "selected" : ""}>${boardEscape(e.title || "Frente")}</option>`;
+  const groups = programs.map((p) => {
+    const frentes = epics.filter((e) => e.programId === p.id);
+    if (!frentes.length) return "";
+    return `<optgroup label="${boardEscape(p.title || "Programa")}">${frentes.map(opt).join("")}</optgroup>`;
+  });
+  const programIds = new Set(programs.map((p) => p.id));
+  const orphans = epics.filter((e) => !e.programId || !programIds.has(e.programId));
+  if (orphans.length) {
+    groups.push(`<optgroup label="Sin programa">${orphans.map(opt).join("")}</optgroup>`);
+  }
+  return groups.join("");
+}
+
 export function showItemModal(existing, epicId) {
   const item = existing || {};
   const isEdit = Boolean(existing?.id);
   const currentType = item.measurementType || "hito";
+  const selectedEpicId = item.epicId || epicId || "";
 
   const typeSelector = BOARD_TYPE_OPTIONS.map(
     (o) => `
@@ -4561,6 +4584,10 @@ export function showItemModal(existing, epicId) {
       <p class="text-xs font-semibold uppercase text-slate-400 mb-2">2. Detalle</p>
       <label class="block text-sm font-medium text-slate-700 mb-3">Título
         <input id="bi-title" type="text" value="${boardEscape(item.title || "")}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" placeholder="Nombre del ítem"></label>
+      <label class="block text-sm font-medium text-slate-700 mb-3">Frente
+        <select id="bi-frente" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm">${boardFrenteOptions(
+          selectedEpicId
+        )}</select></label>
       <div id="bi-type-fields">${itemTypeFieldsHtml(item, currentType)}</div>
     </div>`;
 
@@ -4573,7 +4600,7 @@ export function showItemModal(existing, epicId) {
       const data = readItemModal();
       if (!data.title) return;
       if (isEdit) appActions.updateBoardItem(existing.id, data);
-      else appActions.addBoardItem(epicId, data);
+      else appActions.addBoardItem(data.epicId || epicId, data);
     },
   });
 
@@ -4601,7 +4628,8 @@ export function showItemModal(existing, epicId) {
 function readItemModal() {
   const val = (id) => document.getElementById(id)?.value?.trim() ?? "";
   const type = document.getElementById("bi-measurementType")?.value || "hito";
-  const base = { title: val("bi-title"), measurementType: type };
+  const epicId = document.getElementById("bi-frente")?.value || "";
+  const base = { title: val("bi-title"), measurementType: type, epicId };
   if (type === "hito") {
     return {
       ...base,
@@ -5745,6 +5773,43 @@ function handleAppClick(e) {
             typeof title === "string" &&
             title.trim() &&
             appActions.addBoardFrente({ title, programId }),
+        });
+        return;
+      }
+      case "edit-board-frente": {
+        const frenteId = actionTarget.dataset.frenteId;
+        const frente = (appState.epics || []).find((e) => e.id === frenteId);
+        if (!frente) return;
+        const programOptions = (appState.programs || [])
+          .map(
+            (p) =>
+              `<option value="${p.id}" ${p.id === frente.programId ? "selected" : ""}>${boardEscape(
+                p.title || "Programa"
+              )}</option>`
+          )
+          .join("");
+        showModal({
+          title: "Editar frente",
+          htmlContent: `
+            <div class="text-left space-y-3">
+              <label class="block text-sm font-medium text-slate-700">Nombre
+                <input id="bf-title" type="text" value="${boardEscape(frente.title || "")}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm"></label>
+              <label class="block text-sm font-medium text-slate-700">Programa
+                <select id="bf-program" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm">
+                  <option value="">— Sin programa —</option>
+                  ${programOptions}
+                </select></label>
+            </div>`,
+          okText: "Guardar",
+          callback: (ok) => {
+            if (ok === false) return;
+            const title = document.getElementById("bf-title")?.value?.trim();
+            if (!title) return;
+            appActions.updateBoardFrente(frenteId, {
+              title,
+              programId: document.getElementById("bf-program")?.value || null,
+            });
+          },
         });
         return;
       }
