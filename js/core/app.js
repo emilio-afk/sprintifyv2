@@ -1019,6 +1019,55 @@ const actions = {
     }).catch((e) => console.error("updateBoardProgram:", e));
   },
 
+  deleteBoardProgram(programId) {
+    const program = state.programs.find((p) => p.id === programId);
+    if (!program) return;
+    const frentes = state.epics.filter((e) => e.programId === programId);
+    const frenteIds = new Set(frentes.map((f) => f.id));
+    const items = state.tasks.filter((t) => frenteIds.has(t.epicId));
+    ui.showModal({
+      title: "Borrar programa",
+      text: `¿Borrar "${program.title}" con sus ${frentes.length} frente(s) y ${items.length} ítem(s)? No se puede deshacer.`,
+      okText: "Sí, borrar todo",
+      okClass: "bg-red-600",
+      callback: async (ok) => {
+        if (!ok) return;
+        try {
+          const batch = writeBatch(db);
+          items.forEach((t) => batch.delete(doc(tasksCollection, t.id)));
+          frentes.forEach((f) => batch.delete(doc(epicsCollection, f.id)));
+          batch.delete(doc(programsCollection, programId));
+          await batch.commit();
+        } catch (e) {
+          console.error("deleteBoardProgram:", e);
+        }
+      },
+    });
+  },
+
+  deleteBoardFrente(frenteId) {
+    const frente = state.epics.find((e) => e.id === frenteId);
+    if (!frente) return;
+    const items = state.tasks.filter((t) => t.epicId === frenteId);
+    ui.showModal({
+      title: "Borrar frente",
+      text: `¿Borrar "${frente.title}" con sus ${items.length} ítem(s)? No se puede deshacer.`,
+      okText: "Sí, borrar",
+      okClass: "bg-red-600",
+      callback: async (ok) => {
+        if (!ok) return;
+        try {
+          const batch = writeBatch(db);
+          items.forEach((t) => batch.delete(doc(tasksCollection, t.id)));
+          batch.delete(doc(epicsCollection, frenteId));
+          await batch.commit();
+        } catch (e) {
+          console.error("deleteBoardFrente:", e);
+        }
+      },
+    });
+  },
+
   addBoardFrente(data) {
     const title = (data?.title ?? "").trim();
     if (!title || !data?.programId) return;

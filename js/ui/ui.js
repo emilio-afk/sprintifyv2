@@ -4115,21 +4115,26 @@ function renderBoardFrente(frente, items, collapsed) {
       <button type="button" data-action="add-board-item" data-epic-id="${frente.id}" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700">+ Ítem</button>
     </div>`;
   return `
-    <div class="frente-card border border-gray-200 rounded-xl overflow-hidden bg-white">
-      <button
-        type="button"
-        data-action="toggle-board-frente"
-        data-frente-id="${frente.id}"
-        class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50"
-        aria-expanded="${!collapsed}"
-      >
-        <span class="text-lg">${FLAG_EMOJI[flag.color]}</span>
-        <div class="min-w-0 flex-1">
-          <p class="font-semibold text-slate-800 truncate">${boardEscape(frente.title || "Frente")}</p>
-          <p class="text-xs text-slate-500 truncate">${boardEscape(summary)}</p>
-        </div>
-        <i data-lucide="${collapsed ? "chevron-down" : "chevron-up"}" class="text-slate-400"></i>
-      </button>
+    <div class="frente-card group border border-gray-200 rounded-xl overflow-hidden bg-white">
+      <div class="flex items-center hover:bg-gray-50">
+        <button
+          type="button"
+          data-action="toggle-board-frente"
+          data-frente-id="${frente.id}"
+          class="flex-1 min-w-0 flex items-center gap-3 px-4 py-3 text-left"
+          aria-expanded="${!collapsed}"
+        >
+          <span class="text-lg">${FLAG_EMOJI[flag.color]}</span>
+          <div class="min-w-0 flex-1">
+            <p class="font-semibold text-slate-800 truncate">${boardEscape(frente.title || "Frente")}</p>
+            <p class="text-xs text-slate-500 truncate">${boardEscape(summary)}</p>
+          </div>
+          <i data-lucide="${collapsed ? "chevron-down" : "chevron-up"}" class="text-slate-400"></i>
+        </button>
+        <button type="button" data-action="delete-board-frente" data-frente-id="${frente.id}" title="Borrar frente" class="px-3 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-600 transition">
+          <i data-lucide="trash-2" class="w-4 h-4"></i>
+        </button>
+      </div>
       <div class="frente-detail ${collapsed ? "hidden" : ""} pb-2">${itemsHtml}${addItemBtn}</div>
     </div>`;
 }
@@ -4149,7 +4154,10 @@ function renderBoardProgram(program, frentes, tasksByEpic, collapsedSet) {
     ? `<span class="text-sm text-slate-500">· Dueño: ${boardEscape(program.owner)}</span>`
     : "";
   const editBtn = isReal
-    ? `<button type="button" data-action="edit-board-program" data-program-id="${program.id}" title="Editar programa" class="text-slate-400 hover:text-slate-700"><i data-lucide="pencil" class="w-4 h-4"></i></button>`
+    ? `<div class="flex items-center gap-2">
+         <button type="button" data-action="edit-board-program" data-program-id="${program.id}" title="Editar programa" class="text-slate-400 hover:text-slate-700"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+         <button type="button" data-action="delete-board-program" data-program-id="${program.id}" title="Borrar programa" class="text-slate-400 hover:text-red-600"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+       </div>`
     : "";
   const header = `
     <div class="mb-4 pb-2 border-b border-gray-200 flex items-start gap-3">
@@ -5364,6 +5372,16 @@ function handleAppClick(e) {
       case "delete-board-item": {
         const itemId = actionTarget.dataset.itemId;
         if (itemId && appActions?.deleteBoardItem) appActions.deleteBoardItem(itemId);
+        return;
+      }
+      case "delete-board-program": {
+        const programId = actionTarget.dataset.programId;
+        if (programId && appActions?.deleteBoardProgram) appActions.deleteBoardProgram(programId);
+        return;
+      }
+      case "delete-board-frente": {
+        const frenteId = actionTarget.dataset.frenteId;
+        if (frenteId && appActions?.deleteBoardFrente) appActions.deleteBoardFrente(frenteId);
         return;
       }
       case "add-board-frente": {
