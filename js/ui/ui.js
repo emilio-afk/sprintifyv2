@@ -4180,7 +4180,7 @@ export function renderBoard(state) {
     epicsByTheme.get(key).push(e);
   });
 
-  if (themes.length === 0 && epics.length === 0) {
+  if (themes.length === 0 && epics.length === 0 && programs.length === 0) {
     container.innerHTML = `
       ${buildEmptyState({
         icon: "layout-dashboard",
@@ -4200,15 +4200,19 @@ export function renderBoard(state) {
 
   // Agrupar carriles por programa (capa superior). Los sin parentId van a "Sin programa".
   const programGroups = [
+    // Los programas se muestran siempre (aunque no tengan carriles todavía).
     ...programs.map((p) => ({ program: p, carriles: themes.filter((t) => t.parentId === p.id) })),
+    // El bucket "Sin programa" solo aparece si tiene carriles sueltos.
     { program: null, carriles: themes.filter((t) => !t.parentId || !programs.some((p) => p.id === t.parentId)) },
-  ].filter((g) => g.carriles.length > 0);
+  ].filter((g) => g.program || g.carriles.length > 0);
 
   const html = programGroups
     .map((g) => {
-      const carrilesHtml = g.carriles
-        .map((c) => renderBoardCarril(c, epicsByTheme.get(c.id) || [], tasksByEpic, collapsedSet))
-        .join("");
+      const carrilesHtml = g.carriles.length
+        ? g.carriles
+            .map((c) => renderBoardCarril(c, epicsByTheme.get(c.id) || [], tasksByEpic, collapsedSet))
+            .join("")
+        : `<p class="text-sm text-slate-400 italic">Sin carriles. Usa "+ Carril" para agregar uno a este programa.</p>`;
       const header = g.program
         ? `<div class="mb-4 pb-2 border-b border-gray-200">
              <h2 class="text-2xl font-bold text-slate-900">${boardEscape(g.program.title || "Programa")}</h2>
