@@ -4070,6 +4070,23 @@ function boardEscape(str) {
   );
 }
 
+// Lunes de la semana actual (medianoche).
+function boardWeekMonday(date = new Date()) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  d.setDate(d.getDate() - day + (day === 0 ? -6 : 1));
+  return d;
+}
+
+// ¿El timestamp cae en la semana actual (lunes en adelante)?
+function boardUpdatedThisWeek(ts) {
+  if (!ts) return false;
+  const d = typeof ts?.toDate === "function" ? ts.toDate() : new Date(ts);
+  if (Number.isNaN(d.getTime())) return false;
+  return d >= boardWeekMonday();
+}
+
 function renderBoardItem(item) {
   const meta = BOARD_TYPE_META[item.measurementType] || {
     emoji: "⚪",
@@ -4114,6 +4131,18 @@ function renderBoardFrente(frente, items, collapsed) {
   const addItemBtn = `<div class="px-4 pb-2 pt-1">
       <button type="button" data-action="add-board-item" data-epic-id="${frente.id}" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700">+ Ítem</button>
     </div>`;
+
+  // Banda del lunes: estado semanal capturado (o el resumen automático como respaldo).
+  const bandText = frente.weeklyStatus ? boardEscape(frente.weeklyStatus) : boardEscape(summary);
+  const updated = boardUpdatedThisWeek(frente.lastWeeklyUpdate);
+  const staleBadge = updated
+    ? ""
+    : `<span class="ml-2 inline-flex items-center gap-1 text-[11px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5" title="No se ha actualizado esta semana">Sin actualizar</span>`;
+  const noteHtml = frente.note
+    ? `<div class="mx-4 mb-2 mt-1 text-xs text-slate-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+         <span class="font-semibold">Nota / decisión:</span> ${boardEscape(frente.note)}</div>`
+    : "";
+
   return `
     <div class="frente-card group border border-gray-200 rounded-xl overflow-hidden bg-white">
       <div class="flex items-center hover:bg-gray-50">
@@ -4126,15 +4155,19 @@ function renderBoardFrente(frente, items, collapsed) {
         >
           <span class="text-lg">${FLAG_EMOJI[flag.color]}</span>
           <div class="min-w-0 flex-1">
-            <p class="font-semibold text-slate-800 truncate">${boardEscape(frente.title || "Frente")}</p>
-            <p class="text-xs text-slate-500 truncate">${boardEscape(summary)}</p>
+            <p class="font-semibold text-slate-800 truncate">${boardEscape(frente.title || "Frente")}${staleBadge}</p>
+            <p class="text-xs text-slate-500 truncate">${bandText}</p>
           </div>
           <i data-lucide="${collapsed ? "chevron-down" : "chevron-up"}" class="text-slate-400"></i>
+        </button>
+        <button type="button" data-action="weekly-update" data-frente-id="${frente.id}" title="Actualizar estado de la semana" class="px-2 text-slate-400 hover:text-emerald-600 transition">
+          <i data-lucide="calendar-check" class="w-4 h-4"></i>
         </button>
         <button type="button" data-action="delete-board-frente" data-frente-id="${frente.id}" title="Borrar frente" class="px-3 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-600 transition">
           <i data-lucide="trash-2" class="w-4 h-4"></i>
         </button>
       </div>
+      ${noteHtml}
       <div class="frente-detail ${collapsed ? "hidden" : ""} pb-2">${itemsHtml}${addItemBtn}</div>
     </div>`;
 }
@@ -4236,6 +4269,72 @@ export function renderBoard(state) {
     .join("");
 
   container.innerHTML = toolbar + html;
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function formatWeekLabel(weekOf) {
+  // weekOf = "YYYY-MM-DD" (lunes). Muestra "Semana del D de MMM".
+  const d = new Date(`${weekOf}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return weekOf;
+  const meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  const end = new Date(d);
+  end.setDate(d.getDate() + 6);
+  return `Semana del ${d.getDate()} ${meses[d.getMonth()]} – ${end.getDate()} ${meses[end.getMonth()]}`;
+}
+
+export function renderHistory(state) {
+  const container = document.getElementById("history-container");
+  if (!container) return;
+  const snaps = state.weeklySnapshots || [];
+
+  if (snaps.length === 0) {
+    container.innerHTML = buildEmptyState({
+      icon: "history",
+      title: "Sin historia todavía",
+      hint: 'Cada vez que actualices un frente con el botón de la semana (📅) se guarda un corte aquí.',
+    });
+    if (window.lucide) window.lucide.createIcons();
+    return;
+  }
+
+  // Agrupar por semana (desc)
+  const byWeek = new Map();
+  snaps.forEach((s) => {
+    if (!byWeek.has(s.weekOf)) byWeek.set(s.weekOf, []);
+    byWeek.get(s.weekOf).push(s);
+  });
+  const weeks = [...byWeek.keys()].sort().reverse();
+
+  const html = weeks
+    .map((week) => {
+      const rows = byWeek
+        .get(week)
+        .sort((a, b) => (a.frenteTitle || "").localeCompare(b.frenteTitle || ""))
+        .map(
+          (s) => `
+          <div class="flex items-start gap-3 py-2 border-b border-gray-100 last:border-0">
+            <span class="text-base leading-6" title="${boardEscape(s.flag?.reason || "")}">${
+              FLAG_EMOJI[s.flag?.color] || "⚪"
+            }</span>
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-semibold text-slate-800">${boardEscape(s.frenteTitle || "Frente")}</p>
+              <p class="text-xs text-slate-600">${boardEscape(s.weeklyStatus || s.summary || "—")}</p>
+              ${s.note ? `<p class="text-xs text-amber-700 mt-1"><span class="font-semibold">Nota:</span> ${boardEscape(s.note)}</p>` : ""}
+            </div>
+          </div>`
+        )
+        .join("");
+      return `
+        <section class="border border-gray-200 rounded-xl bg-white overflow-hidden">
+          <header class="px-4 py-2 bg-gray-50 border-b border-gray-200">
+            <h3 class="font-bold text-slate-800">${formatWeekLabel(week)}</h3>
+          </header>
+          <div class="px-4 py-1">${rows}</div>
+        </section>`;
+    })
+    .join("");
+
+  container.innerHTML = html;
   if (window.lucide) window.lucide.createIcons();
 }
 
@@ -4392,9 +4491,34 @@ function readItemModal() {
   };
 }
 
+export function showWeeklyUpdateModal(frente) {
+  if (!frente) return;
+  const v = (x) => boardEscape(x ?? "");
+  showModal({
+    title: `Actualizar semana · ${frente.title || "Frente"}`,
+    htmlContent: `
+      <div class="text-left space-y-3">
+        <p class="text-xs text-slate-500">El "estado del lunes": una línea que resume dónde está este frente esta semana.</p>
+        <label class="block text-sm font-medium text-slate-700">Estado (banda del lunes)
+          <input id="wu-status" type="text" value="${v(frente.weeklyStatus)}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" placeholder="Ej. 2 de 5 hitos · leads al 90%"></label>
+        <label class="block text-sm font-medium text-slate-700">Nota / decisión
+          <input id="wu-note" type="text" value="${v(frente.note)}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" placeholder="Si va en amarillo/rojo: el pedido concreto (necesito X de Y para el viernes)"></label>
+      </div>`,
+    okText: "Guardar corte",
+    callback: (ok) => {
+      if (ok === false) return;
+      appActions.saveWeeklyUpdate(frente.id, {
+        weeklyStatus: document.getElementById("wu-status")?.value ?? "",
+        note: document.getElementById("wu-note")?.value ?? "",
+      });
+    },
+  });
+}
+
 export function handleRouteChange(state) {
   const views = {
     "#tablero": document.getElementById("view-tablero"),
+    "#historia": document.getElementById("view-historia"),
     "#themes": document.getElementById("view-themes"),
     "#epics": document.getElementById("view-epics"),
     "#backlog": document.getElementById("view-backlog"),
@@ -4489,6 +4613,9 @@ export function handleRouteChange(state) {
     switch (hash) {
       case "#tablero":
         renderBoard(state);
+        break;
+      case "#historia":
+        renderHistory(state);
         break;
       case "#themes": // <-- AÑADIR ESTE BLOQUE
         renderThemes(state);
@@ -5383,6 +5510,12 @@ function handleAppClick(e) {
       case "delete-board-frente": {
         const frenteId = actionTarget.dataset.frenteId;
         if (frenteId && appActions?.deleteBoardFrente) appActions.deleteBoardFrente(frenteId);
+        return;
+      }
+      case "weekly-update": {
+        const frenteId = actionTarget.dataset.frenteId;
+        const frente = (appState.epics || []).find((e) => e.id === frenteId);
+        if (frente) showWeeklyUpdateModal(frente);
         return;
       }
       case "add-board-frente": {

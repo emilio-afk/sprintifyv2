@@ -37,6 +37,20 @@ import {
   serverTimestamp as rtdbServerTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 import * as calendar from "../integrations/calendar.js";
+import { rollUpFrenteFlag, summarizeFrente } from "./flags.js";
+import { weeklySnapshotsCollection } from "./firebase.js";
+
+// Lunes de la semana que contiene `date`, como "YYYY-MM-DD".
+function getWeekOf(date = new Date()) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  d.setDate(d.getDate() - day + (day === 0 ? -6 : 1));
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
 
 // ------------------ Estado global ------------------
 const state = {
@@ -46,6 +60,7 @@ const state = {
   epics: [],
   themes: [],
   programs: [], // Tablero Astrolab: capa superior (período u objetivo)
+  weeklySnapshots: [], // Cortes semanales ("estado del lunes")
   boardCollapsedFrentes: new Set(), // Frentes colapsados en la vista Tablero
   allUsers: [],
   onlineUsers: [],
@@ -1137,6 +1152,44 @@ const actions = {
     return {};
   },
 
+  // Actualización semanal ("estado del lunes"): guarda estado+nota en el frente
+  // y congela un corte en weeklySnapshots para la semana en curso.
+  async saveWeeklyUpdate(frenteId, data) {
+    const frente = state.epics.find((e) => e.id === frenteId);
+    if (!frente) return;
+    const weekOf = getWeekOf(new Date());
+    const items = state.tasks.filter((t) => t.epicId === frenteId);
+    const flag = rollUpFrenteFlag(items, new Date());
+    const summary = summarizeFrente(items);
+    const weeklyStatus = (data?.weeklyStatus ?? "").trim();
+    const note = (data?.note ?? "").trim();
+
+    try {
+      // 1) Estado vivo en el frente
+      await updateDoc(doc(epicsCollection, frenteId), {
+        weeklyStatus,
+        note,
+        lastWeeklyUpdate: serverTimestamp(),
+      });
+      // 2) Corte congelado de la semana (id determinista → re-guardar sobrescribe)
+      await setDoc(doc(weeklySnapshotsCollection, `${weekOf}_${frenteId}`), {
+        weekOf,
+        frenteId,
+        frenteTitle: frente.title || "",
+        programId: frente.programId || null,
+        flag: { color: flag.color, reason: flag.reason },
+        summary,
+        weeklyStatus,
+        note,
+        createdAt: serverTimestamp(),
+        createdBy: state.user?.email ?? null,
+      });
+    } catch (e) {
+      console.error("saveWeeklyUpdate:", e);
+      ui.showModal({ title: "Error", text: "No se pudo guardar la actualización.", okText: "Cerrar" });
+    }
+  },
+
   deleteBoardItem(itemId) {
     if (!itemId) return;
     ui.showModal({
@@ -1399,6 +1452,10 @@ function loadData() {
     state.programs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
     requestRender();
   });
+  const unsubSnapshots = onSnapshot(query(weeklySnapshotsCollection), (snapshot) => {
+    state.weeklySnapshots = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+    requestRender();
+  });
   const unsubHandbook = onSnapshot(query(handbookCollection), (snapshot) => {
     state.handbookEntries = snapshot.docs.map((d) => ({
       id: d.id,
@@ -1428,6 +1485,7 @@ function loadData() {
     unsubEpics,
     unsubThemes,
     unsubPrograms,
+    unsubSnapshots,
     unsubTasks
   );
 }
