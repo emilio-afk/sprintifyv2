@@ -4106,6 +4106,13 @@ function renderBoardItem(item) {
       { advanced: "avanzó", stalled: "se estancó", died: "murió" }[item.betStatus] || "—";
     detail = `${boardEscape(item.hypothesis || "")} · ${st}`;
   }
+  const updated = boardUpdatedThisWeek(item.lastWeeklyUpdate);
+  const staleBadge = updated
+    ? ""
+    : `<span class="ml-2 inline-flex items-center text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded px-1 py-0.5" title="Sin actualizar esta semana">Sin actualizar</span>`;
+  const noteHtml = item.note
+    ? `<p class="text-xs text-amber-700 mt-0.5"><span class="font-semibold">Nota:</span> ${boardEscape(item.note)}</p>`
+    : "";
   return `
     <li class="board-item group flex items-start gap-3 py-2 border-b border-gray-100 last:border-0">
       <span title="${meta.label}" class="text-base leading-6">${meta.emoji}</span>
@@ -4113,8 +4120,12 @@ function renderBoardItem(item) {
       <button type="button" data-action="edit-board-item" data-item-id="${item.id}" class="min-w-0 flex-1 text-left hover:opacity-70">
         <p class="text-sm font-medium text-slate-800 truncate">${boardEscape(
           item.title || "(sin título)"
-        )}</p>
+        )}${staleBadge}</p>
         ${detail ? `<p class="text-xs text-slate-500 truncate">${detail}</p>` : ""}
+        ${noteHtml}
+      </button>
+      <button type="button" data-action="weekly-update" data-item-id="${item.id}" title="Actualizar semana" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-emerald-600 transition">
+        <i data-lucide="calendar-check" class="w-4 h-4"></i>
       </button>
       <button type="button" data-action="delete-board-item" data-item-id="${item.id}" title="Borrar" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-600 transition">
         <i data-lucide="trash-2" class="w-4 h-4"></i>
@@ -4132,15 +4143,12 @@ function renderBoardFrente(frente, items, collapsed) {
       <button type="button" data-action="add-board-item" data-epic-id="${frente.id}" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700">+ Ítem</button>
     </div>`;
 
-  // Banda del lunes: estado semanal capturado (o el resumen automático como respaldo).
-  const bandText = frente.weeklyStatus ? boardEscape(frente.weeklyStatus) : boardEscape(summary);
-  const updated = boardUpdatedThisWeek(frente.lastWeeklyUpdate);
-  const staleBadge = updated
-    ? ""
-    : `<span class="ml-2 inline-flex items-center gap-1 text-[11px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5" title="No se ha actualizado esta semana">Sin actualizar</span>`;
-  const noteHtml = frente.note
-    ? `<div class="mx-4 mb-2 mt-1 text-xs text-slate-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-         <span class="font-semibold">Nota / decisión:</span> ${boardEscape(frente.note)}</div>`
+  // Banda del lunes: resumen automático de los ítems.
+  const bandText = boardEscape(summary);
+  // Guardarraíl agregado: cuántos ítems no se actualizaron esta semana.
+  const staleCount = items.filter((it) => !boardUpdatedThisWeek(it.lastWeeklyUpdate)).length;
+  const staleBadge = staleCount
+    ? `<span class="ml-2 inline-flex items-center gap-1 text-[11px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5" title="Ítems sin actualizar esta semana">${staleCount} sin actualizar</span>`
     : "";
 
   return `
@@ -4160,14 +4168,10 @@ function renderBoardFrente(frente, items, collapsed) {
           </div>
           <i data-lucide="${collapsed ? "chevron-down" : "chevron-up"}" class="text-slate-400"></i>
         </button>
-        <button type="button" data-action="weekly-update" data-frente-id="${frente.id}" title="Actualizar estado de la semana" class="px-2 text-slate-400 hover:text-emerald-600 transition">
-          <i data-lucide="calendar-check" class="w-4 h-4"></i>
-        </button>
         <button type="button" data-action="delete-board-frente" data-frente-id="${frente.id}" title="Borrar frente" class="px-3 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-600 transition">
           <i data-lucide="trash-2" class="w-4 h-4"></i>
         </button>
       </div>
-      ${noteHtml}
       <div class="frente-detail ${collapsed ? "hidden" : ""} pb-2">${itemsHtml}${addItemBtn}</div>
     </div>`;
 }
@@ -4297,39 +4301,62 @@ export function renderHistory(state) {
     return;
   }
 
-  // Agrupar por semana (desc)
+  // Agrupar por semana (desc) → dentro, por frente.
   const byWeek = new Map();
   snaps.forEach((s) => {
     if (!byWeek.has(s.weekOf)) byWeek.set(s.weekOf, []);
     byWeek.get(s.weekOf).push(s);
   });
   const weeks = [...byWeek.keys()].sort().reverse();
+  const typeEmoji = { hito: "🎯", tasa: "📈", apuesta: "🎲" };
 
   const html = weeks
     .map((week) => {
-      const rows = byWeek
-        .get(week)
-        .sort((a, b) => (a.frenteTitle || "").localeCompare(b.frenteTitle || ""))
-        .map(
-          (s) => `
-          <div class="flex items-start gap-3 py-2 border-b border-gray-100 last:border-0">
-            <span class="text-base leading-6" title="${boardEscape(s.flag?.reason || "")}">${
-              FLAG_EMOJI[s.flag?.color] || "⚪"
-            }</span>
-            <div class="min-w-0 flex-1">
-              <p class="text-sm font-semibold text-slate-800">${boardEscape(s.frenteTitle || "Frente")}</p>
-              <p class="text-xs text-slate-600">${boardEscape(s.weeklyStatus || s.summary || "—")}</p>
-              ${s.note ? `<p class="text-xs text-amber-700 mt-1"><span class="font-semibold">Nota:</span> ${boardEscape(s.note)}</p>` : ""}
-            </div>
-          </div>`
-        )
+      // Agrupar los cortes de la semana por frente.
+      const byFrente = new Map();
+      byWeek.get(week).forEach((s) => {
+        const key = s.frenteTitle || "Sin frente";
+        if (!byFrente.has(key)) byFrente.set(key, []);
+        byFrente.get(key).push(s);
+      });
+
+      const frentesHtml = [...byFrente.keys()]
+        .sort((a, b) => a.localeCompare(b))
+        .map((frenteTitle) => {
+          const rows = byFrente
+            .get(frenteTitle)
+            .sort((a, b) => (a.itemTitle || "").localeCompare(b.itemTitle || ""))
+            .map(
+              (s) => `
+              <div class="flex items-start gap-3 py-2 border-b border-gray-100 last:border-0">
+                <span class="text-base leading-6" title="${boardEscape(s.measurementType || "")}">${
+                  typeEmoji[s.measurementType] || "⚪"
+                }</span>
+                <span class="text-base leading-6" title="${boardEscape(s.flag?.reason || "")}">${
+                  FLAG_EMOJI[s.flag?.color] || "⚪"
+                }</span>
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-medium text-slate-800">${boardEscape(s.itemTitle || "Ítem")}
+                    <span class="text-xs font-normal text-slate-500">· ${boardEscape(s.valueSummary || "—")}</span></p>
+                  ${s.note ? `<p class="text-xs text-amber-700 mt-0.5"><span class="font-semibold">Nota:</span> ${boardEscape(s.note)}</p>` : ""}
+                </div>
+              </div>`
+            )
+            .join("");
+          return `
+            <div class="px-4 py-2">
+              <p class="text-xs font-semibold uppercase text-slate-400 mb-1">${boardEscape(frenteTitle)}</p>
+              ${rows}
+            </div>`;
+        })
         .join("");
+
       return `
         <section class="border border-gray-200 rounded-xl bg-white overflow-hidden">
           <header class="px-4 py-2 bg-gray-50 border-b border-gray-200">
             <h3 class="font-bold text-slate-800">${formatWeekLabel(week)}</h3>
           </header>
-          <div class="px-4 py-1">${rows}</div>
+          ${frentesHtml}
         </section>`;
     })
     .join("");
@@ -4491,26 +4518,53 @@ function readItemModal() {
   };
 }
 
-export function showWeeklyUpdateModal(frente) {
-  if (!frente) return;
+export function showWeeklyUpdateModal(item) {
+  if (!item) return;
   const v = (x) => boardEscape(x ?? "");
+  const sel = (a, b) => (a === b ? "selected" : "");
+  const type = item.measurementType;
+
+  let measurementField = "";
+  if (type === "hito") {
+    measurementField = `
+      <label class="block text-sm font-medium text-slate-700">Estado
+        <select id="wu-value" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm">
+          <option value="pending" ${sel(item.status, "pending")}>Pendiente</option>
+          <option value="inprogress" ${sel(item.status, "inprogress")}>En curso</option>
+          <option value="done" ${sel(item.status, "done")}>Hecho</option>
+        </select></label>`;
+  } else if (type === "tasa") {
+    measurementField = `
+      <label class="block text-sm font-medium text-slate-700">Real (de ${v(item.meta ?? "—")})
+        <input id="wu-value" type="number" value="${v(item.real)}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm"></label>`;
+  } else if (type === "apuesta") {
+    measurementField = `
+      <label class="block text-sm font-medium text-slate-700">¿Se movió esta semana?
+        <select id="wu-value" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm">
+          <option value="advanced" ${sel(item.betStatus, "advanced")}>Avanzó</option>
+          <option value="stalled" ${sel(item.betStatus, "stalled")}>Se estancó</option>
+          <option value="died" ${sel(item.betStatus, "died")}>Murió</option>
+        </select></label>`;
+  }
+
   showModal({
-    title: `Actualizar semana · ${frente.title || "Frente"}`,
+    title: `Actualizar semana · ${item.title || "Ítem"}`,
     htmlContent: `
       <div class="text-left space-y-3">
-        <p class="text-xs text-slate-500">El "estado del lunes": una línea que resume dónde está este frente esta semana.</p>
-        <label class="block text-sm font-medium text-slate-700">Estado (banda del lunes)
-          <input id="wu-status" type="text" value="${v(frente.weeklyStatus)}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" placeholder="Ej. 2 de 5 hitos · leads al 90%"></label>
+        <p class="text-xs text-slate-500">Captura rápida del "estado del lunes" para este ítem.</p>
+        ${measurementField}
         <label class="block text-sm font-medium text-slate-700">Nota / decisión
-          <input id="wu-note" type="text" value="${v(frente.note)}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" placeholder="Si va en amarillo/rojo: el pedido concreto (necesito X de Y para el viernes)"></label>
+          <input id="wu-note" type="text" value="${v(item.note)}" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" placeholder="Si va en amarillo/naranja/rojo: el pedido concreto"></label>
       </div>`,
     okText: "Guardar corte",
     callback: (ok) => {
       if (ok === false) return;
-      appActions.saveWeeklyUpdate(frente.id, {
-        weeklyStatus: document.getElementById("wu-status")?.value ?? "",
-        note: document.getElementById("wu-note")?.value ?? "",
-      });
+      const raw = document.getElementById("wu-value")?.value;
+      const data = { note: document.getElementById("wu-note")?.value ?? "" };
+      if (type === "hito") data.status = raw;
+      else if (type === "tasa") data.real = raw;
+      else if (type === "apuesta") data.betStatus = raw;
+      appActions.saveWeeklyUpdate(item.id, data);
     },
   });
 }
@@ -5513,9 +5567,9 @@ function handleAppClick(e) {
         return;
       }
       case "weekly-update": {
-        const frenteId = actionTarget.dataset.frenteId;
-        const frente = (appState.epics || []).find((e) => e.id === frenteId);
-        if (frente) showWeeklyUpdateModal(frente);
+        const itemId = actionTarget.dataset.itemId;
+        const item = (appState.tasks || []).find((t) => t.id === itemId);
+        if (item) showWeeklyUpdateModal(item);
         return;
       }
       case "add-board-frente": {

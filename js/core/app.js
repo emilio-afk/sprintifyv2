@@ -37,8 +37,22 @@ import {
   serverTimestamp as rtdbServerTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 import * as calendar from "../integrations/calendar.js";
-import { rollUpFrenteFlag, summarizeFrente } from "./flags.js";
+import { computeItemFlag } from "./flags.js";
 import { weeklySnapshotsCollection } from "./firebase.js";
+
+// Resumen legible del valor de un ítem según su tipo (para el corte semanal).
+function itemValueSummary(item) {
+  if (item.measurementType === "hito") {
+    return { pending: "Pendiente", inprogress: "En curso", done: "Hecho" }[item.status] || "—";
+  }
+  if (item.measurementType === "tasa") {
+    return `${item.real ?? "—"} / ${item.meta ?? "—"}`;
+  }
+  if (item.measurementType === "apuesta") {
+    return { advanced: "Avanzó", stalled: "Se estancó", died: "Murió" }[item.betStatus] || "—";
+  }
+  return "";
+}
 
 // Lunes de la semana que contiene `date`, como "YYYY-MM-DD".
 function getWeekOf(date = new Date()) {
@@ -1152,34 +1166,41 @@ const actions = {
     return {};
   },
 
-  // Actualización semanal ("estado del lunes"): guarda estado+nota en el frente
-  // y congela un corte en weeklySnapshots para la semana en curso.
-  async saveWeeklyUpdate(frenteId, data) {
-    const frente = state.epics.find((e) => e.id === frenteId);
-    if (!frente) return;
+  // Actualización semanal ("estado del lunes") A NIVEL ÍTEM: actualiza la
+  // medición del ítem + nota, y congela un corte por ítem para la semana.
+  async saveWeeklyUpdate(itemId, data) {
+    const item = state.tasks.find((t) => t.id === itemId);
+    if (!item) return;
+    const frente = state.epics.find((e) => e.id === item.epicId);
     const weekOf = getWeekOf(new Date());
-    const items = state.tasks.filter((t) => t.epicId === frenteId);
-    const flag = rollUpFrenteFlag(items, new Date());
-    const summary = summarizeFrente(items);
-    const weeklyStatus = (data?.weeklyStatus ?? "").trim();
     const note = (data?.note ?? "").trim();
 
+    // Aplica la medición según el tipo (solo el campo que se captura cada semana).
+    const patch = { note, lastWeeklyUpdate: serverTimestamp() };
+    if (item.measurementType === "hito" && data.status !== undefined) {
+      patch.status = data.status;
+    } else if (item.measurementType === "tasa" && data.real !== undefined) {
+      patch.real = Number(data.real) || 0;
+    } else if (item.measurementType === "apuesta" && data.betStatus !== undefined) {
+      patch.betStatus = data.betStatus;
+      if (data.betStatus === "advanced") patch.lastMovedAt = serverTimestamp();
+    }
+
+    const merged = { ...item, ...patch };
+    const flag = computeItemFlag(merged, new Date());
+
     try {
-      // 1) Estado vivo en el frente
-      await updateDoc(doc(epicsCollection, frenteId), {
-        weeklyStatus,
-        note,
-        lastWeeklyUpdate: serverTimestamp(),
-      });
-      // 2) Corte congelado de la semana (id determinista → re-guardar sobrescribe)
-      await setDoc(doc(weeklySnapshotsCollection, `${weekOf}_${frenteId}`), {
+      await updateDoc(doc(tasksCollection, itemId), patch);
+      await setDoc(doc(weeklySnapshotsCollection, `${weekOf}_${itemId}`), {
         weekOf,
-        frenteId,
-        frenteTitle: frente.title || "",
-        programId: frente.programId || null,
+        itemId,
+        itemTitle: item.title || "",
+        measurementType: item.measurementType || null,
+        frenteId: item.epicId || null,
+        frenteTitle: frente?.title || "",
+        programId: frente?.programId || null,
         flag: { color: flag.color, reason: flag.reason },
-        summary,
-        weeklyStatus,
+        valueSummary: itemValueSummary(merged),
         note,
         createdAt: serverTimestamp(),
         createdBy: state.user?.email ?? null,
